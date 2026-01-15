@@ -11,3 +11,8 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+
+pulse:
+  jwt:
+    secret: this-is-a-32-byte-test-secret-!!
+    bcrypt-strength: 4

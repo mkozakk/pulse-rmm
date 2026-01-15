@@ -1,0 +1,33 @@
+package dev.pulsermm.identity.config;
+
+import dev.pulsermm.identity.application.JwtProperties;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.SecurityFilterChain;
+
+@Configuration
+@EnableConfigurationProperties(JwtProperties.class)
+public class SecurityConfig {
+
+    @Bean
+    SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        return http
+            .csrf(csrf -> csrf.disable())
+            .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .authorizeHttpRequests(auth -> auth
+                .requestMatchers("/actuator/**").permitAll()
+                .anyRequest().authenticated()
+            )
+            .build();
+    }
+
+    @Bean
+    PasswordEncoder passwordEncoder(JwtProperties props) {
+        return new BCryptPasswordEncoder(props.bcryptStrength());
+    }
+}

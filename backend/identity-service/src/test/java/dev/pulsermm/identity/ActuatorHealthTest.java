@@ -16,7 +16,8 @@ import static org.assertj.core.api.Assertions.assertThat;
     "spring.datasource.driver-class-name=org.h2.Driver",
     "spring.jpa.database-platform=org.hibernate.dialect.H2Dialect",
     "spring.jpa.hibernate.ddl-auto=create-drop",
-    "spring.flyway.enabled=false"
+    "spring.flyway.enabled=false",
+    "pulse.jwt.secret=test-secret-that-is-at-least-32-bytes!"
 })
 class ActuatorHealthTest {
 
