@@ -9,4 +9,5 @@ spring:
       hibernate.jdbc.time_zone: UTC
     open-in-view: false
   flyway:
-    enabled: false
+    enabled: true
+    locations: classpath:db/migration
