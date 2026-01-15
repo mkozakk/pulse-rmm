@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: bufbuild/buf-setup-action@v1
+        with:
+          version: '1.39.0'
+
+      - name: Generate proto stubs
+        run: cd proto && buf generate
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Build backend
+        run: cd backend && mvn verify -DskipTests
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Tidy Go module
+        run: cd agent && go mod tidy
+
+      - name: Build agent
+        run: cd agent && go build ./...
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install webapp dependencies
+        run: cd webapp && npm install
+
+      - name: Build webapp
+        run: cd webapp && npm run build
