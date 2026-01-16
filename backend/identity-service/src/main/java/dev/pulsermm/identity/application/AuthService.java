@@ -12,6 +12,7 @@ import jakarta.annotation.PostConstruct;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.http.ResponseCookie;
 
 import java.util.List;
 import java.util.Optional;
@@ -72,5 +73,24 @@ public class AuthService {
             new TokenResponse(accessToken, props.accessTtl().toSeconds()),
             refreshTokenService.buildCookie(raw)
         );
+    }
+
+    @Transactional
+    public LoginResult refresh(String rawToken) {
+        RotatedRefreshToken rotated = refreshTokenService.rotate(rawToken);
+        String accessToken = jwtService.issue(rotated.user().getId(), List.of("ADMIN"));
+        return new LoginResult(
+            new TokenResponse(accessToken, props.accessTtl().toSeconds()),
+            refreshTokenService.buildCookie(rotated.rawToken())
+        );
+    }
+
+    @Transactional
+    public void logout(String rawToken) {
+        refreshTokenService.revoke(rawToken);
+    }
+
+    public ResponseCookie clearRefreshCookie() {
+        return refreshTokenService.clearCookie();
     }
 }

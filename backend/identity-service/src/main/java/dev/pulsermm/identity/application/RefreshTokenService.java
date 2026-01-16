@@ -3,8 +3,10 @@ package dev.pulsermm.identity.application;
 import dev.pulsermm.identity.domain.RefreshToken;
 import dev.pulsermm.identity.domain.User;
 import dev.pulsermm.identity.infrastructure.RefreshTokenRepository;
+import dev.pulsermm.identity.api.errors.InvalidRefreshTokenException;
 import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -18,10 +20,13 @@ public class RefreshTokenService {
 
     private final RefreshTokenRepository refreshTokenRepository;
     private final JwtProperties props;
+    private final RefreshTokenRevocationService refreshTokenRevocationService;
 
-    public RefreshTokenService(RefreshTokenRepository refreshTokenRepository, JwtProperties props) {
+    public RefreshTokenService(RefreshTokenRepository refreshTokenRepository, JwtProperties props,
+                               RefreshTokenRevocationService refreshTokenRevocationService) {
         this.refreshTokenRepository = refreshTokenRepository;
         this.props = props;
+        this.refreshTokenRevocationService = refreshTokenRevocationService;
     }
 
     public String generate() {
@@ -52,6 +57,38 @@ public class RefreshTokenService {
         return refreshTokenRepository.save(token);
     }
 
+    @Transactional
+    public RotatedRefreshToken rotate(String rawToken) {
+        RefreshToken token = refreshTokenRepository.findByTokenHash(hash(rawToken))
+            .orElseThrow(InvalidRefreshTokenException::new);
+
+        if (token.getRevokedAt() != null) {
+            refreshTokenRevocationService.revokeAllByUserId(token.getUser().getId());
+            throw new InvalidRefreshTokenException();
+        }
+
+        if (!token.getExpiresAt().isAfter(OffsetDateTime.now())) {
+            throw new InvalidRefreshTokenException();
+        }
+
+        token.setRevokedAt(OffsetDateTime.now());
+        refreshTokenRepository.save(token);
+
+        String nextRaw = generate();
+        issue(token.getUser(), nextRaw);
+        return new RotatedRefreshToken(token.getUser(), nextRaw);
+    }
+
+    @Transactional
+    public void revoke(String rawToken) {
+        refreshTokenRepository.findByTokenHash(hash(rawToken)).ifPresent(token -> {
+            if (token.getRevokedAt() == null) {
+                token.setRevokedAt(OffsetDateTime.now());
+                refreshTokenRepository.save(token);
+            }
+        });
+    }
+
     public ResponseCookie buildCookie(String rawToken) {
         ResponseCookie.ResponseCookieBuilder builder = ResponseCookie.from("pulse_refresh", rawToken)
             .httpOnly(true)
@@ -62,5 +99,15 @@ public class RefreshTokenService {
             builder = builder.secure(true);
         }
         return builder.build();
+    }
+
+    public ResponseCookie clearCookie() {
+        return ResponseCookie.from("pulse_refresh", "")
+            .httpOnly(true)
+            .path("/api/auth")
+            .sameSite("Lax")
+            .secure(props.cookieSecure())
+            .maxAge(0)
+            .build();
     }
 }

@@ -21,6 +21,9 @@ class RefreshTokenServiceTest {
     @Mock
     RefreshTokenRepository refreshTokenRepository;
 
+    @Mock
+    RefreshTokenRevocationService refreshTokenRevocationService;
+
     RefreshTokenService service;
 
     @BeforeEach
@@ -28,7 +31,7 @@ class RefreshTokenServiceTest {
         JwtProperties props = new JwtProperties(
             "test-secret", "pulse-rmm", Duration.ofMinutes(15), Duration.ofDays(7), false, 4
         );
-        service = new RefreshTokenService(refreshTokenRepository, props);
+        service = new RefreshTokenService(refreshTokenRepository, props, refreshTokenRevocationService);
     }
 
     @Test
@@ -71,7 +74,7 @@ class RefreshTokenServiceTest {
         JwtProperties secureProps = new JwtProperties(
             "test-secret", "pulse-rmm", Duration.ofMinutes(15), Duration.ofDays(7), true, 4
         );
-        RefreshTokenService secureService = new RefreshTokenService(refreshTokenRepository, secureProps);
+        RefreshTokenService secureService = new RefreshTokenService(refreshTokenRepository, secureProps, refreshTokenRevocationService);
         assertThat(secureService.buildCookie("some-token").toString()).contains("Secure");
     }
 }

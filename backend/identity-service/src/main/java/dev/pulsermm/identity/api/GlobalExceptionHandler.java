@@ -3,6 +3,7 @@ package dev.pulsermm.identity.api;
 import dev.pulsermm.identity.api.dto.ErrorResponse;
 import dev.pulsermm.identity.api.errors.BootstrapClosedException;
 import dev.pulsermm.identity.api.errors.InvalidCredentialsException;
+import dev.pulsermm.identity.api.errors.InvalidRefreshTokenException;
 import dev.pulsermm.identity.api.errors.UsernameTakenException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -62,5 +63,11 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.UNAUTHORIZED)
     public ErrorResponse handleInvalidCredentials(InvalidCredentialsException ex) {
         return new ErrorResponse("invalid_credentials", ex.getMessage());
+    }
+
+    @ExceptionHandler(InvalidRefreshTokenException.class)
+    @ResponseStatus(HttpStatus.UNAUTHORIZED)
+    public ErrorResponse handleInvalidRefreshToken(InvalidRefreshTokenException ex) {
+        return new ErrorResponse("invalid_refresh_token", ex.getMessage());
     }
 }
