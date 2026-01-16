@@ -1,4 +1,74 @@
+x-app-deps: &app-deps
+  postgres:
+    condition: service_healthy
+  redis:
+    condition: service_healthy
+  rabbitmq:
+    condition: service_healthy
+  minio:
+    condition: service_healthy
+
 services:
+  api-gateway:
+    build:
+      context: ..
+      dockerfile: backend/api-gateway/Dockerfile
+    environment:
+      PULSE_COOKIE_SECURE: "false"
+    ports:
+      - "8080:8080"
+    depends_on:
+      identity-service:
+        condition: service_started
+      enrolment-service:
+        condition: service_started
+      metric-service:
+        condition: service_started
+      <<: *app-deps
+
+  identity-service:
+    build:
+      context: ..
+      dockerfile: backend/identity-service/Dockerfile
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      JWT_SECRET: ${JWT_SECRET}
+    ports:
+      - "8083:8083"
+    depends_on:
+      <<: *app-deps
+
+  enrolment-service:
+    build:
+      context: ..
+      dockerfile: backend/enrolment-service/Dockerfile
+    ports:
+      - "8081:8081"
+    depends_on:
+      <<: *app-deps
+
+  metric-service:
+    build:
+      context: ..
+      dockerfile: backend/metric-service/Dockerfile
+    ports:
+      - "8082:8082"
+    depends_on:
+      <<: *app-deps
+
+  webapp:
+    build:
+      context: ..
+      dockerfile: webapp/Dockerfile
+    ports:
+      - "5173:5173"
+    depends_on:
+      api-gateway:
+        condition: service_started
+
   postgres:
     image: timescale/timescaledb:latest-pg16
     environment:
