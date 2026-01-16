@@ -5,10 +5,10 @@ import dev.pulsermm.identity.api.dto.RegisterResponse;
 import dev.pulsermm.identity.api.errors.BootstrapClosedException;
 import dev.pulsermm.identity.domain.User;
 import dev.pulsermm.identity.infrastructure.UserRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -23,14 +23,15 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class AuthServiceRegisterTest {
 
-    @Mock
-    UserRepository userRepository;
+    @Mock UserRepository userRepository;
+    @Mock PasswordEncoder passwordEncoder;
 
-    @Mock
-    PasswordEncoder passwordEncoder;
-
-    @InjectMocks
     AuthService authService;
+
+    @BeforeEach
+    void setUp() {
+        authService = new AuthService(userRepository, passwordEncoder, null, null, null);
+    }
 
     @Test
     void registerHashesPasswordAndSavesUser() {

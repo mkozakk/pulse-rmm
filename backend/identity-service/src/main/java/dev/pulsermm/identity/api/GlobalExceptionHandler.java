@@ -2,6 +2,7 @@ package dev.pulsermm.identity.api;
 
 import dev.pulsermm.identity.api.dto.ErrorResponse;
 import dev.pulsermm.identity.api.errors.BootstrapClosedException;
+import dev.pulsermm.identity.api.errors.InvalidCredentialsException;
 import dev.pulsermm.identity.api.errors.UsernameTakenException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -55,5 +56,11 @@ public class GlobalExceptionHandler {
     public ErrorResponse handleDataIntegrity(DataIntegrityViolationException ex) {
         // Unique constraint hit during concurrent bootstrap inserts
         return new ErrorResponse("registration_disabled", "Registration is disabled");
+    }
+
+    @ExceptionHandler(InvalidCredentialsException.class)
+    @ResponseStatus(HttpStatus.UNAUTHORIZED)
+    public ErrorResponse handleInvalidCredentials(InvalidCredentialsException ex) {
+        return new ErrorResponse("invalid_credentials", ex.getMessage());
     }
 }
