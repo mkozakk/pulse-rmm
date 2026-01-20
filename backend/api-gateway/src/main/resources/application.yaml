@@ -15,6 +15,14 @@ spring:
             uri: http://localhost:8083
             predicates:
               - Path=/api/auth/**
+          - id: enrolment
+            uri: http://localhost:8081
+            predicates:
+              - Path=/api/enrolment/**
+          - id: endpoints
+            uri: http://localhost:8081
+            predicates:
+              - Path=/api/endpoints/**
       globalcors:
         cors-configurations:
           '[/**]':
