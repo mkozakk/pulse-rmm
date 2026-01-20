@@ -1,3 +1,7 @@
+grpc:
+  server:
+    port: 9091
+
 spring:
   datasource:
     url: jdbc:tc:postgresql:16:///pulse
