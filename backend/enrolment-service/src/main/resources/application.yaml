@@ -22,10 +22,13 @@ spring:
       ddl-auto: validate
     properties:
       hibernate.jdbc.time_zone: UTC
+      hibernate.default_schema: enrolment
     open-in-view: false
   flyway:
     enabled: true
     locations: classpath:db/migration
+    schemas: enrolment
+    default-schema: enrolment
 
 pulse:
   jwt:
