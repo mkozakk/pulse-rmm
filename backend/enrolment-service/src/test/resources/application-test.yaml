@@ -9,6 +9,11 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
+    properties:
+      hibernate.default_schema: enrolment
+  flyway:
+    schemas: enrolment
+    default-schema: enrolment
 
 pulse:
   jwt:
