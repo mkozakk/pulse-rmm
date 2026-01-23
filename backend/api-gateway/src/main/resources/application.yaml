@@ -40,6 +40,10 @@ spring:
             allow-credentials: true
             max-age: 3600
 
+pulse:
+  jwt:
+    secret: ${JWT_SECRET:change-me-in-production-set-JWT_SECRET-env-var}
+
 management:
   endpoints:
     web:

@@ -18,6 +18,7 @@ services:
       IDENTITY_SERVICE_URL: http://identity-service:8083
       ENROLMENT_SERVICE_URL: http://enrolment-service:8081
       METRIC_SERVICE_URL: http://metric-service:8082
+      JWT_SECRET: ${JWT_SECRET}
     ports:
       - "8080:8080"
       - "9090:9090"
