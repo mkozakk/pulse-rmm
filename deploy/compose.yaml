@@ -20,6 +20,7 @@ services:
       METRIC_SERVICE_URL: http://metric-service:8082
     ports:
       - "8080:8080"
+      - "9090:9090"
     depends_on:
       identity-service:
         condition: service_started

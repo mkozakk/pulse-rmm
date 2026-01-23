@@ -8,9 +8,11 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/pulsermm/pulse-rmm/agent/internal/control"
 	"github.com/pulsermm/pulse-rmm/agent/internal/enrolment"
 	"github.com/pulsermm/pulse-rmm/agent/internal/metrics"
 	"github.com/pulsermm/pulse-rmm/agent/internal/store"
+	pb "github.com/pulsermm/pulse-rmm/agent/gen/pulse/v1"
 )
 
 func main() {
@@ -28,6 +30,11 @@ func main() {
 	metricAddr := os.Getenv("PULSE_METRIC_SERVER")
 	if metricAddr == "" {
 		metricAddr = "localhost:9092"
+	}
+
+	gatewayAddr := os.Getenv("PULSE_GATEWAY")
+	if gatewayAddr == "" {
+		gatewayAddr = "localhost:9090"
 	}
 
 	privKey, err := store.LoadOrGenerateKey()
@@ -64,9 +71,38 @@ func main() {
 
 	go runHeartbeat(ctx, metricClient, endpointID)
 	go runMetrics(ctx, metricClient, endpointID)
+	go runControlStream(ctx, endpointID, gatewayAddr)
 
 	<-ctx.Done()
 	fmt.Println("Shutting down")
+}
+
+func runControlStream(ctx context.Context, endpointID, gatewayAddr string) {
+	inCh := make(chan *pb.GatewayCommand, 16)
+	outCh := make(chan *pb.AgentEvent, 16)
+
+	// drain inCh — Phase 4 wires in the shell dispatcher
+	go func() {
+		for range inCh {
+		}
+	}()
+
+	backoff := 250 * time.Millisecond
+	for ctx.Err() == nil {
+		err := control.Run(ctx, endpointID, gatewayAddr, "0.5.0", inCh, outCh)
+		if ctx.Err() != nil {
+			return
+		}
+		fmt.Fprintf(os.Stderr, "control stream ended: %v; retrying in %s\n", err, backoff)
+		select {
+		case <-time.After(backoff):
+		case <-ctx.Done():
+			return
+		}
+		if backoff < 30*time.Second {
+			backoff *= 2
+		}
+	}
 }
 
 func runHeartbeat(ctx context.Context, client *metrics.Client, endpointID string) {
