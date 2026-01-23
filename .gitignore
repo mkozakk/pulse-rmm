@@ -8,6 +8,8 @@ agent/bin/
 agent/*.exe
 agent/*.test
 agent/vendor/
+agent/pulse-agent
+agent/cookies.txt
 *.pprof
 
 **/target/
@@ -54,6 +56,8 @@ desktop.ini
 
 deploy/data/
 deploy/volumes/
+
+backend/cookies.txt
 
 *.log
 *.tmp

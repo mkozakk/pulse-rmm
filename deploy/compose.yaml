@@ -17,6 +17,7 @@ services:
       PULSE_COOKIE_SECURE: "false"
       IDENTITY_SERVICE_URL: http://identity-service:8083
       ENROLMENT_SERVICE_URL: http://enrolment-service:8081
+      METRIC_SERVICE_URL: http://metric-service:8082
     ports:
       - "8080:8080"
     depends_on:
@@ -47,8 +48,15 @@ services:
     build:
       context: ..
       dockerfile: backend/enrolment-service/Dockerfile
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      JWT_SECRET: ${JWT_SECRET}
     ports:
       - "8081:8081"
+      - "9091:9091"
     depends_on:
       <<: *app-deps
 
@@ -56,8 +64,15 @@ services:
     build:
       context: ..
       dockerfile: backend/metric-service/Dockerfile
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      JWT_SECRET: ${JWT_SECRET}
     ports:
       - "8082:8082"
+      - "9092:9092"
     depends_on:
       <<: *app-deps
 

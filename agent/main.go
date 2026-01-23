@@ -52,7 +52,7 @@ func main() {
 		fmt.Printf("Already enrolled: %s\n", endpointID)
 	}
 
-	metricClient, err := metrics.NewClient(metricAddr)
+	metricClient, err := metrics.NewClient(grpcAddr, metricAddr)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
