@@ -1,5 +1,6 @@
 package dev.pulsermm.gateway.infrastructure.grpc;
 
+import dev.pulsermm.gateway.infrastructure.ws.ShellSessionRouter;
 import dev.pulsermm.proto.v1.AgentEvent;
 import dev.pulsermm.proto.v1.GatewayCommand;
 import io.grpc.Status;
@@ -14,11 +15,14 @@ class AgentEventObserver implements StreamObserver<AgentEvent> {
     private static final Logger logger = LoggerFactory.getLogger(AgentEventObserver.class);
 
     private final AgentRegistry registry;
+    private final ShellSessionRouter router;
     private final StreamObserver<GatewayCommand> outbound;
     private UUID endpointId;
 
-    AgentEventObserver(AgentRegistry registry, StreamObserver<GatewayCommand> outbound) {
+    AgentEventObserver(AgentRegistry registry, ShellSessionRouter router,
+                       StreamObserver<GatewayCommand> outbound) {
         this.registry = registry;
+        this.router = router;
         this.outbound = outbound;
     }
 
@@ -37,8 +41,13 @@ class AgentEventObserver implements StreamObserver<AgentEvent> {
             return;
         }
 
-        // Phase 4+ will route shell events here
-        logger.debug("Agent event from {}: {}", endpointId, event.getPayloadCase());
+        if (event.hasShellOutput()) {
+            router.route(event.getShellOutput().getSessionId(), event);
+        } else if (event.hasShellExited()) {
+            router.route(event.getShellExited().getSessionId(), event);
+        } else {
+            logger.debug("Agent event from {}: {}", endpointId, event.getPayloadCase());
+        }
     }
 
     @Override

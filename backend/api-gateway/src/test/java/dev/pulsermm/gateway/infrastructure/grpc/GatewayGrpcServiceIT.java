@@ -1,5 +1,6 @@
 package dev.pulsermm.gateway.infrastructure.grpc;
 
+import dev.pulsermm.gateway.infrastructure.ws.ShellSessionRouter;
 import dev.pulsermm.proto.v1.AgentEvent;
 import dev.pulsermm.proto.v1.AgentHello;
 import dev.pulsermm.proto.v1.GatewayCommand;
@@ -34,11 +35,12 @@ class GatewayGrpcServiceIT {
     @BeforeEach
     void setup() throws IOException {
         registry = new AgentRegistry();
+        ShellSessionRouter router = new ShellSessionRouter();
         String serverName = InProcessServerBuilder.generateName();
 
         server = InProcessServerBuilder.forName(serverName)
             .directExecutor()
-            .addService(new GatewayGrpcService(registry))
+            .addService(new GatewayGrpcService(registry, router))
             .build()
             .start();
 
