@@ -7,7 +7,11 @@ import dev.pulsermm.identity.api.dto.TokenResponse;
 import dev.pulsermm.identity.api.errors.BootstrapClosedException;
 import dev.pulsermm.identity.api.errors.InvalidCredentialsException;
 import dev.pulsermm.identity.domain.User;
+import dev.pulsermm.identity.domain.UserRole;
+import dev.pulsermm.identity.domain.UserRoleId;
+import dev.pulsermm.identity.infrastructure.RoleRepository;
 import dev.pulsermm.identity.infrastructure.UserRepository;
+import dev.pulsermm.identity.infrastructure.UserRoleRepository;
 import jakarta.annotation.PostConstruct;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -21,6 +25,8 @@ import java.util.Optional;
 public class AuthService {
 
     private final UserRepository userRepository;
+    private final RoleRepository roleRepository;
+    private final UserRoleRepository userRoleRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final RefreshTokenService refreshTokenService;
@@ -28,10 +34,13 @@ public class AuthService {
 
     private String dummyHash;
 
-    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder,
+    public AuthService(UserRepository userRepository, RoleRepository roleRepository,
+                       UserRoleRepository userRoleRepository, PasswordEncoder passwordEncoder,
                        JwtService jwtService, RefreshTokenService refreshTokenService,
                        JwtProperties props) {
         this.userRepository = userRepository;
+        this.roleRepository = roleRepository;
+        this.userRoleRepository = userRoleRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.refreshTokenService = refreshTokenService;
@@ -51,6 +60,8 @@ public class AuthService {
         // count()==0 is not atomic; the username unique constraint catches concurrent inserts and GlobalExceptionHandler maps it to 409.
         String hash = passwordEncoder.encode(request.password());
         User user = userRepository.save(new User(request.username(), hash));
+        var adminRole = roleRepository.findByName("Admin").orElseThrow();
+        userRoleRepository.save(new UserRole(new UserRoleId(user.getId(), adminRole.getId())));
         return new RegisterResponse(user.getId(), user.getUsername());
     }
 

@@ -1,6 +1,7 @@
 package dev.pulsermm.identity.api;
 
 import dev.pulsermm.identity.infrastructure.UserRepository;
+import dev.pulsermm.identity.infrastructure.UserRoleRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -29,6 +30,9 @@ class RegisterIT {
 
     @Autowired
     UserRepository userRepository;
+
+    @Autowired
+    UserRoleRepository userRoleRepository;
 
     @BeforeEach
     void cleanDb() {
@@ -180,6 +184,14 @@ class RegisterIT {
         assertThat(response.getStatusCode().value()).isEqualTo(400);
         assertThat(response.getBody()).containsKeys("error", "message");
         assertThat(response.getBody().get("error")).isEqualTo("validation_failed");
+    }
+
+    @Test
+    void firstUserIsAssignedAdminRole() {
+        rest.postForEntity("/api/auth/register",
+            json(Map.of("username", "admin", "password", "validpassword12")), Map.class);
+        var user = userRepository.findByUsername("admin").orElseThrow();
+        assertThat(userRoleRepository.findAllByIdUserId(user.getId())).isNotEmpty();
     }
 
     @Test
