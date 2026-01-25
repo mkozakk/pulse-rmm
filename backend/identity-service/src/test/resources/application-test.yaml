@@ -16,6 +16,8 @@ spring:
     default-schema: identity
 
 pulse:
+  internal:
+    secret: test-internal-secret
   jwt:
     secret: this-is-a-32-byte-test-secret-!!
     bcrypt-strength: 4

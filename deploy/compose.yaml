@@ -19,6 +19,7 @@ services:
       ENROLMENT_SERVICE_URL: http://enrolment-service:8081
       METRIC_SERVICE_URL: http://metric-service:8082
       JWT_SECRET: ${JWT_SECRET}
+      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
     ports:
       - "8080:8080"
       - "9090:9090"
@@ -41,6 +42,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
       JWT_SECRET: ${JWT_SECRET}
+      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
     ports:
       - "8083:8083"
     depends_on:
