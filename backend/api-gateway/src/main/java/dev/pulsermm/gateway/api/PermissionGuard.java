@@ -12,7 +12,7 @@ public class PermissionGuard {
     // TODO sprint 6: replace with PermissionEvaluator + group-scoped check
     public boolean canOpenShell(Authentication auth) {
         List<String> roles = extractRoles(auth);
-        return roles.contains("admin") || roles.contains("senior_technician");
+        return roles.contains("ADMIN") || roles.contains("SENIOR_TECHNICIAN");
     }
 
     private List<String> extractRoles(Authentication auth) {
