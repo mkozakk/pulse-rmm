@@ -43,6 +43,9 @@ spring:
 pulse:
   jwt:
     secret: ${JWT_SECRET:change-me-in-production-set-JWT_SECRET-env-var}
+  identity:
+    url: ${IDENTITY_SERVICE_URL:http://identity-service:8083}
+    internal-secret: ${INTERNAL_API_SECRET:change-me-in-production-set-INTERNAL_API_SECRET-env-var}
 
 management:
   endpoints:

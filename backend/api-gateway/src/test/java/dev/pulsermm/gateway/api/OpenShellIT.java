@@ -1,6 +1,7 @@
 package dev.pulsermm.gateway.api;
 
 import dev.pulsermm.gateway.infrastructure.grpc.AgentRegistry;
+import dev.pulsermm.gateway.infrastructure.identity.IdentityClient;
 import dev.pulsermm.gateway.infrastructure.ws.ShellSessionRouter;
 import dev.pulsermm.proto.v1.AgentEvent;
 import dev.pulsermm.proto.v1.GatewayCommand;
@@ -13,6 +14,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.web.socket.handler.AbstractWebSocketHandler;
@@ -45,6 +47,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 })
 class OpenShellIT {
 
+    @MockBean
+    IdentityClient identityClient;
+
     @LocalServerPort
     int port;
 
@@ -64,6 +69,9 @@ class OpenShellIT {
     void setup() {
         endpointId = UUID.randomUUID();
         fakeAgent = new FakeAgentObserver();
+
+        org.mockito.Mockito.when(identityClient.getEndpointGroup(org.mockito.ArgumentMatchers.anyString()))
+            .thenReturn(java.util.Optional.empty());
     }
 
     @Test
@@ -79,7 +87,11 @@ class OpenShellIT {
 
     @Test
     void juniorTechnicianRejectsWithForbidden() {
-        String jwt = buildJwt(List.of("junior_technician"));
+        UUID userId = UUID.randomUUID();
+        String jwt = buildJwt(userId);
+        org.mockito.Mockito.when(identityClient.getPermissions(userId.toString()))
+            .thenReturn(List.of());
+
         StandardWebSocketClient client = new StandardWebSocketClient();
         TestWsHandler handler = new TestWsHandler();
 
@@ -91,7 +103,11 @@ class OpenShellIT {
 
     @Test
     void endpointOfflineClosesWithServerError() throws Exception {
-        String jwt = buildJwt(List.of("admin"));
+        UUID userId = UUID.randomUUID();
+        String jwt = buildJwt(userId);
+        org.mockito.Mockito.when(identityClient.getPermissions(userId.toString()))
+            .thenReturn(List.of(new ResolvedPermission("remote:shell", null)));
+
         StandardWebSocketClient client = new StandardWebSocketClient();
         TestWsHandler handler = new TestWsHandler();
 
@@ -105,9 +121,13 @@ class OpenShellIT {
 
     @Test
     void adminConnectsAndOpenShellDeliveredToAgent() throws Exception {
+        UUID userId = UUID.randomUUID();
+        String jwt = buildJwt(userId);
+        org.mockito.Mockito.when(identityClient.getPermissions(userId.toString()))
+            .thenReturn(List.of(new ResolvedPermission("remote:shell", null)));
+
         agentRegistry.register(endpointId, fakeAgent);
 
-        String jwt = buildJwt(List.of("admin"));
         StandardWebSocketClient client = new StandardWebSocketClient();
         TestWsHandler handler = new TestWsHandler();
 
@@ -124,9 +144,13 @@ class OpenShellIT {
 
     @Test
     void inputFrameDeliveredAsShellInput() throws Exception {
+        UUID userId = UUID.randomUUID();
+        String jwt = buildJwt(userId);
+        org.mockito.Mockito.when(identityClient.getPermissions(userId.toString()))
+            .thenReturn(List.of(new ResolvedPermission("remote:shell", null)));
+
         agentRegistry.register(endpointId, fakeAgent);
 
-        String jwt = buildJwt(List.of("admin"));
         StandardWebSocketClient client = new StandardWebSocketClient();
         TestWsHandler handler = new TestWsHandler();
 
@@ -154,9 +178,13 @@ class OpenShellIT {
 
     @Test
     void shellOutputFromAgentReachesWsClient() throws Exception {
+        UUID userId = UUID.randomUUID();
+        String jwt = buildJwt(userId);
+        org.mockito.Mockito.when(identityClient.getPermissions(userId.toString()))
+            .thenReturn(List.of(new ResolvedPermission("remote:shell", null)));
+
         agentRegistry.register(endpointId, fakeAgent);
 
-        String jwt = buildJwt(List.of("admin"));
         StandardWebSocketClient client = new StandardWebSocketClient();
         TestWsHandler handler = new TestWsHandler();
 
@@ -182,9 +210,13 @@ class OpenShellIT {
 
     @Test
     void wsCloseDeliversCloseShellToAgent() throws Exception {
+        UUID userId = UUID.randomUUID();
+        String jwt = buildJwt(userId);
+        org.mockito.Mockito.when(identityClient.getPermissions(userId.toString()))
+            .thenReturn(List.of(new ResolvedPermission("remote:shell", null)));
+
         agentRegistry.register(endpointId, fakeAgent);
 
-        String jwt = buildJwt(List.of("admin"));
         StandardWebSocketClient client = new StandardWebSocketClient();
         TestWsHandler handler = new TestWsHandler();
 
@@ -202,11 +234,10 @@ class OpenShellIT {
 
     // --- helpers ---
 
-    private String buildJwt(List<String> roles) {
+    private String buildJwt(UUID userId) {
         return Jwts.builder()
-            .subject("test-user")
+            .subject(userId.toString())
             .expiration(Date.from(Instant.now().plusSeconds(3600)))
-            .claim("roles", roles)
             .signWith(KEY)
             .compact();
     }
