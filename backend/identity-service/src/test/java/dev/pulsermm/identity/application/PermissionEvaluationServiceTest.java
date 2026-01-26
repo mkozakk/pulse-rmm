@@ -1,13 +1,16 @@
 package dev.pulsermm.identity.application;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.pulsermm.identity.api.dto.ResolvedPermission;
 import dev.pulsermm.identity.domain.*;
 import dev.pulsermm.identity.infrastructure.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Answers;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -25,13 +28,17 @@ class PermissionEvaluationServiceTest {
     @Mock RolePermissionRepository rolePermissionRepository;
     @Mock UserPermissionRepository userPermissionRepository;
     @Mock PermissionRepository permissionRepository;
+    @Mock(answer = Answers.RETURNS_DEEP_STUBS) StringRedisTemplate redisTemplate;
+
+    final ObjectMapper objectMapper = new ObjectMapper();
 
     PermissionEvaluationService service;
 
     @BeforeEach
     void setUp() {
         service = new PermissionEvaluationService(
-            userRoleRepository, rolePermissionRepository, userPermissionRepository, permissionRepository);
+            userRoleRepository, rolePermissionRepository, userPermissionRepository,
+            permissionRepository, redisTemplate, objectMapper);
     }
 
     @Test
