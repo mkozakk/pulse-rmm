@@ -33,6 +33,9 @@ spring:
 pulse:
   jwt:
     secret: ${JWT_SECRET:change-me-in-production}
+  identity:
+    url: ${IDENTITY_SERVICE_URL:http://localhost:8083}
+    internal-secret: ${INTERNAL_API_SECRET:change-me-in-production}
 
 management:
   endpoints:

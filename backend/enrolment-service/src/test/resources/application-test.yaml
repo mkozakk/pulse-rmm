@@ -1,6 +1,6 @@
 grpc:
   server:
-    port: 9091
+    port: 0
 
 spring:
   datasource:
@@ -18,3 +18,6 @@ spring:
 pulse:
   jwt:
     secret: test-secret-key-that-is-long-enough-for-hs256-signature
+  identity:
+    url: http://localhost:8083
+    internal-secret: test-internal-secret
