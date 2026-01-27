@@ -27,6 +27,10 @@ spring:
             uri: ${METRIC_SERVICE_URL:http://localhost:8082}
             predicates:
               - Path=/api/endpoints/*/metrics
+          - id: groups
+            uri: ${ENROLMENT_SERVICE_URL:http://localhost:8081}
+            predicates:
+              - Path=/api/groups/**
           - id: endpoints
             uri: ${ENROLMENT_SERVICE_URL:http://localhost:8081}
             predicates:

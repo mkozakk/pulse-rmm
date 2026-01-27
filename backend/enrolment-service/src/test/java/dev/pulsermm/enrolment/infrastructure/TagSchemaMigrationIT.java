@@ -5,6 +5,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -42,6 +43,9 @@ class TagSchemaMigrationIT {
     @Autowired
     private TagRuleRepository tagRuleRepository;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     private UUID endpointId;
 
     @BeforeEach
@@ -49,6 +53,7 @@ class TagSchemaMigrationIT {
         endpointTagRepository.deleteAll();
         endpointRepository.deleteAll();
         enrolmentTokenRepository.deleteAll();
+        jdbcTemplate.update("UPDATE enrolment.groups SET parent_id = NULL");
         groupRepository.deleteAll();
         tagRuleRepository.deleteAll();
 

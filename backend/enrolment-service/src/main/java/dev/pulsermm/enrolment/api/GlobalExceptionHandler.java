@@ -15,6 +15,12 @@ public class GlobalExceptionHandler {
             .body(new ErrorResponse(ex.getMessage()));
     }
 
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<ErrorResponse> handleIllegalState(IllegalStateException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+            .body(new ErrorResponse(ex.getMessage()));
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleValidationError(MethodArgumentNotValidException ex) {
         String message = ex.getBindingResult().getFieldError() != null
