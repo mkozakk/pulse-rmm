@@ -11,6 +11,7 @@ service AgentService {
   rpc Ping(PingRequest) returns (PingResponse);
   rpc Enrol(EnrolRequest) returns (EnrolResponse);
   rpc Heartbeat(HeartbeatRequest) returns (HeartbeatOk);
+  rpc PushSoftwareList(SoftwareList) returns (Ack);
 }
 
 service MetricService {
@@ -54,3 +55,14 @@ message MetricBatch {
 }
 
 message Ack {}
+
+message SoftwareItem {
+  string name    = 1;
+  string version = 2;
+  string source  = 3;
+}
+
+message SoftwareList {
+  string endpoint_id           = 1;
+  repeated SoftwareItem items  = 2;
+}
