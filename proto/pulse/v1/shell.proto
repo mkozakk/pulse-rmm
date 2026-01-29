@@ -17,6 +17,7 @@ message AgentEvent {
     ShellStarted shell_started = 2;
     ShellOutput  shell_output  = 3;
     ShellExited  shell_exited  = 4;
+    AckCommand   ack_command   = 5;
   }
 }
 
@@ -43,4 +44,9 @@ message SoftwareCommand {
   string action      = 2;
   string name        = 3;
   string version     = 4;
+}
+message AckCommand {
+  string command_id = 1;
+  int32 exit_code   = 2;
+  string output     = 3;
 }
