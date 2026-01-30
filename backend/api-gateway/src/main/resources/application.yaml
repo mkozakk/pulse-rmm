@@ -39,6 +39,10 @@ spring:
             uri: ${ENROLMENT_SERVICE_URL:http://localhost:8081}
             predicates:
               - Path=/api/endpoints/**
+          - id: scripts
+            uri: ${SCRIPT_SERVICE_URL:http://localhost:8084}
+            predicates:
+              - Path=/api/scripts/**
       globalcors:
         cors-configurations:
           '[/**]':
