@@ -3,6 +3,7 @@ package dev.pulsermm.script.api;
 import dev.pulsermm.script.application.ScriptAlreadyApprovedException;
 import dev.pulsermm.script.application.ScriptNotFoundException;
 import dev.pulsermm.script.application.ScriptRunNotFoundException;
+import dev.pulsermm.script.application.SecretEncryptionException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -28,6 +29,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleScriptRunNotFound(ScriptRunNotFoundException ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(new ErrorResponse("SCRIPT_RUN_NOT_FOUND", ex.getMessage()));
+    }
+
+    @ExceptionHandler(SecretEncryptionException.class)
+    public ResponseEntity<ErrorResponse> handleSecretEncryption(SecretEncryptionException ex) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new ErrorResponse("SECRET_ENCRYPTION_ERROR", "Failed to process script secrets"));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
