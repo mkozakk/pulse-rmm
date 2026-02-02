@@ -112,6 +112,36 @@ public class ScriptService {
         return new ScriptRunResponseData(runId, results, results.size(), pending);
     }
 
+    public void ackScriptExecution(UUID runId, UUID endpointId, int exitCode, String output) {
+        var result = scriptRunResultRepository.findByRunId(runId).stream()
+                .filter(r -> r.getEndpointId().equals(endpointId))
+                .findFirst()
+                .orElseThrow(() -> new ScriptRunResultNotFoundException(
+                        "Result not found for run: " + runId + ", endpoint: " + endpointId));
+
+        result.setExitCode(exitCode);
+        result.setOutput(output);
+        result.setAckedAt(OffsetDateTime.now());
+        scriptRunResultRepository.save(result);
+    }
+
+    @Transactional(readOnly = true)
+    public java.util.Map<String, String> getDecryptedSecretsForRun(UUID runId) {
+        var secrets = scriptSecretRepository.findByRunId(runId);
+        var decrypted = new java.util.HashMap<String, String>();
+
+        for (var secret : secrets) {
+            try {
+                var plaintext = encryptor.decrypt(secret.getEncryptedValue(), scriptSecretKek);
+                decrypted.put(secret.getKey(), plaintext);
+            } catch (Exception e) {
+                throw new SecretDecryptionException("Failed to decrypt secret: " + secret.getKey(), e);
+            }
+        }
+
+        return decrypted;
+    }
+
     public record ScriptRunData(UUID runId, int endpointCount) {
     }
 

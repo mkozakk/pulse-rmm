@@ -88,4 +88,13 @@ public class ScriptController {
         var response = new ScriptRunResponse(runData.runId(), results, runData.total(), runData.pending());
         return ResponseEntity.ok(response);
     }
+
+    @PostMapping("/runs/{runId}/endpoints/{endpointId}/ack")
+    public ResponseEntity<Void> ackScriptExecution(
+            @PathVariable UUID runId,
+            @PathVariable UUID endpointId,
+            @Valid @RequestBody CommandAckRequest request) {
+        scriptService.ackScriptExecution(runId, endpointId, request.exitCode(), request.output());
+        return ResponseEntity.noContent().build();
+    }
 }
