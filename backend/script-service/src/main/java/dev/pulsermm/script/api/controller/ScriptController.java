@@ -1,5 +1,14 @@
-package dev.pulsermm.script.api;
+package dev.pulsermm.script.api.controller;
 
+import dev.pulsermm.script.api.dto.CommandAckRequest;
+import dev.pulsermm.script.api.dto.CreateScriptRequest;
+import dev.pulsermm.script.api.dto.CreateScriptResponse;
+import dev.pulsermm.script.api.dto.InitiateScriptRunResponse;
+import dev.pulsermm.script.api.dto.ListScriptsResponse;
+import dev.pulsermm.script.api.dto.RunScriptRequest;
+import dev.pulsermm.script.api.dto.ScriptResponse;
+import dev.pulsermm.script.api.dto.ScriptRunResponse;
+import dev.pulsermm.script.api.dto.ScriptRunResultResponse;
 import dev.pulsermm.script.application.ScriptService;
 import dev.pulsermm.script.application.ScriptService.ScriptStatus;
 import io.swagger.v3.oas.annotations.Operation;

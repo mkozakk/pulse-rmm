@@ -1,4 +1,4 @@
-package dev.pulsermm.script.api;
+package dev.pulsermm.script.api.dto;
 
 import dev.pulsermm.script.domain.ScriptRunResult;
 import io.swagger.v3.oas.annotations.media.Schema;

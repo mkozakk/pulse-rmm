@@ -1,4 +1,4 @@
-package dev.pulsermm.script.api;
+package dev.pulsermm.script.api.errors;
 
 import dev.pulsermm.script.application.ScriptAlreadyApprovedException;
 import dev.pulsermm.script.application.ScriptNotFoundException;
