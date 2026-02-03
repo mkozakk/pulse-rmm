@@ -47,7 +47,15 @@ class JwtServiceTest {
     @Test
     void tamperedSignatureRejected() {
         String token = jwtService.issue(UUID.randomUUID(), List.of("ADMIN"));
-        String tampered = token.substring(0, token.length() - 1) + (token.endsWith("a") ? "b" : "a");
+
+        // Don't change the last Base64Url char: for unpadded Base64Url it might not affect decoded bytes.
+        String[] parts = token.split("\\.");
+        String sig = parts[2];
+        int i = Math.min(10, sig.length() - 1);
+        char c = sig.charAt(i);
+        char replacement = (c == 'a') ? 'b' : 'a';
+        String tamperedSig = sig.substring(0, i) + replacement + sig.substring(i + 1);
+        String tampered = parts[0] + "." + parts[1] + "." + tamperedSig;
         assertThatThrownBy(() -> jwtService.parse(tampered)).isInstanceOf(JwtException.class);
     }
 
