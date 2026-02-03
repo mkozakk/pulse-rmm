@@ -5,6 +5,7 @@ import dev.pulsermm.identity.application.PermissionEvaluationService;
 import dev.pulsermm.identity.domain.EndpointGroupMembership;
 import dev.pulsermm.identity.infrastructure.EndpointGroupMembershipRepository;
 import dev.pulsermm.identity.infrastructure.UserRepository;
+import io.swagger.v3.oas.annotations.Hidden;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -12,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.UUID;
 
+@Hidden
 @RestController
 @RequestMapping("/internal/rbac")
 public class InternalRbacController {
