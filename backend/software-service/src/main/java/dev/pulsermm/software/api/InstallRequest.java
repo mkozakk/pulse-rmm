@@ -1,3 +1,10 @@
 package dev.pulsermm.software.api;
 
-public record InstallRequest(String name, String version) {}
+import io.swagger.v3.oas.annotations.media.Schema;
+
+public record InstallRequest(
+    @Schema(description = "Software name", example = "Google Chrome")
+    String name,
+    @Schema(description = "Target version", nullable = true, example = "123.0.0")
+    String version
+) {}

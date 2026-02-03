@@ -1,12 +1,14 @@
 package dev.pulsermm.gateway.api.internal;
 
 import dev.pulsermm.gateway.infrastructure.grpc.SoftwareCommandDispatcher;
+import io.swagger.v3.oas.annotations.Hidden;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
 
+@Hidden
 @RestController
 @RequestMapping("/internal/software-commands")
 public class SoftwareCommandInternalController {
