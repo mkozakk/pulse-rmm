@@ -1,6 +1,9 @@
 package dev.pulsermm.enrolment.api;
 
 import dev.pulsermm.enrolment.TestJwtHelper;
+import dev.pulsermm.enrolment.api.dto.EndpointResponse;
+import dev.pulsermm.enrolment.api.dto.SetTagsRequest;
+import dev.pulsermm.enrolment.api.dto.TagEntry;
 import dev.pulsermm.enrolment.domain.Endpoint;
 import dev.pulsermm.enrolment.domain.Group;
 import dev.pulsermm.enrolment.infrastructure.*;

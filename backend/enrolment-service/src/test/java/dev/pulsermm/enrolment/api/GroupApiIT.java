@@ -1,6 +1,8 @@
 package dev.pulsermm.enrolment.api;
 
 import dev.pulsermm.enrolment.TestJwtHelper;
+import dev.pulsermm.enrolment.api.dto.CreateGroupRequest;
+import dev.pulsermm.enrolment.api.dto.GroupResponse;
 import dev.pulsermm.enrolment.infrastructure.EnrolmentTokenRepository;
 import dev.pulsermm.enrolment.infrastructure.EndpointRepository;
 import dev.pulsermm.enrolment.infrastructure.GroupRepository;

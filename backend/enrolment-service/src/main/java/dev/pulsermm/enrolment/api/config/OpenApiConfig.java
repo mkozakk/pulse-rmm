@@ -1,4 +1,4 @@
-package dev.pulsermm.enrolment.api;
+package dev.pulsermm.enrolment.api.config;
 
 import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;

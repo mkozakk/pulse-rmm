@@ -1,6 +1,6 @@
 package dev.pulsermm.enrolment.application;
 
-import dev.pulsermm.enrolment.api.InvalidTokenException;
+import dev.pulsermm.enrolment.api.errors.InvalidTokenException;
 import dev.pulsermm.enrolment.domain.Endpoint;
 import dev.pulsermm.enrolment.domain.EnrolmentToken;
 import dev.pulsermm.enrolment.infrastructure.EndpointRepository;

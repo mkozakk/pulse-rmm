@@ -1,4 +1,4 @@
-package dev.pulsermm.enrolment.api;
+package dev.pulsermm.enrolment.api.errors;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

@@ -1,4 +1,4 @@
-package dev.pulsermm.enrolment.api;
+package dev.pulsermm.enrolment.api.dto;
 
 import dev.pulsermm.enrolment.domain.TagRule;
 import io.swagger.v3.oas.annotations.media.Schema;

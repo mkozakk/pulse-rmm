@@ -1,6 +1,6 @@
 package dev.pulsermm.enrolment.application;
 
-import dev.pulsermm.enrolment.api.GroupResponse;
+import dev.pulsermm.enrolment.api.dto.GroupResponse;
 import dev.pulsermm.enrolment.domain.Group;
 import dev.pulsermm.enrolment.infrastructure.GroupRepository;
 import org.springframework.stereotype.Service;

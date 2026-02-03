@@ -1,5 +1,10 @@
-package dev.pulsermm.enrolment.api;
+package dev.pulsermm.enrolment.api.controller;
 
+import dev.pulsermm.enrolment.api.dto.CreateTokenRequest;
+import dev.pulsermm.enrolment.api.dto.EndpointResponse;
+import dev.pulsermm.enrolment.api.dto.MoveEndpointRequest;
+import dev.pulsermm.enrolment.api.dto.SetTagsRequest;
+import dev.pulsermm.enrolment.api.dto.TokenResponse;
 import dev.pulsermm.enrolment.application.MoveEndpointService;
 import dev.pulsermm.enrolment.application.TagService;
 import dev.pulsermm.enrolment.application.TokenService;

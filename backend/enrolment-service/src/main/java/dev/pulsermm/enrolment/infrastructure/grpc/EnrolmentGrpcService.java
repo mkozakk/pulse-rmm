@@ -1,6 +1,6 @@
 package dev.pulsermm.enrolment.infrastructure.grpc;
 
-import dev.pulsermm.enrolment.api.InvalidTokenException;
+import dev.pulsermm.enrolment.api.errors.InvalidTokenException;
 import dev.pulsermm.enrolment.application.EnrolService;
 import dev.pulsermm.enrolment.infrastructure.EndpointRepository;
 import dev.pulsermm.proto.v1.AgentServiceGrpc;

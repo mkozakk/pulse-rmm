@@ -1,6 +1,6 @@
 package dev.pulsermm.enrolment.application;
 
-import dev.pulsermm.enrolment.api.TagEntry;
+import dev.pulsermm.enrolment.api.dto.TagEntry;
 import dev.pulsermm.enrolment.domain.EndpointTag;
 import dev.pulsermm.enrolment.domain.EndpointTagId;
 import dev.pulsermm.enrolment.infrastructure.EndpointRepository;

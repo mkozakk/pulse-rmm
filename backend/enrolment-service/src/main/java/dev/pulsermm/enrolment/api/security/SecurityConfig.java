@@ -1,4 +1,4 @@
-package dev.pulsermm.enrolment.api;
+package dev.pulsermm.enrolment.api.security;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
