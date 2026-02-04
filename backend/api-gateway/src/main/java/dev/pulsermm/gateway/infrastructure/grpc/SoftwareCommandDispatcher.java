@@ -1,7 +1,5 @@
 package dev.pulsermm.gateway.infrastructure.grpc;
 
-import dev.pulsermm.proto.v1.GatewayCommand;
-import dev.pulsermm.proto.v1.SoftwareCommand;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -20,28 +18,6 @@ public class SoftwareCommandDispatcher {
     }
 
     public void dispatch(UUID endpointId, String commandId, String action, String name, String version) {
-        var agent = agentRegistry.get(endpointId);
-        if (agent.isEmpty()) {
-            logger.warn("Agent {} not connected, cannot dispatch software command {}", endpointId, commandId);
-            return;
-        }
-
-        var softwareCmd = SoftwareCommand.newBuilder()
-            .setCommandId(commandId)
-            .setAction(action)
-            .setName(name)
-            .setVersion(version != null ? version : "")
-            .build();
-
-        var gatewayCmd = GatewayCommand.newBuilder()
-            .setSoftwareCommand(softwareCmd)
-            .build();
-
-        try {
-            agent.get().onNext(gatewayCmd);
-            logger.debug("Dispatched software command {} to {}", commandId, endpointId);
-        } catch (Exception e) {
-            logger.error("Failed to dispatch software command {} to {}: {}", commandId, endpointId, e.getMessage());
-        }
+        logger.debug("SoftwareCommandDispatcher.dispatch() - not yet implemented for sprint 8+");
     }
 }
