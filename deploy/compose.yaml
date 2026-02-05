@@ -31,8 +31,6 @@ services:
         condition: service_started
       metric-service:
         condition: service_started
-      script-service:
-        condition: service_started
       <<: *app-deps
 
   identity-service:
@@ -102,8 +100,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      api-gateway:
-        condition: service_started
 
   webapp:
     build:
