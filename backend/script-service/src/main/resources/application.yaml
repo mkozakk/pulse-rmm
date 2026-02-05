@@ -24,7 +24,10 @@ spring:
           issuer-uri: ${JWT_ISSUER_URI:http://localhost:8080}
 
 pulse:
+  gateway:
+    url: ${GATEWAY_URL:http://localhost:8080}
   script:
+    base-url: ${SCRIPT_SERVICE_BASE_URL:http://localhost:8084}
     secret-kek: ${SCRIPT_SECRET_KEK:change-me-in-production-set-SCRIPT_SECRET_KEK-env-var}
 
 server:
