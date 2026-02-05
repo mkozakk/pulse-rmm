@@ -5,12 +5,14 @@ import dev.pulsermm.script.domain.Script;
 import dev.pulsermm.script.domain.ScriptRun;
 import dev.pulsermm.script.domain.ScriptRunResult;
 import dev.pulsermm.script.domain.ScriptSecret;
+import dev.pulsermm.script.infrastructure.GatewayClient;
 import dev.pulsermm.script.infrastructure.persistence.ScriptRepository;
 import dev.pulsermm.script.infrastructure.persistence.ScriptRunRepository;
 import dev.pulsermm.script.infrastructure.persistence.ScriptRunResultRepository;
 import dev.pulsermm.script.infrastructure.persistence.ScriptSecretRepository;
 import dev.pulsermm.script.infrastructure.security.ScriptSecretEncryptor;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -29,19 +31,25 @@ public class ScriptService {
     private final ScriptSecretRepository scriptSecretRepository;
     private final ScriptSecretEncryptor encryptor;
     private final String scriptSecretKek;
+    private final GatewayClient gatewayClient;
+    private final String scriptServiceBaseUrl;
 
     public ScriptService(ScriptRepository scriptRepository,
                          ScriptRunRepository scriptRunRepository,
                          ScriptRunResultRepository scriptRunResultRepository,
                          ScriptSecretRepository scriptSecretRepository,
                          ScriptSecretEncryptor encryptor,
-                         @Qualifier("scriptSecretKek") String scriptSecretKek) {
+                         @Qualifier("scriptSecretKek") String scriptSecretKek,
+                         GatewayClient gatewayClient,
+                         @Value("${pulse.script.base-url:http://localhost:8084}") String scriptServiceBaseUrl) {
         this.scriptRepository = scriptRepository;
         this.scriptRunRepository = scriptRunRepository;
         this.scriptRunResultRepository = scriptRunResultRepository;
         this.scriptSecretRepository = scriptSecretRepository;
         this.encryptor = encryptor;
         this.scriptSecretKek = scriptSecretKek;
+        this.gatewayClient = gatewayClient;
+        this.scriptServiceBaseUrl = scriptServiceBaseUrl;
     }
 
     public Script createScript(CreateScriptRequest request, UUID createdBy) {
@@ -98,6 +106,14 @@ public class ScriptService {
                 }
             });
         }
+
+        var decryptedSecrets = getDecryptedSecretsForRun(savedRun.getId());
+        results.forEach(result -> {
+            var callbackUrl = scriptServiceBaseUrl + "/api/scripts/runs/" + savedRun.getId() +
+                            "/endpoints/" + result.getEndpointId() + "/ack";
+            gatewayClient.dispatchScriptCommand(result.getEndpointId(), result.getId(),
+                                               script.getBody(), decryptedSecrets, callbackUrl);
+        });
 
         return new ScriptRunData(savedRun.getId(), results.size());
     }
