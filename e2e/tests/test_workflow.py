@@ -168,3 +168,89 @@ def test_remote_shell(logged_in_session, enrolled_agent):
         time.sleep(1)
 
     pytest.fail(f"'e2ehello' not in shell output after 20s. Collected: {collected!r}")
+
+
+def test_script_execution(logged_in_session, enrolled_agent):
+    print(f"\n[test] script execution on {enrolled_agent}")
+
+    print("[test] creating script...")
+    r = logged_in_session.post(
+        f"{BASE_URL}/api/scripts",
+        json={"name": "e2e-test-script", "body": 'echo "e2e-script-ok"'},
+    )
+    assert r.status_code == 201, r.text
+    script_id = r.json()["id"]
+    print(f"[test] created script: {script_id}")
+
+    print(f"[test] running script on endpoint {enrolled_agent}...")
+    r = logged_in_session.post(
+        f"{BASE_URL}/api/scripts/{script_id}/run",
+        json={"endpointIds": [enrolled_agent]},
+    )
+    assert r.status_code == 202, r.text
+    run_id = r.json()["runId"]
+    print(f"[test] script run initiated: {run_id}")
+
+    print("[test] polling results (30s timeout)...")
+    deadline = time.time() + 30
+    while time.time() < deadline:
+        r = logged_in_session.get(f"{BASE_URL}/api/scripts/runs/{run_id}/results")
+        assert r.status_code == 200, r.text
+        data = r.json()
+        print(f"[test] pending: {data['pending']}, total: {data['total']}")
+        if data["pending"] == 0:
+            break
+        time.sleep(1)
+    else:
+        pytest.fail("script execution not acked within 30s")
+
+    results = data["results"]
+    assert len(results) == 1, f"expected 1 result, got {len(results)}"
+    assert results[0]["exitCode"] == 0, f"expected exit code 0, got {results[0]['exitCode']}"
+    assert "e2e-script-ok" in results[0]["output"], f"expected 'e2e-script-ok' in output, got: {results[0]['output']}"
+    print(f"[test] script executed successfully: {results[0]['output'][:50]}")
+
+
+def test_approved_library_script_run(logged_in_session, enrolled_agent):
+    print(f"\n[test] approved library script on {enrolled_agent}")
+
+    print("[test] creating script...")
+    r = logged_in_session.post(
+        f"{BASE_URL}/api/scripts",
+        json={"name": "e2e-approved-script", "body": "echo approved"},
+    )
+    assert r.status_code == 201, r.text
+    script_id = r.json()["id"]
+    print(f"[test] created script: {script_id}")
+
+    print("[test] approving script...")
+    r = logged_in_session.post(f"{BASE_URL}/api/scripts/{script_id}/approve")
+    assert r.status_code == 200, r.text
+    print(f"[test] script approved at: {r.json()['approvedAt']}")
+
+    print(f"[test] running approved script on {enrolled_agent}...")
+    r = logged_in_session.post(
+        f"{BASE_URL}/api/scripts/{script_id}/run",
+        json={"endpointIds": [enrolled_agent]},
+    )
+    assert r.status_code == 202, r.text
+    run_id = r.json()["runId"]
+    print(f"[test] script run initiated: {run_id}")
+
+    print("[test] polling results (30s timeout)...")
+    deadline = time.time() + 30
+    while time.time() < deadline:
+        r = logged_in_session.get(f"{BASE_URL}/api/scripts/runs/{run_id}/results")
+        assert r.status_code == 200, r.text
+        data = r.json()
+        if data["pending"] == 0:
+            break
+        time.sleep(1)
+    else:
+        pytest.fail("approved script execution not acked within 30s")
+
+    results = data["results"]
+    assert len(results) == 1
+    assert results[0]["exitCode"] == 0
+    assert "approved" in results[0]["output"]
+    print(f"[test] approved script executed successfully")
