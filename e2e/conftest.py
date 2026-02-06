@@ -1,11 +1,15 @@
 import os
 import subprocess
+import sys
 import time
+from datetime import datetime
 
 import pytest
 import requests
 
 from config import BASE_URL, ADMIN_USERNAME, ADMIN_PASSWORD, AGENT_IMAGE, E2E_NETWORK
+
+LOG_FILE = f"/tmp/pulse-e2e-{datetime.now().isoformat()}.log"
 
 
 def _wait_for_gateway(timeout=90):
@@ -34,10 +38,11 @@ def _wait_for_enrolment(container_id, timeout=20):
     raise RuntimeError(f"Agent did not enrol within {timeout}s.\ncontainer stdout:\n{logs}")
 
 
-def poll_until(fn, timeout=10, interval=0.5):
-    """Retry fn until it returns truthy or timeout is reached."""
+def poll_until(fn, timeout=10, initial_interval=0.05):
+    """Retry fn with exponential backoff until it returns truthy or timeout is reached."""
     deadline = time.time() + timeout
     last_error = None
+    interval = initial_interval
     while time.time() < deadline:
         try:
             result = fn()
@@ -46,7 +51,56 @@ def poll_until(fn, timeout=10, interval=0.5):
         except Exception as e:
             last_error = e
         time.sleep(interval)
+        interval = min(interval * 1.5, 2.0)
     raise RuntimeError(f"poll_until timeout after {timeout}s. Last error: {last_error}")
+
+
+def pytest_addoption(parser):
+    """Add custom command-line options."""
+    parser.addoption(
+        "--logs",
+        action="store_true",
+        help="Show container logs on test failure"
+    )
+    parser.addoption(
+        "--follow-logs",
+        action="store_true",
+        help="Stream container logs during test execution"
+    )
+
+
+def _get_container_logs(service_name):
+    """Fetch logs from a container."""
+    try:
+        result = subprocess.run(
+            ["podman", "compose", "-f", "deploy/compose.yaml", "-f", "deploy/compose.e2e.yaml",
+             "--project-name", "pulse-e2e", "logs", service_name],
+            capture_output=True, text=True, timeout=5
+        )
+        return result.stdout
+    except Exception as e:
+        return f"Failed to fetch logs: {e}"
+
+
+@pytest.hookimpl(tryfirst=True, hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    """Capture logs on test failure."""
+    outcome = yield
+    rep = outcome.get_result()
+
+    if rep.failed and item.config.getoption("--logs"):
+        print("\n" + "="*80)
+        print(f"LOGS FOR FAILED TEST: {item.nodeid}")
+        print("="*80)
+
+        services = ["api-gateway", "identity-service", "enrolment-service",
+                   "metric-service", "script-service"]
+        for service in services:
+            logs = _get_container_logs(service)
+            if logs:
+                print(f"\n--- {service} ---")
+                lines = logs.split('\n')
+                print('\n'.join(lines[-30:]))  # Last 30 lines
 
 
 @pytest.fixture(scope="session")
