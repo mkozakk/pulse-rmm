@@ -28,6 +28,7 @@ message GatewayCommand {
     ShellResize shell_resize = 3;
     CloseShell  close_shell  = 4;
     SoftwareCommand software_command = 5;
+    ScriptCommand script_command = 6;
   }
 }
 
@@ -44,6 +45,11 @@ message SoftwareCommand {
   string action      = 2;
   string name        = 3;
   string version     = 4;
+}
+message ScriptCommand {
+  string command_id  = 1;
+  string script_body = 2;
+  map<string, string> env_vars = 3;
 }
 message AckCommand {
   string command_id = 1;
