@@ -143,7 +143,21 @@ def admin_session(registered_user):
 
 @pytest.fixture(scope="session")
 def enrolled_agent(admin_session):
-    """Create a group, enrolment token, start agent container, and enroll it."""
+    """Reuse existing enrolled agent or create a new one."""
+    # Try to reuse existing agent from previous run
+    try:
+        r = admin_session.get(f"{BASE_URL}/api/endpoints")
+        if r.status_code == 200:
+            endpoints = r.json()
+            if endpoints and len(endpoints) > 0:
+                endpoint_id = endpoints[0]["id"]
+                print(f"[setup] reusing existing endpoint: {endpoint_id}")
+                yield endpoint_id
+                return
+    except Exception:
+        pass
+
+    # Create new group and enrolment token
     group_r = admin_session.post(
         f"{BASE_URL}/api/groups",
         json={"name": "E2eAgentGroup", "parentId": None},

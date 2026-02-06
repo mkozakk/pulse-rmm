@@ -37,3 +37,15 @@ e2e:
 e2e-rerun:
 	@echo "Running tests (reusing stack)..."
 	cd e2e && python -m pytest tests/ -v --logs
+
+e2e-fast:
+	@echo "Running fast tests (API-only)..."
+	cd e2e && python -m pytest tests/ -v -m fast --logs
+
+e2e-slow:
+	@echo "Running slow tests (requires agent)..."
+	cd e2e && python -m pytest tests/ -v -m slow --logs
+
+e2e-parallel:
+	@echo "Running tests in parallel..."
+	cd e2e && python -m pytest tests/ -v --logs -n auto

@@ -1,6 +1,9 @@
+import pytest
 import requests
 
 from config import BASE_URL
+
+pytestmark = [pytest.mark.slow, pytest.mark.requires_agent]
 
 
 def test_endpoint_enrolment(admin_session, enrolled_agent):
