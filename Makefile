@@ -1,4 +1,4 @@
-E2E_COMPOSE = podman compose \
+E2E_COMPOSE = JAVA_HOME=/usr/lib/jvm/java-21-openjdk podman compose \
 	-f deploy/compose.yaml \
 	-f deploy/compose.e2e.yaml \
 	--env-file deploy/.env.e2e \
@@ -13,7 +13,7 @@ e2e-agent-build:
 	podman build -t pulse-rmm-agent-e2e -f agent/Dockerfile .
 
 e2e-up: e2e-agent-build
-	$(E2E_COMPOSE) up -d --build
+	JAVA_HOME=/usr/lib/jvm/java-21-openjdk $(E2E_COMPOSE) up -d --build
 	@echo "Waiting for gateway health..."
 	@until curl -sf http://localhost:8080/actuator/health >/dev/null 2>&1; do sleep 2; done
 	@echo "Stack ready."
