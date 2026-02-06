@@ -17,13 +17,10 @@ spring:
     password: ${POSTGRES_PASSWORD:postgres}
     hikari:
       maximum-pool-size: 20
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          issuer-uri: ${JWT_ISSUER_URI:http://localhost:8080}
 
 pulse:
+  jwt:
+    secret: ${JWT_SECRET:change-me-in-production-set-JWT_SECRET-env-var}
   gateway:
     url: ${GATEWAY_URL:http://localhost:8080}
   script:

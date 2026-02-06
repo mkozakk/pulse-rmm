@@ -128,6 +128,7 @@ public class ScriptService {
         return new ScriptRunResponseData(runId, results, results.size(), pending);
     }
 
+    @Transactional
     public void ackScriptExecution(UUID runId, UUID endpointId, int exitCode, String output) {
         var result = scriptRunResultRepository.findByRunId(runId).stream()
                 .filter(r -> r.getEndpointId().equals(endpointId))
