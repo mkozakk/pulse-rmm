@@ -1,15 +1,11 @@
 import os
 import subprocess
-import sys
 import time
-from datetime import datetime
 
 import pytest
 import requests
 
 from config import BASE_URL, ADMIN_USERNAME, ADMIN_PASSWORD, AGENT_IMAGE, E2E_NETWORK
-
-LOG_FILE = f"/tmp/pulse-e2e-{datetime.now().isoformat()}.log"
 
 
 def _wait_for_gateway(timeout=90):
@@ -38,11 +34,10 @@ def _wait_for_enrolment(container_id, timeout=20):
     raise RuntimeError(f"Agent did not enrol within {timeout}s.\ncontainer stdout:\n{logs}")
 
 
-def poll_until(fn, timeout=10, initial_interval=0.05):
-    """Retry fn with exponential backoff until it returns truthy or timeout is reached."""
+def poll_until(fn, timeout=10, interval=0.5):
+    """Retry fn until it returns truthy or timeout is reached."""
     deadline = time.time() + timeout
     last_error = None
-    interval = initial_interval
     while time.time() < deadline:
         try:
             result = fn()
@@ -51,7 +46,6 @@ def poll_until(fn, timeout=10, initial_interval=0.05):
         except Exception as e:
             last_error = e
         time.sleep(interval)
-        interval = min(interval * 1.5, 2.0)
     raise RuntimeError(f"poll_until timeout after {timeout}s. Last error: {last_error}")
 
 
@@ -143,21 +137,7 @@ def admin_session(registered_user):
 
 @pytest.fixture(scope="session")
 def enrolled_agent(admin_session):
-    """Reuse existing enrolled agent or create a new one."""
-    # Try to reuse existing agent from previous run
-    try:
-        r = admin_session.get(f"{BASE_URL}/api/endpoints")
-        if r.status_code == 200:
-            endpoints = r.json()
-            if endpoints and len(endpoints) > 0:
-                endpoint_id = endpoints[0]["id"]
-                print(f"[setup] reusing existing endpoint: {endpoint_id}")
-                yield endpoint_id
-                return
-    except Exception:
-        pass
-
-    # Create new group and enrolment token
+    """Create a group, enrolment token, start agent container, and enroll it."""
     group_r = admin_session.post(
         f"{BASE_URL}/api/groups",
         json={"name": "E2eAgentGroup", "parentId": None},
