@@ -13,6 +13,7 @@ agent/cookies.txt
 *.pprof
 
 **/target/
+BOOT-INF/
 **/pom.xml.tag
 **/pom.xml.releaseBackup
 **/pom.xml.versionsBackup
