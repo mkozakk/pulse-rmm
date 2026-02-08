@@ -18,7 +18,7 @@ spring:
           - id: identity
             uri: ${IDENTITY_SERVICE_URL:http://localhost:8083}
             predicates:
-              - Path=/api/auth/**
+              - Path=/api/auth/**,/api/identity/**
           - id: enrolment
             uri: ${ENROLMENT_SERVICE_URL:http://localhost:8081}
             predicates:
