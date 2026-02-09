@@ -1,6 +1,9 @@
+import pytest
 import requests
 
 from config import BASE_URL
+
+pytestmark = [pytest.mark.slow, pytest.mark.requires_agent]
 
 
 def test_set_tags_requires_auth(enrolled_agent):

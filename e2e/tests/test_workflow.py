@@ -1,7 +1,3 @@
-import os
-import subprocess
-import time
-
 import pytest
 import requests
 import websocket
@@ -11,6 +7,8 @@ ADMIN_USERNAME = "e2e_admin"
 ADMIN_PASSWORD = "e2eadminpassword1"
 AGENT_IMAGE = os.getenv("PULSE_AGENT_IMAGE", "pulse-rmm-agent-e2e")
 E2E_NETWORK = os.getenv("PULSE_E2E_NETWORK", "pulse-e2e_default")
+
+pytestmark = [pytest.mark.slow, pytest.mark.requires_agent]
 
 
 # --- helpers ------------------------------------------------------------------

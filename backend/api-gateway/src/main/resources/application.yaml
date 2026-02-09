@@ -18,7 +18,7 @@ spring:
           - id: identity
             uri: ${IDENTITY_SERVICE_URL:http://localhost:8083}
             predicates:
-              - Path=/api/auth/**
+              - Path=/api/auth/**,/api/identity/**
           - id: enrolment
             uri: ${ENROLMENT_SERVICE_URL:http://localhost:8081}
             predicates:
@@ -47,36 +47,6 @@ spring:
             uri: ${SCRIPT_SERVICE_URL:http://localhost:8084}
             predicates:
               - Path=/api/scripts/**
-          - id: api-docs-identity
-            uri: ${IDENTITY_SERVICE_URL:http://localhost:8083}
-            predicates:
-              - Path=/api-docs/identity
-            filters:
-              - RewritePath=/api-docs/identity, /v3/api-docs
-          - id: api-docs-enrolment
-            uri: ${ENROLMENT_SERVICE_URL:http://localhost:8081}
-            predicates:
-              - Path=/api-docs/enrolment
-            filters:
-              - RewritePath=/api-docs/enrolment, /v3/api-docs
-          - id: api-docs-metrics
-            uri: ${METRIC_SERVICE_URL:http://localhost:8082}
-            predicates:
-              - Path=/api-docs/metrics
-            filters:
-              - RewritePath=/api-docs/metrics, /v3/api-docs
-          - id: api-docs-scripts
-            uri: ${SCRIPT_SERVICE_URL:http://localhost:8084}
-            predicates:
-              - Path=/api-docs/scripts
-            filters:
-              - RewritePath=/api-docs/scripts, /v3/api-docs
-          - id: api-docs-software
-            uri: ${SOFTWARE_SERVICE_URL:http://localhost:8085}
-            predicates:
-              - Path=/api-docs/software
-            filters:
-              - RewritePath=/api-docs/software, /v3/api-docs
       globalcors:
         cors-configurations:
           '[/**]':

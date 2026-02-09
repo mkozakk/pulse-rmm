@@ -1,6 +1,9 @@
+import pytest
 import requests
 
 from config import BASE_URL
+
+pytestmark = pytest.mark.fast
 
 
 def test_create_token_requires_auth():

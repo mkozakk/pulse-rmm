@@ -22,7 +22,6 @@
         <module>identity-service</module>
         <module>enrolment-service</module>
         <module>metric-service</module>
-        <module>software-service</module>
         <module>script-service</module>
     </modules>
 

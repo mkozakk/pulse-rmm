@@ -1,6 +1,6 @@
 package dev.pulsermm.script.application;
 
-import dev.pulsermm.script.api.dto.CreateScriptRequest;
+import dev.pulsermm.script.api.CreateScriptRequest;
 import dev.pulsermm.script.domain.Script;
 import dev.pulsermm.script.domain.ScriptRun;
 import dev.pulsermm.script.domain.ScriptRunResult;
@@ -17,6 +17,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.OffsetDateTime;
 import java.util.UUID;
@@ -108,11 +110,20 @@ public class ScriptService {
         }
 
         var decryptedSecrets = getDecryptedSecretsForRun(savedRun.getId());
-        results.forEach(result -> {
-            var callbackUrl = scriptServiceBaseUrl + "/api/scripts/runs/" + savedRun.getId() +
-                            "/endpoints/" + result.getEndpointId() + "/ack";
-            gatewayClient.dispatchScriptCommand(result.getEndpointId(), result.getId(),
-                                               script.getBody(), decryptedSecrets, callbackUrl);
+        var dispatches = results.stream()
+                .map(result -> {
+                    var callbackUrl = scriptServiceBaseUrl + "/api/scripts/runs/" + savedRun.getId() +
+                                    "/endpoints/" + result.getEndpointId() + "/ack";
+                    return new DispatchInfo(result.getEndpointId(), result.getId(), script.getBody(), decryptedSecrets, callbackUrl);
+                })
+                .toList();
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                dispatches.forEach(d -> gatewayClient.dispatchScriptCommand(
+                        d.endpointId(), d.commandId(), d.scriptBody(), d.envVars(), d.callbackUrl()));
+            }
         });
 
         return new ScriptRunData(savedRun.getId(), results.size());
@@ -160,6 +171,10 @@ public class ScriptService {
     }
 
     public record ScriptRunData(UUID runId, int endpointCount) {
+    }
+
+    private record DispatchInfo(UUID endpointId, UUID commandId, String scriptBody,
+                                java.util.Map<String, String> envVars, String callbackUrl) {
     }
 
     public record ScriptRunResponseData(UUID runId, java.util.List<ScriptRunResult> results, int total, long pending) {
