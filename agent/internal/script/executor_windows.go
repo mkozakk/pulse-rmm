@@ -1,29 +1,24 @@
+//go:build windows
+
 package script
 
 import (
-	"fmt"
+	"encoding/base64"
 	"os"
 	"os/exec"
+	"unicode/utf16"
 )
 
 func Execute(scriptBody string, envVars map[string]string) (int32, string, error) {
-	tmpFile, err := os.CreateTemp("", "pulse-script-*.sh")
-	if err != nil {
-		return -1, "", fmt.Errorf("creating temp file: %w", err)
+	utf16Encoded := utf16.Encode([]rune(scriptBody))
+	b := make([]byte, len(utf16Encoded)*2)
+	for i, r := range utf16Encoded {
+		b[i*2] = byte(r)
+		b[i*2+1] = byte(r >> 8)
 	}
-	defer os.Remove(tmpFile.Name())
+	encoded := base64.StdEncoding.EncodeToString(b)
 
-	if _, err := tmpFile.WriteString(scriptBody); err != nil {
-		tmpFile.Close()
-		return -1, "", fmt.Errorf("writing script: %w", err)
-	}
-	tmpFile.Close()
-
-	if err := os.Chmod(tmpFile.Name(), 0700); err != nil {
-		return -1, "", fmt.Errorf("chmod script: %w", err)
-	}
-
-	cmd := exec.Command("bash", tmpFile.Name())
+	cmd := exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-EncodedCommand", encoded)
 	if envVars != nil {
 		cmd.Env = append(os.Environ())
 		for k, v := range envVars {

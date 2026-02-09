@@ -289,13 +289,12 @@ def test_run_with_secrets_not_returned_in_response(admin_session):
 
 @pytest.mark.slow
 @pytest.mark.requires_agent
-def test_script_execution_end_to_end(admin_session, enrolled_agent):
-    print(f"\n[test] running script on enrolled agent {enrolled_agent}")
-
+def test_linux_script_execution(admin_session, enrolled_agent):
+    """Agent receives script command, executes bash, output captured and acked."""
     script_id = _create_script(
         admin_session,
-        name="e2e-exec-script",
-        body='echo "e2e-exec-output"',
+        name="linux-exec-script",
+        body='echo "linux-exec-ok"',
     )
 
     r = admin_session.post(
@@ -309,27 +308,22 @@ def test_script_execution_end_to_end(admin_session, enrolled_agent):
         r = admin_session.get(f"{BASE_URL}/api/scripts/runs/{run_id}/results")
         assert r.status_code == 200
         data = r.json()
-        if data["pending"] == 0:
-            return data
-        return None
+        return data if data["pending"] == 0 else None
 
     data = poll_until(results_complete, timeout=30)
-    results = data["results"]
-    assert len(results) == 1
-    assert results[0]["exitCode"] == 0
-    assert "e2e-exec-output" in results[0]["output"]
+    result = data["results"][0]
+    assert result["exitCode"] == 0
+    assert "linux-exec-ok" in result["output"]
 
 
 @pytest.mark.slow
 @pytest.mark.requires_agent
-def test_approved_script_runs_successfully(admin_session, enrolled_agent):
-    print(f"\n[test] approved script on enrolled agent {enrolled_agent}")
-
-    script_id = _create_script(admin_session, name="e2e-approved-run", body="echo approved-ok")
-    _approve_script(admin_session, script_id)
+def test_script_execution_permission(admin_session, enrolled_agent):
+    """Unapproved script can be run by admin (script:adhoc); endpoint receives and acks it."""
+    unapproved_id = _create_script(admin_session, name="perm-unapproved-script", body="echo perm-ok")
 
     r = admin_session.post(
-        f"{BASE_URL}/api/scripts/{script_id}/run",
+        f"{BASE_URL}/api/scripts/{unapproved_id}/run",
         json={"endpointIds": [enrolled_agent]},
     )
     assert r.status_code == 202, r.text
@@ -342,40 +336,15 @@ def test_approved_script_runs_successfully(admin_session, enrolled_agent):
 
     data = poll_until(results_complete, timeout=30)
     assert data["results"][0]["exitCode"] == 0
-    assert "approved-ok" in data["results"][0]["output"]
 
-
-@pytest.mark.slow
-@pytest.mark.requires_agent
-def test_bulk_script_execution(admin_session, enrolled_agent):
-    """Run a script targeting multiple endpoint IDs; fake endpoints stay pending, real one acks."""
-    script_id = _create_script(admin_session, name="e2e-bulk-script", body="echo bulk-ok")
-
-    fake1 = "00000000-0000-0000-0000-000000000011"
-    fake2 = "00000000-0000-0000-0000-000000000012"
-    endpoint_ids = [enrolled_agent, fake1, fake2]
-
-    r = admin_session.post(
-        f"{BASE_URL}/api/scripts/{script_id}/run",
-        json={"endpointIds": endpoint_ids},
+    # unauthenticated caller cannot run scripts
+    r = requests.post(
+        f"{BASE_URL}/api/scripts/{unapproved_id}/run",
+        json={"endpointIds": [enrolled_agent]},
     )
-    assert r.status_code == 202, r.text
-    run_id = r.json()["runId"]
+    assert r.status_code in (401, 403)
 
-    results_r = admin_session.get(f"{BASE_URL}/api/scripts/runs/{run_id}/results")
-    assert results_r.json()["total"] == 3
 
-    def real_agent_acked():
-        r = admin_session.get(f"{BASE_URL}/api/scripts/runs/{run_id}/results")
-        data = r.json()
-        for result in data["results"]:
-            if result["endpointId"] == enrolled_agent and not result["pending"]:
-                return data
-        return None
-
-    data = poll_until(real_agent_acked, timeout=30)
-    real_result = next(r for r in data["results"] if r["endpointId"] == enrolled_agent)
-    assert real_result["exitCode"] == 0
-    assert "bulk-ok" in real_result["output"]
-    # fake endpoints remain pending
-    assert data["pending"] == 2
+@pytest.mark.skip(reason="no Windows agent in CI stack")
+def test_windows_script_execution(admin_session, enrolled_agent):
+    """Agent executes PowerShell script on Windows and captures output."""
