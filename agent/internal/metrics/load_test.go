@@ -13,16 +13,20 @@ import (
 
 func randomUUID() string {
 	var b [16]byte
-	rand.Read(b)
+	_, _ = rand.Read(b[:])
 	b[6] = (b[6] & 0x0f) | 0x40
 	b[8] = (b[8] & 0x3f) | 0x80
 	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
 }
 
 func TestLoad200Agents(t *testing.T) {
+	agentAddr := os.Getenv("PULSE_SERVER")
 	addr := os.Getenv("PULSE_METRIC_SERVER")
 	if addr == "" {
 		t.Skip("set PULSE_METRIC_SERVER=host:port to run load test")
+	}
+	if agentAddr == "" {
+		agentAddr = "localhost:9091"
 	}
 
 	const n = 200
@@ -35,7 +39,7 @@ func TestLoad200Agents(t *testing.T) {
 		go func() {
 			defer wg.Done()
 
-			client, err := NewClient(addr)
+			client, err := NewClient(agentAddr, addr)
 			if err != nil {
 				atomic.AddInt64(&errCount, 1)
 				return

@@ -157,7 +157,7 @@ def enrolled_agent(admin_session):
     print(f"[setup] starting agent container ({AGENT_IMAGE})...")
     result = subprocess.run(
         [
-            "podman", "run", "-d", "--rm",
+            "podman", "run", "-d",
             "--network", E2E_NETWORK,
             "-e", f"PULSE_TOKEN={enrolment_token}",
             "-e", "PULSE_SERVER=enrolment-service:9091",
@@ -175,5 +175,6 @@ def enrolled_agent(admin_session):
         print(f"[setup] agent enrolled as endpoint: {endpoint_id}")
         yield endpoint_id
     finally:
-        print(f"\n[teardown] stopping agent container {container_id[:12]}...")
-        subprocess.run(["podman", "stop", container_id], capture_output=True)
+        print(f"\n[teardown] keeping agent container {container_id[:12]} for inspection...")
+        # Don't stop the container - keep it for debugging
+        # subprocess.run(["podman", "stop", container_id], capture_output=True)

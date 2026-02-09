@@ -24,7 +24,7 @@ public class OpenApiConfig {
                 .contact(new Contact()
                     .name("Pulse RMM")
                     .email("michalkozakk0@gmail.com")))
-            .servers(List.of(new Server().url("/")))
+            .servers(List.of(new Server().url("http://localhost:8080")))
             .components(new Components()
                 .addSecuritySchemes("bearerAuth",
                     new SecurityScheme()

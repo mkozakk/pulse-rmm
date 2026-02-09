@@ -21,6 +21,12 @@ spring:
       hibernate.jdbc.time_zone: UTC
       hibernate.default_schema: software
     open-in-view: false
+  web:
+    cors:
+      allowed-origins: "http://localhost:8080"
+      allowed-methods: GET, POST, PUT, DELETE, OPTIONS
+      allowed-headers: "*"
+      allow-credentials: true
   flyway:
     enabled: true
     locations: classpath:db/migration

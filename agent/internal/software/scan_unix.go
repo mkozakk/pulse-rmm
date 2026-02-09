@@ -18,7 +18,13 @@ func scan() ([]SoftwareItem, error) {
 	}
 
 	// Fallback to dnf (Fedora/RHEL)
-	return scanDnfLinux()
+	items, err = scanDnfLinux()
+	if err == nil {
+		return items, nil
+	}
+
+	// If both fail, return empty list (package manager unavailable)
+	return []SoftwareItem{}, nil
 }
 
 func scanAptLinux() ([]SoftwareItem, error) {
@@ -28,7 +34,8 @@ func scanAptLinux() ([]SoftwareItem, error) {
 		return nil, fmt.Errorf("apt list failed: %w", err)
 	}
 
-	var items []SoftwareItem
+	seen := make(map[string]SoftwareItem)
+	var lineCount, dupeCount int
 	scanner := bufio.NewScanner(strings.NewReader(string(output)))
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
@@ -53,16 +60,27 @@ func scanAptLinux() ([]SoftwareItem, error) {
 			}
 		}
 
-		items = append(items, SoftwareItem{
+		if _, exists := seen[pkgName]; exists {
+			dupeCount++
+		}
+		lineCount++
+		seen[pkgName] = SoftwareItem{
 			Name:    pkgName,
 			Version: version,
 			Source:  "apt",
-		})
+		}
 	}
 
 	if err := scanner.Err(); err != nil {
 		return nil, fmt.Errorf("scan error: %w", err)
 	}
+
+	items := make([]SoftwareItem, 0, len(seen))
+	for _, item := range seen {
+		items = append(items, item)
+	}
+
+	fmt.Printf("[scan] apt: %d lines, %d duplicates, %d unique packages\n", lineCount, dupeCount, len(items))
 
 	return items, nil
 }

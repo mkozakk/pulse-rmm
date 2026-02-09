@@ -16,6 +16,8 @@ import (
 	"github.com/pulsermm/pulse-rmm/agent/internal/shell"
 	"github.com/pulsermm/pulse-rmm/agent/internal/software"
 	"github.com/pulsermm/pulse-rmm/agent/internal/store"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 func main() {
@@ -69,19 +71,32 @@ func main() {
 	}
 	defer metricClient.Close()
 
+	gatewayConn, err := grpc.NewClient(gatewayAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error dialing gateway for agent service: %v\n", err)
+		os.Exit(1)
+	}
+	defer gatewayConn.Close()
+	agentClient := pb.NewAgentServiceClient(gatewayConn)
+
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
+	fmt.Println("[main] Starting goroutines")
 	go runHeartbeat(ctx, metricClient, endpointID)
+	fmt.Println("[main] Started heartbeat")
 	go runMetrics(ctx, metricClient, endpointID)
-	go runSoftwareScan(ctx, endpointID)
-	go runControlStream(ctx, endpointID, gatewayAddr)
+	fmt.Println("[main] Started metrics")
+	go runSoftwareScan(ctx, endpointID, agentClient)
+	fmt.Println("[main] Started software scan")
+	go runControlStream(ctx, endpointID, gatewayAddr, agentClient)
+	fmt.Println("[main] Started control stream")
 
 	<-ctx.Done()
 	fmt.Println("Shutting down")
 }
 
-func runControlStream(ctx context.Context, endpointID, gatewayAddr string) {
+func runControlStream(ctx context.Context, endpointID, gatewayAddr string, agentClient pb.AgentServiceClient) {
 	inCh := make(chan *pb.GatewayCommand, 16)
 	outCh := make(chan *pb.AgentEvent, 16)
 
@@ -95,7 +110,7 @@ func runControlStream(ctx context.Context, endpointID, gatewayAddr string) {
 				if !ok {
 					return
 				}
-				dispatchCmd(shellMgr, cmd, outCh)
+				dispatchCmd(shellMgr, cmd, outCh, agentClient, endpointID)
 			case <-ctx.Done():
 				return
 			}
@@ -120,7 +135,7 @@ func runControlStream(ctx context.Context, endpointID, gatewayAddr string) {
 	}
 }
 
-func dispatchCmd(mgr *shell.Manager, cmd *pb.GatewayCommand, outCh chan<- *pb.AgentEvent) {
+func dispatchCmd(mgr *shell.Manager, cmd *pb.GatewayCommand, outCh chan<- *pb.AgentEvent, agentClient pb.AgentServiceClient, endpointID string) {
 	switch p := cmd.Payload.(type) {
 	case *pb.GatewayCommand_OpenShell:
 		o := p.OpenShell
@@ -145,7 +160,7 @@ func dispatchCmd(mgr *shell.Manager, cmd *pb.GatewayCommand, outCh chan<- *pb.Ag
 	case *pb.GatewayCommand_CloseShell:
 		mgr.Close(p.CloseShell.SessionId)
 	case *pb.GatewayCommand_SoftwareCommand:
-		go executeSoftwareCommand(p.SoftwareCommand, outCh)
+		go executeSoftwareCommand(p.SoftwareCommand, outCh, agentClient, endpointID)
 	case *pb.GatewayCommand_ScriptCommand:
 		go executeScriptCommand(p.ScriptCommand, outCh)
 	}
@@ -188,7 +203,9 @@ func runMetrics(ctx context.Context, client *metrics.Client, endpointID string) 
 	}
 }
 
-func runSoftwareScan(ctx context.Context, endpointID string) {
+func runSoftwareScan(ctx context.Context, endpointID string, client pb.AgentServiceClient) {
+	pushSoftwareList(ctx, endpointID, client)
+
 	ticker := time.NewTicker(10 * time.Minute)
 	defer ticker.Stop()
 
@@ -197,21 +214,85 @@ func runSoftwareScan(ctx context.Context, endpointID string) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			items, err := software.Scan()
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "software scan error: %v\n", err)
-				continue
-			}
-			fmt.Printf("Scanned %d software items\n", len(items))
+			pushSoftwareList(ctx, endpointID, client)
 		}
 	}
 }
 
-func executeSoftwareCommand(cmd *pb.SoftwareCommand, outCh chan<- *pb.AgentEvent) {
+func pushSoftwareList(ctx context.Context, endpointID string, client pb.AgentServiceClient) {
+	items, err := software.Scan()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "software scan error: %v\n", err)
+		return
+	}
+
+	fmt.Printf("[agent] Scanned %d software items\n", len(items))
+	if len(items) > 0 {
+		fmt.Printf("[agent] Sample items: %s, %s, ...\n", items[0].Name, items[1].Name)
+		// Check if hello is in the list
+		for _, item := range items {
+			if item.Name == "hello" {
+				fmt.Printf("[agent] ✓ FOUND HELLO IN SCAN: version=%s\n", item.Version)
+				break
+			}
+		}
+	}
+
+	pbItems := make([]*pb.SoftwareItem, 0, len(items))
+	for _, item := range items {
+		pbItems = append(pbItems, &pb.SoftwareItem{
+			Name:    item.Name,
+			Version: item.Version,
+			Source:  item.Source,
+		})
+	}
+
+	fmt.Printf("[agent] Pushing %d items to server\n", len(pbItems))
+	_, err = client.PushSoftwareList(ctx, &pb.SoftwareList{
+		EndpointId: endpointID,
+		Items:      pbItems,
+	})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "software push error: %v\n", err)
+		return
+	}
+	fmt.Printf("[agent] Successfully pushed %d software items\n", len(items))
+}
+
+func executeSoftwareCommand(cmd *pb.SoftwareCommand, outCh chan<- *pb.AgentEvent, agentClient pb.AgentServiceClient, endpointID string) {
+	fmt.Printf("[agent] Executing software command: action=%s, name=%s, version=%s\n", cmd.Action, cmd.Name, cmd.Version)
+
+	// Scan before
+	itemsBefore, err := software.Scan()
+	if err != nil {
+		fmt.Printf("[agent] ERROR scanning before: %v\n", err)
+	}
+	fmt.Printf("[agent] Packages BEFORE %s: %d items\n", cmd.Action, len(itemsBefore))
+	for _, item := range itemsBefore {
+		if item.Name == cmd.Name {
+			fmt.Printf("[agent]   - Found target package BEFORE: %s v%s\n", item.Name, item.Version)
+		}
+	}
+
 	exitCode, output, err := software.Execute(cmd.Action, cmd.Name, cmd.Version)
 	if err != nil {
 		exitCode = -1
 		output = err.Error()
+	}
+
+	fmt.Printf("[agent] Command executed: exitCode=%d\n", exitCode)
+	fmt.Printf("[agent] Command output:\n%s\n", output)
+
+	// Scan after
+	itemsAfter, err := software.Scan()
+	if err != nil {
+		fmt.Printf("[agent] ERROR scanning after: %v\n", err)
+	}
+	fmt.Printf("[agent] Packages AFTER %s: %d items\n", cmd.Action, len(itemsAfter))
+	for _, item := range itemsAfter {
+		if item.Name == cmd.Name {
+			fmt.Printf("[agent]   - Found target package AFTER: %s v%s\n", item.Name, item.Version)
+		}
 	}
 
 	outCh <- &pb.AgentEvent{
@@ -223,6 +304,9 @@ func executeSoftwareCommand(cmd *pb.SoftwareCommand, outCh chan<- *pb.AgentEvent
 			},
 		},
 	}
+
+	fmt.Printf("[agent] Pushing updated software list after %s command\n", cmd.Action)
+	pushSoftwareList(context.Background(), endpointID, agentClient)
 }
 
 func executeScriptCommand(cmd *pb.ScriptCommand, outCh chan<- *pb.AgentEvent) {
