@@ -1,6 +1,6 @@
 package dev.pulsermm.script.application;
 
-import dev.pulsermm.script.api.CreateScriptRequest;
+import dev.pulsermm.script.api.dto.CreateScriptRequest;
 import dev.pulsermm.script.domain.Script;
 import dev.pulsermm.script.domain.ScriptRun;
 import dev.pulsermm.script.domain.ScriptRunResult;
