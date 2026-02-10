@@ -1,3 +1,11 @@
+ifdef FULL_LOG
+COMPOSE_OUTPUT :=
+PYTEST_FLAGS := -v --logs
+else
+COMPOSE_OUTPUT := > /dev/null 2>&1
+PYTEST_FLAGS := -q --tb=short
+endif
+
 E2E_COMPOSE = JAVA_HOME=/usr/lib/jvm/java-21-openjdk podman compose \
         -f deploy/compose.yaml \
         -f deploy/compose.e2e.yaml \
@@ -10,15 +18,15 @@ e2e:
 	@echo "Cleaning up from previous run..."
 	$(E2E_COMPOSE) down -v 2>/dev/null || true
 	@echo "Building changed services..."
-	$(E2E_COMPOSE) build --pull=false
+	$(E2E_COMPOSE) build --pull=false $(COMPOSE_OUTPUT)
 	@echo "Starting stack..."
-	$(E2E_COMPOSE) up --pull=never -d
+	$(E2E_COMPOSE) up --pull=never -d $(COMPOSE_OUTPUT)
 	@echo "Waiting for gateway..."
 	@timeout 60 bash -c 'until curl -sf http://localhost:8080/actuator/health >/dev/null 2>&1; do sleep 0.5; done'
 	@echo "Running tests..."
-	cd e2e && python -m pytest tests/ -v --logs
+	cd e2e && python -m pytest tests/ $(PYTEST_FLAGS)
 	@echo "Stopping containers..."
-	$(E2E_COMPOSE) down -v
+	$(E2E_COMPOSE) down -v $(COMPOSE_OUTPUT)
 
 e2e-logs:
 	$(E2E_COMPOSE) logs -f
