@@ -24,6 +24,7 @@
         <module>metric-service</module>
         <module>script-service</module>
         <module>software-service</module>
+        <module>remote-service</module>
     </modules>
 
     <properties>
