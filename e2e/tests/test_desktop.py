@@ -20,7 +20,7 @@ pytestmark = pytest.mark.slow
 def _create_session(session, endpoint_id):
     return session.post(
         f"{BASE_URL}/api/sessions",
-        json={"endpoint_id": endpoint_id, "type": "desktop"},
+        json={"endpointId": endpoint_id, "type": "desktop"},
     )
 
 
@@ -81,28 +81,28 @@ def desktop_session(admin_session, enrolled_agent):
     assert r.status_code == 201, f"session creation failed: {r.status_code} {r.text}"
     data = r.json()
     yield data
-    admin_session.delete(f"{BASE_URL}/api/sessions/{data['session_id']}")
+    admin_session.delete(f"{BASE_URL}/api/sessions/{data['sessionId']}")
 
 
 def test_create_session_returns_turn_credentials(admin_session, enrolled_agent):
     r = _create_session(admin_session, enrolled_agent)
     assert r.status_code == 201, r.text
     data = r.json()
-    assert "session_id" in data
-    assert "turn_urls" in data and len(data["turn_urls"]) > 0
-    assert "turn_username" in data
-    assert "turn_credential" in data
+    assert "sessionId" in data
+    assert "turnUrls" in data and len(data["turnUrls"]) > 0
+    assert "turnUsername" in data
+    assert "turnCredential" in data
 
 
 def test_create_session_control_flag_for_admin(admin_session, enrolled_agent):
     """Admin has remote:desktop:control so can_control must be true."""
     r = _create_session(admin_session, enrolled_agent)
     assert r.status_code == 201, r.text
-    assert r.json()["can_control"] is True
+    assert r.json()["canControl"] is True
 
 
 def test_get_session_status(desktop_session, admin_session):
-    session_id = desktop_session["session_id"]
+    session_id = desktop_session["sessionId"]
     r = admin_session.get(f"{BASE_URL}/api/sessions/{session_id}")
     assert r.status_code == 200, r.text
     assert r.json()["status"] in ("pending", "active")
@@ -116,7 +116,7 @@ def test_get_session_not_found_returns_404(admin_session):
 def test_end_session(admin_session, enrolled_agent):
     r = _create_session(admin_session, enrolled_agent)
     assert r.status_code == 201, r.text
-    session_id = r.json()["session_id"]
+    session_id = r.json()["sessionId"]
 
     r_del = admin_session.delete(f"{BASE_URL}/api/sessions/{session_id}")
     assert r_del.status_code == 204
@@ -128,7 +128,7 @@ def test_end_session(admin_session, enrolled_agent):
 
 def test_end_session_twice_is_idempotent(admin_session, enrolled_agent):
     r = _create_session(admin_session, enrolled_agent)
-    session_id = r.json()["session_id"]
+    session_id = r.json()["sessionId"]
     admin_session.delete(f"{BASE_URL}/api/sessions/{session_id}")
     r2 = admin_session.delete(f"{BASE_URL}/api/sessions/{session_id}")
     assert r2.status_code in (204, 404)
@@ -182,7 +182,7 @@ def test_signaling_ws_invalid_session_rejected(admin_session):
 
 def test_signaling_ws_accepts_valid_session(admin_session, desktop_session):
     """Connecting with a valid token and valid session_id should be accepted."""
-    session_id = desktop_session["session_id"]
+    session_id = desktop_session["sessionId"]
     ws = websocket.WebSocket()
     ws.settimeout(5)
     try:
