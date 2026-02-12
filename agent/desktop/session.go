@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/pion/webrtc/v4"
@@ -15,9 +16,11 @@ import (
 var ErrWaylandNotSupported = errors.New("wayland is not supported")
 
 type DesktopSession struct {
-	sessionID  string
-	pc         *webrtc.PeerConnection
-	videoTrack webrtc.TrackLocal
+	sessionID   string
+	pc          *webrtc.PeerConnection
+	videoTrack  webrtc.TrackLocal
+	injector    InputInjector
+	rateLimiter *rateLimiter
 }
 
 func NewSession(sessionID string, turnURLs []string, turnSecret string) (*DesktopSession, error) {
@@ -50,7 +53,39 @@ func NewSession(sessionID string, turnURLs []string, turnSecret string) (*Deskto
 		return nil, fmt.Errorf("creating peer connection: %w", err)
 	}
 
-	return &DesktopSession{sessionID: sessionID, pc: pc}, nil
+	injector, err := newInputInjector()
+	if err != nil {
+		// non-fatal: log and continue with noop injector
+		fmt.Fprintf(os.Stderr, "desktop: input injector unavailable: %v\n", err)
+		injector = &noopInjector{}
+	}
+
+	sess := &DesktopSession{
+		sessionID:   sessionID,
+		pc:          pc,
+		injector:    injector,
+		rateLimiter: newRateLimiter(60),
+	}
+	sess.registerDataChannelHandler()
+	return sess, nil
+}
+
+func (s *DesktopSession) registerDataChannelHandler() {
+	s.pc.OnDataChannel(func(dc *webrtc.DataChannel) {
+		if dc.Label() != "input" {
+			return
+		}
+		dc.OnMessage(func(msg webrtc.DataChannelMessage) {
+			if !s.rateLimiter.allow() {
+				return
+			}
+			ev, err := parseInputEvent(msg.Data)
+			if err != nil {
+				return
+			}
+			s.dispatchInputEvent(ev)
+		})
+	})
 }
 
 func (s *DesktopSession) addVideoTrack(track webrtc.TrackLocal) error {
@@ -91,7 +126,23 @@ func (s *DesktopSession) AddICECandidate(candidateJSON string) error {
 	return s.pc.AddICECandidate(init)
 }
 
+func (s *DesktopSession) dispatchInputEvent(ev inputEvent) {
+	switch ev.Type {
+	case "mousemove":
+		s.injector.MouseMove(ev.X, ev.Y) //nolint:errcheck
+	case "mousedown":
+		s.injector.MouseButton(ev.Button, true) //nolint:errcheck
+	case "mouseup":
+		s.injector.MouseButton(ev.Button, false) //nolint:errcheck
+	case "keydown":
+		s.injector.KeyEvent(ev.KeyCode, true) //nolint:errcheck
+	case "keyup":
+		s.injector.KeyEvent(ev.KeyCode, false) //nolint:errcheck
+	}
+}
+
 func (s *DesktopSession) Close() error {
+	s.injector.Close() //nolint:errcheck
 	return s.pc.Close()
 }
 
