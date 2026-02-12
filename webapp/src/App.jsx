@@ -8,6 +8,7 @@ import LoginPage from './pages/LoginPage'
 import EndpointsPage from './pages/EndpointsPage'
 import EndpointDetailPage from './pages/EndpointDetailPage'
 import TerminalPage from './pages/TerminalPage'
+import DesktopPage from './pages/DesktopPage'
 
 function Bootstrap({ children }) {
   const dispatch = useDispatch()
@@ -34,6 +35,7 @@ export default function App() {
             <Route path="/endpoints" element={<EndpointsPage />} />
             <Route path="/endpoints/:id" element={<EndpointDetailPage />} />
             <Route path="/endpoints/:id/shell" element={<TerminalPage />} />
+            <Route path="/endpoints/:id/desktop" element={<DesktopPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/endpoints" replace />} />
         </Routes>

@@ -1,0 +1,167 @@
+import { useEffect, useRef, useState } from 'react'
+import { useSelector } from 'react-redux'
+import { useCreateSessionMutation, useEndSessionMutation } from '../api/pulseApi'
+
+const WS_BASE = import.meta.env.VITE_WS_BASE ?? 'ws://localhost:8080'
+
+export function useDesktopSession(endpointId) {
+  const token = useSelector(state => state.auth.token)
+  const [createSession] = useCreateSessionMutation()
+  const [deleteSession] = useEndSessionMutation()
+
+  const videoRef = useRef(null)
+  const pcRef = useRef(null)
+  const wsRef = useRef(null)
+  const inputChannelRef = useRef(null)
+  const fileChannelRef = useRef(null)
+  const sessionIdRef = useRef(null)
+
+  const [status, setStatus] = useState('idle')
+  const [canControl, setCanControl] = useState(false)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    if (!endpointId || !token) return
+
+    let cancelled = false
+    setStatus('connecting')
+
+    async function start() {
+      const session = await createSession({ endpoint_id: endpointId, type: 'desktop' }).unwrap()
+      if (cancelled) return
+
+      sessionIdRef.current = session.session_id
+      setCanControl(!!session.can_control)
+
+      const iceServers = session.turn_urls?.length ? [{
+        urls: session.turn_urls,
+        username: session.turn_username,
+        credential: session.turn_credential
+      }] : []
+
+      const pc = new RTCPeerConnection({ iceServers })
+      pcRef.current = pc
+
+      pc.ontrack = (e) => {
+        if (videoRef.current) videoRef.current.srcObject = e.streams[0]
+        setStatus('connected')
+      }
+
+      const ws = new WebSocket(`${WS_BASE}/ws/sessions/${session.session_id}/signal?token=${token}`)
+      wsRef.current = ws
+
+      ws.onmessage = async (e) => {
+        const msg = JSON.parse(e.data)
+        if (msg.type === 'answer') {
+          await pc.setRemoteDescription({ type: 'answer', sdp: msg.payload })
+        } else if (msg.type === 'candidate') {
+          await pc.addIceCandidate(JSON.parse(msg.payload))
+        } else if (msg.type === 'error' && msg.code === 'wayland_not_supported') {
+          setError('wayland_not_supported')
+          setStatus('error')
+        }
+      }
+
+      ws.onclose = () => { if (!cancelled) setStatus(s => s === 'connecting' ? 'error' : s) }
+
+      await new Promise((resolve, reject) => { ws.onopen = resolve; ws.onerror = reject })
+      if (cancelled) return
+
+      pc.onicecandidate = (e) => {
+        if (e.candidate && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'candidate', payload: JSON.stringify(e.candidate) }))
+        }
+      }
+
+      if (session.can_control) {
+        inputChannelRef.current = pc.createDataChannel('input')
+      }
+      fileChannelRef.current = pc.createDataChannel('file-transfer')
+
+      const offer = await pc.createOffer()
+      await pc.setLocalDescription(offer)
+      ws.send(JSON.stringify({ type: 'offer', payload: offer.sdp }))
+    }
+
+    start().catch(() => { if (!cancelled) setStatus('error') })
+
+    return () => {
+      cancelled = true
+      wsRef.current?.close()
+      pcRef.current?.close()
+    }
+  }, [endpointId, token])
+
+  useEffect(() => {
+    if (!canControl || status !== 'connected') return
+    const video = videoRef.current
+    if (!video) return
+
+    function send(evt) {
+      const ch = inputChannelRef.current
+      if (ch?.readyState === 'open') ch.send(JSON.stringify(evt))
+    }
+
+    function onMouseMove(e) {
+      const r = video.getBoundingClientRect()
+      const sx = video.videoWidth / r.width || 1
+      const sy = video.videoHeight / r.height || 1
+      send({ type: 'mousemove', x: Math.round((e.clientX - r.left) * sx), y: Math.round((e.clientY - r.top) * sy) })
+    }
+    function onMouseDown(e) { send({ type: 'mousedown', button: e.button }) }
+    function onMouseUp(e) { send({ type: 'mouseup', button: e.button }) }
+    function onKeyDown(e) { send({ type: 'keydown', keyCode: e.keyCode }) }
+    function onKeyUp(e) { send({ type: 'keyup', keyCode: e.keyCode }) }
+
+    video.tabIndex = 0
+    video.addEventListener('mousemove', onMouseMove)
+    video.addEventListener('mousedown', onMouseDown)
+    video.addEventListener('mouseup', onMouseUp)
+    video.addEventListener('keydown', onKeyDown)
+    video.addEventListener('keyup', onKeyUp)
+
+    return () => {
+      video.removeEventListener('mousemove', onMouseMove)
+      video.removeEventListener('mousedown', onMouseDown)
+      video.removeEventListener('mouseup', onMouseUp)
+      video.removeEventListener('keydown', onKeyDown)
+      video.removeEventListener('keyup', onKeyUp)
+    }
+  }, [canControl, status])
+
+  function sendFile(file) {
+    const ch = fileChannelRef.current
+    if (!ch || ch.readyState !== 'open') return
+    const CHUNK = 64 * 1024
+    let offset = 0
+    const reader = new FileReader()
+    ch.send(JSON.stringify({ type: 'upload_start', name: file.name, size: file.size }))
+    reader.onload = (e) => {
+      ch.send(e.target.result)
+      offset += e.target.result.byteLength
+      if (offset < file.size) {
+        reader.readAsArrayBuffer(file.slice(offset, offset + CHUNK))
+      } else {
+        ch.send(JSON.stringify({ type: 'upload_done' }))
+      }
+    }
+    reader.readAsArrayBuffer(file.slice(0, CHUNK))
+  }
+
+  function requestDownload(path) {
+    const ch = fileChannelRef.current
+    if (ch?.readyState === 'open') ch.send(JSON.stringify({ type: 'download_request', path }))
+  }
+
+  async function endSession() {
+    const sid = sessionIdRef.current
+    if (sid) {
+      try { await deleteSession(sid).unwrap() } catch {}
+    }
+    wsRef.current?.close()
+    pcRef.current?.close()
+    setStatus('idle')
+  }
+
+  return { videoRef, status, canControl, error, sendFile, requestDownload, endSession }
+}
