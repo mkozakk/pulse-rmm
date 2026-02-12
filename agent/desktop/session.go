@@ -72,19 +72,31 @@ func NewSession(sessionID string, turnURLs []string, turnSecret string) (*Deskto
 
 func (s *DesktopSession) registerDataChannelHandler() {
 	s.pc.OnDataChannel(func(dc *webrtc.DataChannel) {
-		if dc.Label() != "input" {
-			return
-		}
-		dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-			if !s.rateLimiter.allow() {
-				return
-			}
-			ev, err := parseInputEvent(msg.Data)
+		switch dc.Label() {
+		case "input":
+			dc.OnMessage(func(msg webrtc.DataChannelMessage) {
+				if !s.rateLimiter.allow() {
+					return
+				}
+				ev, err := parseInputEvent(msg.Data)
+				if err != nil {
+					return
+				}
+				s.dispatchInputEvent(ev)
+			})
+		case "file-transfer":
+			homeDir, err := os.UserHomeDir()
 			if err != nil {
-				return
+				homeDir = os.TempDir()
 			}
-			s.dispatchInputEvent(ev)
-		})
+			ft := newFileTransferHandler(
+				func(text string) error { return dc.SendText(text) },
+				func(data []byte) error { return dc.Send(data) },
+				"/tmp/pulse-uploads",
+				homeDir,
+			)
+			ft.HandleDataChannel(dc)
+		}
 	})
 }
 
