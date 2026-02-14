@@ -6,11 +6,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"image"
 	"os"
+	"time"
 
-	"github.com/pion/mediadevices"
+	"github.com/jezek/xgb"
+	"github.com/jezek/xgb/xproto"
 	"github.com/pion/mediadevices/pkg/codec/vpx"
 	"github.com/pion/mediadevices/pkg/prop"
+	"github.com/pion/webrtc/v4"
+	"github.com/pion/webrtc/v4/pkg/media"
 )
 
 func checkPlatform() error {
@@ -28,43 +33,125 @@ func startCapture(sess *DesktopSession, ctx context.Context) error {
 		return errors.New("no X11 display (DISPLAY not set)")
 	}
 
+	fmt.Printf("[desktop] connecting to X11 display %s\n", os.Getenv("DISPLAY"))
+	conn, err := xgb.NewConn()
+	if err != nil {
+		return fmt.Errorf("connecting to X11: %w", err)
+	}
+
+	setup := xproto.Setup(conn)
+	screen := setup.DefaultScreen(conn)
+	root := screen.Root
+	w := int(screen.WidthInPixels)
+	h := int(screen.HeightInPixels)
+	fmt.Printf("[desktop] screen size: %dx%d\n", w, h)
+
+	// smoke-test: make sure XGetImage works before we proceed
+	fmt.Println("[desktop] testing XGetImage...")
+	testCh := make(chan error, 1)
+	go func() {
+		_, e := xproto.GetImage(conn, xproto.ImageFormatZPixmap, xproto.Drawable(root), 0, 0, uint16(w), uint16(h), 0xffffffff).Reply()
+		testCh <- e
+	}()
+	select {
+	case err := <-testCh:
+		if err != nil {
+			conn.Close()
+			return fmt.Errorf("XGetImage test failed: %w", err)
+		}
+	case <-time.After(5 * time.Second):
+		conn.Close()
+		return errors.New("XGetImage timed out — X server may not be accessible (check XAUTHORITY)")
+	}
+	fmt.Println("[desktop] XGetImage OK, setting up encoder")
+
 	vpxParams, err := vpx.NewVP9Params()
 	if err != nil {
+		conn.Close()
 		return fmt.Errorf("creating VP9 params: %w", err)
 	}
-	vpxParams.BitRate = 2_500_000
+	vpxParams.BitRate = 1_000_000
 
-	codecSelector := mediadevices.NewCodecSelector(
-		mediadevices.WithVideoEncoders(&vpxParams),
-	)
-
-	stream, err := mediadevices.GetDisplayMedia(mediadevices.MediaStreamConstraints{
-		Video: func(c *mediadevices.MediaTrackConstraints) {
-			c.FrameRate = prop.Float(30)
-		},
-		Codec: codecSelector,
+	reader := &x11Reader{conn: conn, root: root, w: w, h: h}
+	encoder, err := vpxParams.BuildVideoEncoder(reader, prop.Media{
+		Video: prop.Video{Width: w, Height: h, FrameRate: 15},
 	})
 	if err != nil {
-		return fmt.Errorf("getting display media: %w", err)
+		conn.Close()
+		return fmt.Errorf("building VP9 encoder: %w", err)
 	}
 
-	tracks := stream.GetVideoTracks()
-	if len(tracks) == 0 {
-		return errors.New("no video tracks from display")
+	track, err := webrtc.NewTrackLocalStaticSample(webrtc.RTPCodecCapability{
+		MimeType:  webrtc.MimeTypeVP9,
+		ClockRate: 90000,
+	}, "video", "desktop")
+	if err != nil {
+		encoder.Close()
+		conn.Close()
+		return fmt.Errorf("creating video track: %w", err)
 	}
 
-	track := tracks[0]
 	if err := sess.addVideoTrack(track); err != nil {
-		track.Close()
-		return fmt.Errorf("adding video track to peer connection: %w", err)
+		encoder.Close()
+		conn.Close()
+		return fmt.Errorf("adding video track: %w", err)
 	}
 
 	go func() {
-		<-ctx.Done()
-		for _, t := range stream.GetVideoTracks() {
-			t.Close()
+		defer encoder.Close()
+		defer conn.Close()
+		const frameDur = time.Second / 15
+		ticker := time.NewTicker(frameDur)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				pkt, release, err := encoder.Read()
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "[desktop] encoder read error: %v\n", err)
+					return
+				}
+				if err := track.WriteSample(media.Sample{
+					Data:     pkt,
+					Duration: frameDur,
+				}); err != nil && ctx.Err() == nil {
+					fmt.Fprintf(os.Stderr, "[desktop] write sample error: %v\n", err)
+				}
+				release()
+			}
 		}
 	}()
 
+	fmt.Println("[desktop] capture started successfully")
 	return nil
+}
+
+// x11Reader implements prop.VideoReader by capturing the root window via XGetImage.
+// No XShm required — works on VMs and remote X sessions.
+type x11Reader struct {
+	conn *xgb.Conn
+	root xproto.Window
+	w, h int
+}
+
+func (r *x11Reader) Read() (img image.Image, release func(), err error) {
+	reply, err := xproto.GetImage(r.conn, xproto.ImageFormatZPixmap, xproto.Drawable(r.root),
+		0, 0, uint16(r.w), uint16(r.h), 0xffffffff).Reply()
+	if err != nil {
+		return nil, func() {}, fmt.Errorf("XGetImage: %w", err)
+	}
+
+	// X11 ZPixmap is BGRA (or BGRX). Convert to RGBA for the VP9 encoder.
+	out := image.NewNRGBA(image.Rect(0, 0, r.w, r.h))
+	src := reply.Data
+	dst := out.Pix
+	for i := 0; i+3 < len(src) && i+3 < len(dst); i += 4 {
+		dst[i+0] = src[i+2] // R ← B
+		dst[i+1] = src[i+1] // G
+		dst[i+2] = src[i+0] // B ← R
+		dst[i+3] = 0xff      // A
+	}
+	return out, func() {}, nil
 }
