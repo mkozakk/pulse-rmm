@@ -25,6 +25,19 @@ func NewHandler() *Handler {
 func (h *Handler) HandleStartSession(cmd *pb.StartDesktopSessionCommand, send func(*pb.AgentEvent)) {
 	sessionID := cmd.GetSessionId()
 
+	// Cancel any existing sessions before starting a new one — prevents zombie
+	// capture goroutines from previous failed/retried session attempts.
+	h.mu.Lock()
+	for id, s := range h.sessions {
+		if cancel, ok := h.cancels[id]; ok {
+			cancel()
+		}
+		s.Close()
+		delete(h.sessions, id)
+		delete(h.cancels, id)
+	}
+	h.mu.Unlock()
+
 	sess, err := NewSession(sessionID, cmd.GetTurnUrls(), cmd.GetTurnSecret())
 	if err != nil {
 		sendSessionReady(send, sessionID, fmt.Sprintf("failed to create session: %v", err))
