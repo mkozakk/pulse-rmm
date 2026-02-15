@@ -97,24 +97,28 @@ func startCapture(sess *DesktopSession, ctx context.Context) error {
 		return fmt.Errorf("adding video track: %w", err)
 	}
 
+	// Watcher: close X11 conn as soon as context is cancelled so that any
+	// in-flight XGetImage inside encoder.Read() fails immediately instead of
+	// blocking until the next frame boundary.
+	go func() {
+		<-ctx.Done()
+		conn.Close()
+	}()
+
 	go func() {
 		defer encoder.Close()
-		defer conn.Close() // closing conn unblocks any in-flight XGetImage in the encoder goroutine
 		const frameDur = time.Second / 15
 		for {
-			if ctx.Err() != nil {
-				return
-			}
 			pkt, release, err := encoder.Read()
 			if err != nil {
-				return
+				return // conn closed by watcher → XGetImage failed → encoder returns error
 			}
 			if err := track.WriteSample(media.Sample{
 				Data:     pkt,
 				Duration: frameDur,
 			}); err != nil {
 				release()
-				return // pc closed — stop the capture loop
+				return
 			}
 			release()
 		}
