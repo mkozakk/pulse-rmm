@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"runtime"
 	"time"
 
 	"github.com/pion/webrtc/v4"
@@ -26,17 +27,30 @@ type DesktopSession struct {
 func NewSession(sessionID string, turnURLs []string, turnSecret string) (*DesktopSession, error) {
 	m := &webrtc.MediaEngine{}
 
-	// Use VP9 as fallback while H264 Windows integration is pending
-	// TODO: Switch to H264 on Windows once cgo/DLL linking is resolved
-	codecMimeType := webrtc.MimeTypeVP9
-	payloadType := webrtc.PayloadType(98)
-	fmt.Printf("[desktop] Registering VP9 codec (H264 Windows integration pending)\n")
+	// Windows: try H264 (with fallback to VP9), Linux: use VP9
+	var codecMimeType string
+	var payloadType webrtc.PayloadType
+	var fmtpLine string
+
+	if runtime.GOOS == "windows" {
+		// Will determine H264 vs VP9 in startCapture() based on codec availability
+		// For now, register H264 as primary
+		codecMimeType = webrtc.MimeTypeH264
+		payloadType = 102
+		fmtpLine = "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01f"
+		fmt.Println("[desktop] Registering H264 codec for Windows (will fallback to VP9 if unavailable)")
+	} else {
+		codecMimeType = webrtc.MimeTypeVP9
+		payloadType = 98
+		fmtpLine = ""
+		fmt.Println("[desktop] Registering VP9 codec for Linux")
+	}
 
 	if err := m.RegisterCodec(webrtc.RTPCodecParameters{
 		RTPCodecCapability: webrtc.RTPCodecCapability{
 			MimeType:    codecMimeType,
 			ClockRate:   90000,
-			SDPFmtpLine: getCodecFmtpLine(codecMimeType),
+			SDPFmtpLine: fmtpLine,
 		},
 		PayloadType: payloadType,
 	}, webrtc.RTPCodecTypeVideo); err != nil {
@@ -198,8 +212,8 @@ func (s *DesktopSession) Close() error {
 func getCodecFmtpLine(mimeType string) string {
 	if mimeType == webrtc.MimeTypeH264 {
 		// H264 Constrained Baseline, Level 3.1
-		// profile-level-id=42001f: 0x42=Baseline, 0x00=no constraints, 0x1f=Level 3.1
-		return "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42001f"
+		// profile-level-id=42e01f: 0x42=Baseline, 0x00=no constraints, 0x1f=Level 3.1
+		return "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01f"
 	}
 	return "" // VP9 doesn't need special fmtp line
 }

@@ -3,8 +3,8 @@
 package desktop
 
 import (
-	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -14,6 +14,7 @@ import (
 
 	"github.com/pion/webrtc/v4"
 	"github.com/pion/webrtc/v4/pkg/media"
+	"github.com/pion/webrtc/v4/pkg/media/h264reader"
 )
 
 func checkPlatform() error {
@@ -25,32 +26,76 @@ func checkPlatform() error {
 }
 
 func startCapture(sess *DesktopSession, ctx context.Context) error {
+	// Create H264 video track
 	track, err := webrtc.NewTrackLocalStaticSample(webrtc.RTPCodecCapability{
-		MimeType:  webrtc.MimeTypeVP9,
-		ClockRate: 90000,
+		MimeType:    webrtc.MimeTypeH264,
+		ClockRate:   90000,
+		SDPFmtpLine: "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01f",
 	}, "video", "desktop")
 	if err != nil {
-		return fmt.Errorf("creating VP9 video track: %w", err)
+		return fmt.Errorf("creating H264 video track: %w", err)
 	}
 
 	if err := sess.addVideoTrack(track); err != nil {
 		return fmt.Errorf("adding video track: %w", err)
 	}
 
-	// Start FFmpeg: capture desktop with gdigrab, encode to VP9
-	cmd := exec.CommandContext(ctx,
-		"ffmpeg",
-		"-fflags", "+nobuffer",      // disable output buffering
+	// Use H264 with fallback to software libx264 if hardware unavailable
+	codec := selectBestH264Codec()
+	fmt.Printf("[desktop] Using H264 codec: %s\n", codec)
+
+	// Build FFmpeg command for H264
+	ffmpegArgs := []string{
+		"-fflags", "+nobuffer",
+		"-flags", "+low_delay",
 		"-f", "gdigrab",
 		"-i", "desktop",
-		"-c:v", "libvpx-vp9",
-		"-b:v", "2500k",
+		"-c:v", codec,
+		"-b:v", "8000k",
+		"-maxrate", "10000k",
+		"-bufsize", "10000k",
 		"-r", "30",
+		"-g", "30",                // Force keyframe every 30 frames (CRITICAL for Chrome)
 		"-pix_fmt", "yuv420p",
-		"-f", "ivf",
-		"-flvflags", "+nobuffer",    // minimize delay
+	}
+
+	// Force Baseline 3.1 profile to match SDP profile-level-id=42001f.
+	// Chrome silently drops frames if negotiated profile != actual SPS profile.
+	switch codec {
+	case "h264_nvenc":
+		ffmpegArgs = append(ffmpegArgs,
+			"-preset", "fast",
+			"-profile:v", "baseline",
+			"-level", "3.1",
+		)
+	case "h264_qsv":
+		ffmpegArgs = append(ffmpegArgs,
+			"-preset", "veryfast",
+			"-profile:v", "baseline",
+			"-level", "3.1",
+		)
+	case "libx264":
+		ffmpegArgs = append(ffmpegArgs,
+			"-preset", "veryfast",
+			"-tune", "zerolatency",
+			"-profile:v", "baseline",
+			"-level", "3.1",
+			// Force single slice per frame. Default zerolatency tune enables
+			// sliced-threads which splits a frame across slices/NALs; our AU
+			// emitter terminates on the first slice NAL and drops the rest.
+			"-x264-params", "slices=1:sliced-threads=0",
+		)
+	}
+
+	// dump_extra: prepend SPS/PPS before every keyframe so a late-joining
+	// browser can initialize its decoder without waiting for stream start.
+	ffmpegArgs = append(ffmpegArgs,
+		"-bsf:v", "dump_extra",
+		"-f", "h264",
 		"pipe:1",
 	)
+
+	cmd := exec.CommandContext(ctx, "ffmpeg", ffmpegArgs...)
 
 	stderr := os.Stderr
 	cmd.Stderr = stderr
@@ -64,7 +109,7 @@ func startCapture(sess *DesktopSession, ctx context.Context) error {
 		return fmt.Errorf("starting ffmpeg: %w", err)
 	}
 
-	fmt.Println("[desktop] VP9 capture started (FFmpeg + gdigrab)")
+	fmt.Println("[desktop] H264 capture started (FFmpeg + gdigrab)")
 
 	go func() {
 		defer func() {
@@ -72,21 +117,22 @@ func startCapture(sess *DesktopSession, ctx context.Context) error {
 			fmt.Println("[desktop] Capture goroutine exiting")
 		}()
 
-		fmt.Println("[desktop] Waiting for FFmpeg output...")
+		fmt.Println("[desktop] Waiting for H264 stream...")
 		startTime := time.Now()
 
-		reader := bufio.NewReaderSize(stdout, 256*1024)
-		frameCount := 0
-		const frameDur = time.Second / 30
-
-		// Skip IVF file header (32 bytes)
-		fmt.Println("[desktop] Reading IVF header...")
-		header := make([]byte, 32)
-		if _, err := io.ReadFull(reader, header); err != nil {
-			fmt.Printf("[desktop] Error reading IVF header: %v\n", err)
+		h264r, err := h264reader.NewReader(stdout)
+		if err != nil {
+			fmt.Printf("[desktop] h264reader init error: %v\n", err)
 			return
 		}
-		fmt.Printf("[desktop] IVF header received after %v\n", time.Since(startTime))
+
+		frameCount := 0
+		const frameDur = time.Second / 30
+		startCode := []byte{0x00, 0x00, 0x00, 0x01}
+
+		// Accumulate NAL units of one access unit, emit when we see a slice NAL.
+		// Pion's H264 payloader splits Annex-B into RTP packets with the same timestamp.
+		var au []byte
 
 		for {
 			select {
@@ -95,49 +141,82 @@ func startCapture(sess *DesktopSession, ctx context.Context) error {
 			default:
 			}
 
-			// Read IVF frame header (12 bytes)
-			frameHdr := make([]byte, 12)
-			if _, err := io.ReadFull(reader, frameHdr); err != nil {
-				if err != io.EOF {
-					fmt.Printf("[desktop] Error reading frame header: %v\n", err)
+			nal, err := h264r.NextNAL()
+			if err != nil {
+				if errors.Is(err, io.EOF) {
+					return
+				}
+				if frameCount == 0 {
+					fmt.Printf("[desktop] No frames produced after %v: %v\n", time.Since(startTime), err)
 				}
 				return
 			}
 
-			// Parse frame size (little-endian at offset 0-3)
-			frameSize := uint32(frameHdr[0]) |
-				uint32(frameHdr[1])<<8 |
-				uint32(frameHdr[2])<<16 |
-				uint32(frameHdr[3])<<24
-
-			if frameSize == 0 || frameSize > 1024*1024 {
-				fmt.Printf("[desktop] Invalid frame size: %d\n", frameSize)
-				return
+			if len(nal.Data) == 0 {
+				continue
 			}
 
-			// Read frame data
-			frame := make([]byte, frameSize)
-			if _, err := io.ReadFull(reader, frame); err != nil {
-				fmt.Printf("[desktop] Error reading frame data: %v\n", err)
-				return
+			au = append(au, startCode...)
+			au = append(au, nal.Data...)
+
+			// UnitType 1 = non-IDR slice, 5 = IDR slice. These terminate an access unit.
+			if nal.UnitType != h264reader.NalUnitTypeCodedSliceNonIdr &&
+				nal.UnitType != h264reader.NalUnitTypeCodedSliceIdr {
+				continue
 			}
 
 			if err := track.WriteSample(media.Sample{
-				Data:     frame,
+				Data:     au,
 				Duration: frameDur,
 			}); err != nil {
 				fmt.Printf("[desktop] WriteSample error: %v\n", err)
 				return
 			}
+			au = au[:0]
 
 			frameCount++
+			if frameCount == 1 {
+				fmt.Printf("[desktop] First frame after %v\n", time.Since(startTime))
+			}
 			if frameCount%30 == 0 {
-				fmt.Printf("[desktop] %d frames sent\n", frameCount)
+				fmt.Printf("[desktop] %d H264 frames sent\n", frameCount)
 			}
 		}
 	}()
 
 	return nil
+}
+
+// selectBestH264Codec tries hardware encoders first, falls back to libx264
+func selectBestH264Codec() string {
+	// Try hardware encoders in order
+	for _, codec := range []string{"h264_nvenc", "h264_qsv"} {
+		if tryH264Codec(codec) {
+			fmt.Printf("[desktop] ✓ Hardware codec %s available\n", codec)
+			return codec
+		}
+		fmt.Printf("[desktop] ✗ Hardware codec %s unavailable\n", codec)
+	}
+
+	// Always fall back to libx264 (software, always available)
+	fmt.Println("[desktop] ✓ Using libx264 (software H264)")
+	return "libx264"
+}
+
+// tryH264Codec tests if a specific H264 encoder is available
+func tryH264Codec(codec string) bool {
+	cmd := exec.Command("ffmpeg",
+		"-f", "gdigrab",
+		"-i", "desktop",
+		"-c:v", codec,
+		"-t", "0.05",
+		"-f", "null",
+		"-",
+	)
+
+	cmd.Stderr = io.Discard
+	cmd.Stdout = io.Discard
+	return cmd.Run() == nil
 }
 
 // Windows GDI API for potential future use
