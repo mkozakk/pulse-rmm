@@ -25,14 +25,22 @@ type DesktopSession struct {
 
 func NewSession(sessionID string, turnURLs []string, turnSecret string) (*DesktopSession, error) {
 	m := &webrtc.MediaEngine{}
+
+	// Use VP9 as fallback while H264 Windows integration is pending
+	// TODO: Switch to H264 on Windows once cgo/DLL linking is resolved
+	codecMimeType := webrtc.MimeTypeVP9
+	payloadType := webrtc.PayloadType(98)
+	fmt.Printf("[desktop] Registering VP9 codec (H264 Windows integration pending)\n")
+
 	if err := m.RegisterCodec(webrtc.RTPCodecParameters{
 		RTPCodecCapability: webrtc.RTPCodecCapability{
-			MimeType:  webrtc.MimeTypeVP9,
-			ClockRate: 90000,
+			MimeType:    codecMimeType,
+			ClockRate:   90000,
+			SDPFmtpLine: getCodecFmtpLine(codecMimeType),
 		},
-		PayloadType: 98,
+		PayloadType: payloadType,
 	}, webrtc.RTPCodecTypeVideo); err != nil {
-		return nil, fmt.Errorf("registering VP9 codec: %w", err)
+		return nil, fmt.Errorf("registering codec: %w", err)
 	}
 
 	api := webrtc.NewAPI(webrtc.WithMediaEngine(m))
@@ -109,25 +117,42 @@ func (s *DesktopSession) addVideoTrack(track webrtc.TrackLocal) error {
 }
 
 func (s *DesktopSession) HandleOffer(sdpOffer string) (string, error) {
+	fmt.Printf("[desktop] HandleOffer for %s: signalingState=%s\n", s.sessionID, s.pc.SignalingState())
+	fmt.Printf("[desktop] Offer SDP (first 200 chars): %s...\n", truncate(sdpOffer, 200))
+
+	// Set remote description from browser's offer
 	if err := s.pc.SetRemoteDescription(webrtc.SessionDescription{
 		Type: webrtc.SDPTypeOffer,
 		SDP:  sdpOffer,
 	}); err != nil {
+		fmt.Printf("[desktop] Error setting remote description: %v\n", err)
 		return "", fmt.Errorf("setting remote description: %w", err)
 	}
 
+	fmt.Printf("[desktop] Remote description set successfully, signalingState=%s\n", s.pc.SignalingState())
+
+	// Create answer
 	answer, err := s.pc.CreateAnswer(nil)
 	if err != nil {
+		fmt.Printf("[desktop] Error creating answer: %v\n", err)
 		return "", fmt.Errorf("creating answer: %w", err)
 	}
 
+	fmt.Printf("[desktop] Answer created, waiting for ICE gathering...\n")
+
+	// Wait for ICE gathering to complete
 	gatherComplete := webrtc.GatheringCompletePromise(s.pc)
 	if err := s.pc.SetLocalDescription(answer); err != nil {
+		fmt.Printf("[desktop] Error setting local description: %v\n", err)
 		return "", fmt.Errorf("setting local description: %w", err)
 	}
 	<-gatherComplete
 
-	return s.pc.LocalDescription().SDP, nil
+	answerSDP := s.pc.LocalDescription().SDP
+	fmt.Printf("[desktop] Answer ready, signalingState=%s\n", s.pc.SignalingState())
+	fmt.Printf("[desktop] Answer SDP (first 200 chars): %s...\n", truncate(answerSDP, 200))
+
+	return answerSDP, nil
 }
 
 func (s *DesktopSession) AddICECandidate(candidateJSON string) error {
@@ -135,7 +160,19 @@ func (s *DesktopSession) AddICECandidate(candidateJSON string) error {
 	if err := json.Unmarshal([]byte(candidateJSON), &init); err != nil {
 		return fmt.Errorf("parsing ICE candidate: %w", err)
 	}
-	return s.pc.AddICECandidate(init)
+
+	// Check if remote description is set (required before adding candidates)
+	if s.pc.RemoteDescription() == nil {
+		fmt.Printf("[desktop] AddICECandidate for %s: WARNING - remote description not set yet, candidate ignored\n", s.sessionID)
+		return fmt.Errorf("remote description not set")
+	}
+
+	fmt.Printf("[desktop] AddICECandidate for %s: adding candidate (signalingState=%s)\n", s.sessionID, s.pc.SignalingState())
+	if err := s.pc.AddICECandidate(init); err != nil {
+		fmt.Printf("[desktop] AddICECandidate error: %v\n", err)
+		return err
+	}
+	return nil
 }
 
 func (s *DesktopSession) dispatchInputEvent(ev inputEvent) {
@@ -156,6 +193,22 @@ func (s *DesktopSession) dispatchInputEvent(ev inputEvent) {
 func (s *DesktopSession) Close() error {
 	s.injector.Close() //nolint:errcheck
 	return s.pc.Close()
+}
+
+func getCodecFmtpLine(mimeType string) string {
+	if mimeType == webrtc.MimeTypeH264 {
+		// H264 Constrained Baseline, Level 3.1
+		// profile-level-id=42001f: 0x42=Baseline, 0x00=no constraints, 0x1f=Level 3.1
+		return "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42001f"
+	}
+	return "" // VP9 doesn't need special fmtp line
+}
+
+func truncate(s string, maxLen int) string {
+	if len(s) > maxLen {
+		return s[:maxLen]
+	}
+	return s
 }
 
 func generateTurnCredentials(sessionID, secret string) (username, credential string) {

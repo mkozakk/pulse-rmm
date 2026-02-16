@@ -70,11 +70,11 @@ func startCapture(sess *DesktopSession, ctx context.Context) error {
 		conn.Close()
 		return fmt.Errorf("creating VP9 params: %w", err)
 	}
-	vpxParams.BitRate = 1_000_000
+	vpxParams.BitRate = 2_500_000
 
-	reader := &x11Reader{conn: conn, root: root, w: w, h: h, limiter: time.NewTicker(time.Second / 15).C}
+	reader := &x11Reader{conn: conn, root: root, w: w, h: h, limiter: time.NewTicker(time.Second / 30).C}
 	encoder, err := vpxParams.BuildVideoEncoder(reader, prop.Media{
-		Video: prop.Video{Width: w, Height: h, FrameRate: 15},
+		Video: prop.Video{Width: w, Height: h, FrameRate: 30},
 	})
 	if err != nil {
 		conn.Close()
@@ -107,7 +107,7 @@ func startCapture(sess *DesktopSession, ctx context.Context) error {
 
 	go func() {
 		defer encoder.Close()
-		const frameDur = time.Second / 15
+		const frameDur = time.Second / 30
 		for {
 			pkt, release, err := encoder.Read()
 			if err != nil {
