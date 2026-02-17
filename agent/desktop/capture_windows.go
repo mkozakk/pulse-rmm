@@ -109,12 +109,29 @@ func startCapture(sess *DesktopSession, ctx context.Context) error {
 		return fmt.Errorf("starting ffmpeg: %w", err)
 	}
 
+	killFFmpeg := func() {
+		if cmd.Process != nil {
+			_ = cmd.Process.Kill()
+		}
+	}
+
 	fmt.Println("[desktop] H264 capture started (FFmpeg + gdigrab)")
+
+	// When the context is cancelled, kill ffmpeg immediately and close the pipe
+	// read-end so that NextNAL() returns right away instead of blocking until
+	// exec's internal goroutine is eventually scheduled on Windows.
+	go func() {
+		<-ctx.Done()
+		killFFmpeg()
+		_ = stdout.Close()
+	}()
 
 	go func() {
 		defer func() {
-			cmd.Wait()
-			fmt.Println("[desktop] Capture goroutine exiting")
+			killFFmpeg()
+			_ = stdout.Close()
+			_ = cmd.Wait()
+			fmt.Println("[desktop] capture stopped")
 		}()
 
 		fmt.Println("[desktop] Waiting for H264 stream...")
@@ -205,14 +222,35 @@ func selectBestH264Codec() string {
 
 // tryH264Codec tests if a specific H264 encoder is available
 func tryH264Codec(codec string) bool {
-	cmd := exec.Command("ffmpeg",
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	args := []string{
+		"-hide_banner",
+		"-loglevel", "error",
 		"-f", "gdigrab",
+		"-framerate", "30",
 		"-i", "desktop",
 		"-c:v", codec,
-		"-t", "0.05",
+	}
+	if codec == "h264_nvenc" {
+		args = append(args, "-preset", "fast")
+	}
+	if codec == "h264_qsv" {
+		args = append(args, "-preset", "veryfast")
+	}
+	args = append(args,
+		"-profile:v", "baseline",
+		"-level", "3.1",
+		"-g", "30",
+		"-pix_fmt", "yuv420p",
+		"-frames:v", "5",
+		"-fflags", "+genpts",
 		"-f", "null",
-		"-",
+		"NUL",
 	)
+
+	cmd := exec.CommandContext(ctx, "ffmpeg", args...)
 
 	cmd.Stderr = io.Discard
 	cmd.Stdout = io.Discard
