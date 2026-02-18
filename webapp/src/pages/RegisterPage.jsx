@@ -1,14 +1,15 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useDispatch } from 'react-redux'
-import { useLoginMutation } from '../api/pulseApi'
+import { useRegisterMutation, useLoginMutation } from '../api/pulseApi'
 import { setCredentials } from '../store/authSlice'
 
-export default function LoginPage() {
+export default function RegisterPage() {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
-  const [login, { isLoading }] = useLoginMutation()
+  const [register, { isLoading }] = useRegisterMutation()
+  const [login] = useLoginMutation()
   const dispatch = useDispatch()
   const navigate = useNavigate()
 
@@ -17,18 +18,19 @@ export default function LoginPage() {
     setError('')
 
     try {
-      const data = await login({ username, password }).unwrap()
-      dispatch(setCredentials(data.accessToken))
+      await register({ username, password }).unwrap()
+      const token = await login({ username, password }).unwrap()
+      dispatch(setCredentials(token.accessToken))
       navigate('/endpoints')
     } catch {
-      setError('Invalid username or password')
+      setError('Could not register this user')
     }
   }
 
   return (
     <div className="login-wrap">
       <form className="login-form" onSubmit={handleSubmit}>
-        <h1>Welcome back</h1>
+        <h1>Create account</h1>
         <input
           type="text"
           placeholder="Username"
@@ -45,10 +47,10 @@ export default function LoginPage() {
         />
         {error && <p className="error">{error}</p>}
         <button type="submit" disabled={isLoading}>
-          {isLoading ? 'Logging in…' : 'Log in'}
+          {isLoading ? 'Creating account…' : 'Register'}
         </button>
         <p className="auth-switch">
-          First time here? <Link to="/register">Register</Link>
+          Already have an account? <Link to="/login">Log in</Link>
         </p>
       </form>
     </div>

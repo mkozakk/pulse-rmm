@@ -48,6 +48,12 @@ describe('DesktopPage', () => {
     expect(screen.getByText(/connecting/i)).toBeInTheDocument()
   })
 
+  it('renders the shell heading', () => {
+    mockSession({ status: 'idle' })
+    renderPage()
+    expect(screen.getByText(/desktop — abc-123/i)).toBeInTheDocument()
+  })
+
   it('renders video element', () => {
     mockSession({ status: 'connected', canControl: true })
     renderPage()
