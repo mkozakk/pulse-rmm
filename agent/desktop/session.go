@@ -59,7 +59,6 @@ func NewSession(sessionID string, turnURLs []string, turnSecret string) (*Deskto
 		}
 		logger.Println("Registering H264 codec for Windows")
 	} else {
-		// Linux: H264 primary (hardware or libx264), VP9 as last resort fallback
 		if err := m.RegisterCodec(webrtc.RTPCodecParameters{
 			RTPCodecCapability: webrtc.RTPCodecCapability{
 				MimeType:    webrtc.MimeTypeH264,
@@ -70,16 +69,7 @@ func NewSession(sessionID string, turnURLs []string, turnSecret string) (*Deskto
 		}, webrtc.RTPCodecTypeVideo); err != nil {
 			return nil, fmt.Errorf("registering H264 codec: %w", err)
 		}
-		if err := m.RegisterCodec(webrtc.RTPCodecParameters{
-			RTPCodecCapability: webrtc.RTPCodecCapability{
-				MimeType:  webrtc.MimeTypeVP9,
-				ClockRate: 90000,
-			},
-			PayloadType: 98,
-		}, webrtc.RTPCodecTypeVideo); err != nil {
-			return nil, fmt.Errorf("registering VP9 codec: %w", err)
-		}
-		logger.Println("Registering H264 (primary) and VP9 (fallback) codecs for Linux")
+		logger.Println("Registering H264 codec for Linux")
 	}
 
 	api := webrtc.NewAPI(webrtc.WithMediaEngine(m))

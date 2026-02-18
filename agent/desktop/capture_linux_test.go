@@ -9,10 +9,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestWaylandBlockedWhenWaylandDisplaySet(t *testing.T) {
+func TestWaylandAllowedWhenWaylandDisplaySet(t *testing.T) {
 	t.Setenv("WAYLAND_DISPLAY", ":0")
 	err := checkPlatform()
-	require.ErrorIs(t, err, ErrWaylandNotSupported)
+	require.NoError(t, err)
+}
+
+func TestErrorWhenNoDisplayAvailable(t *testing.T) {
+	t.Setenv("WAYLAND_DISPLAY", "")
+	t.Setenv("DISPLAY", "")
+	err := checkPlatform()
+	require.Error(t, err)
 }
 
 func TestX11CaptureDetectedWhenDisplaySet(t *testing.T) {
