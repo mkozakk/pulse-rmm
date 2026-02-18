@@ -114,8 +114,18 @@ export function useDesktopSession(endpointId) {
     }
     function onMouseDown(e) { send({ type: 'mousedown', button: e.button }) }
     function onMouseUp(e) { send({ type: 'mouseup', button: e.button }) }
-    function onKeyDown(e) { send({ type: 'keydown', keyCode: e.keyCode }) }
-    function onKeyUp(e) { send({ type: 'keyup', keyCode: e.keyCode }) }
+    function onKeyDown(e) {
+      e.preventDefault()
+      send({ type: 'keydown', keyCode: e.keyCode })
+    }
+    function onKeyUp(e) {
+      e.preventDefault()
+      send({ type: 'keyup', keyCode: e.keyCode })
+    }
+    function onWheel(e) {
+      e.preventDefault()
+      send({ type: 'wheel', deltaX: Math.round(e.deltaX), deltaY: Math.round(e.deltaY) })
+    }
 
     video.tabIndex = 0
     video.addEventListener('mousemove', onMouseMove)
@@ -123,6 +133,7 @@ export function useDesktopSession(endpointId) {
     video.addEventListener('mouseup', onMouseUp)
     video.addEventListener('keydown', onKeyDown)
     video.addEventListener('keyup', onKeyUp)
+    video.addEventListener('wheel', onWheel, { passive: false })
 
     return () => {
       video.removeEventListener('mousemove', onMouseMove)
@@ -130,6 +141,7 @@ export function useDesktopSession(endpointId) {
       video.removeEventListener('mouseup', onMouseUp)
       video.removeEventListener('keydown', onKeyDown)
       video.removeEventListener('keyup', onKeyUp)
+      video.removeEventListener('wheel', onWheel)
     }
   }, [canControl, status])
 

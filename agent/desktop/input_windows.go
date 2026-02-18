@@ -25,6 +25,8 @@ const (
 	mouseRightUp      = 0x0010
 	mouseMiddleDown   = 0x0020
 	mouseMiddleUp     = 0x0040
+	mouseWheel        = 0x0800 // MOUSEEVENTF_WHEEL (vertical)
+	mouseHWheel       = 0x1000 // MOUSEEVENTF_HWHEEL (horizontal)
 
 	keyEventKeyUp = 0x0002
 
@@ -33,11 +35,12 @@ const (
 )
 
 type mouseInput struct {
-	dx, dy          int32
-	mouseData       uint32
-	dwFlags         uint32
-	time            uint32
-	dwExtraInfo     uintptr
+	dx, dy      int32
+	mouseData   uint32
+	dwFlags     uint32
+	time        uint32
+	_           [4]byte // align dwExtraInfo to 8 bytes (matches MOUSEINPUT layout on 64-bit)
+	dwExtraInfo uintptr
 }
 
 type keybdInput struct {
@@ -45,14 +48,16 @@ type keybdInput struct {
 	wScan       uint16
 	dwFlags     uint32
 	time        uint32
+	_           [4]byte // align dwExtraInfo to 8 bytes (matches KEYBDINPUT layout on 64-bit)
 	dwExtraInfo uintptr
-	_           [8]byte // padding to match INPUT union size
 }
 
+// input mirrors the Windows INPUT struct (40 bytes on 64-bit).
+// data holds the union: MOUSEINPUT=32 bytes, KEYBDINPUT=24 bytes.
 type input struct {
 	inputType uint32
-	_         [4]byte // padding
-	data      [28]byte
+	_         [4]byte  // pad to align union to 8-byte boundary
+	data      [32]byte // union max size (MOUSEINPUT on 64-bit)
 }
 
 type windowsInjector struct{}
@@ -111,6 +116,30 @@ func (w *windowsInjector) MouseButton(button int, pressed bool) error {
 	ret, _, err := sendInput.Call(1, uintptr(unsafe.Pointer(&in)), unsafe.Sizeof(in))
 	if ret == 0 {
 		return fmt.Errorf("SendInput: %w", err)
+	}
+	return nil
+}
+
+func (w *windowsInjector) MouseScroll(deltaX, deltaY int) error {
+	// JS deltaY: positive = scroll down. Windows WHEEL: positive mouseData = scroll up. Invert.
+	// JS gives pixel deltas; map roughly to Windows WHEEL_DELTA units (120 per notch).
+	if deltaY != 0 {
+		mi := mouseInput{mouseData: uint32(int32(-deltaY)), dwFlags: mouseWheel}
+		in := input{inputType: inputMouse}
+		*(*mouseInput)(unsafe.Pointer(&in.data)) = mi
+		ret, _, err := sendInput.Call(1, uintptr(unsafe.Pointer(&in)), unsafe.Sizeof(in))
+		if ret == 0 {
+			return fmt.Errorf("SendInput wheel: %w", err)
+		}
+	}
+	if deltaX != 0 {
+		mi := mouseInput{mouseData: uint32(int32(-deltaX)), dwFlags: mouseHWheel}
+		in := input{inputType: inputMouse}
+		*(*mouseInput)(unsafe.Pointer(&in.data)) = mi
+		ret, _, err := sendInput.Call(1, uintptr(unsafe.Pointer(&in)), unsafe.Sizeof(in))
+		if ret == 0 {
+			return fmt.Errorf("SendInput hwheel: %w", err)
+		}
 	}
 	return nil
 }

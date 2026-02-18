@@ -7,7 +7,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"log"
 	"os"
+	"path/filepath"
 	"runtime"
 	"sync"
 	"time"
@@ -23,6 +26,19 @@ type DesktopSession struct {
 	videoTrack  webrtc.TrackLocal
 	injector    InputInjector
 	rateLimiter *rateLimiter
+	log         *log.Logger
+	logFile     *os.File
+}
+
+func newSessionLogger(sessionID string) (*log.Logger, *os.File) {
+	logPath := filepath.Join(os.TempDir(), "pulse-desktop-"+sessionID+".log")
+	f, err := os.Create(logPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[desktop] could not create log file %s: %v\n", logPath, err)
+		return log.New(os.Stdout, "[desktop] ", log.LstdFlags), nil
+	}
+	fmt.Printf("[desktop] session log: %s\n", logPath)
+	return log.New(io.MultiWriter(os.Stdout, f), "[desktop] ", log.LstdFlags), f
 }
 
 func NewSession(sessionID string, turnURLs []string, turnSecret string) (*DesktopSession, error) {
@@ -33,18 +49,18 @@ func NewSession(sessionID string, turnURLs []string, turnSecret string) (*Deskto
 	var payloadType webrtc.PayloadType
 	var fmtpLine string
 
+	logger, logFile := newSessionLogger(sessionID)
+
 	if runtime.GOOS == "windows" {
-		// Will determine H264 vs VP9 in startCapture() based on codec availability
-		// For now, register H264 as primary
 		codecMimeType = webrtc.MimeTypeH264
 		payloadType = 102
 		fmtpLine = "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01f"
-		fmt.Println("[desktop] Registering H264 codec for Windows (will fallback to VP9 if unavailable)")
+		logger.Println("Registering H264 codec for Windows")
 	} else {
 		codecMimeType = webrtc.MimeTypeVP9
 		payloadType = 98
 		fmtpLine = ""
-		fmt.Println("[desktop] Registering VP9 codec for Linux")
+		logger.Println("Registering VP9 codec for Linux")
 	}
 
 	if err := m.RegisterCodec(webrtc.RTPCodecParameters{
@@ -78,8 +94,7 @@ func NewSession(sessionID string, turnURLs []string, turnSecret string) (*Deskto
 
 	injector, err := newInputInjector()
 	if err != nil {
-		// non-fatal: log and continue with noop injector
-		fmt.Fprintf(os.Stderr, "desktop: input injector unavailable: %v\n", err)
+		logger.Printf("input injector unavailable: %v", err)
 		injector = &noopInjector{}
 	}
 
@@ -88,6 +103,8 @@ func NewSession(sessionID string, turnURLs []string, turnSecret string) (*Deskto
 		pc:          pc,
 		injector:    injector,
 		rateLimiter: newRateLimiter(60),
+		log:         logger,
+		logFile:     logFile,
 	}
 	sess.registerDataChannelHandler()
 	return sess, nil
@@ -142,40 +159,37 @@ func (s *DesktopSession) OnPeerConnectionClosed(fn func()) {
 }
 
 func (s *DesktopSession) HandleOffer(sdpOffer string) (string, error) {
-	fmt.Printf("[desktop] HandleOffer for %s: signalingState=%s\n", s.sessionID, s.pc.SignalingState())
-	fmt.Printf("[desktop] Offer SDP (first 200 chars): %s...\n", truncate(sdpOffer, 200))
+	s.log.Printf("HandleOffer: signalingState=%s", s.pc.SignalingState())
+	s.log.Printf("Offer SDP (first 200 chars): %s...", truncate(sdpOffer, 200))
 
-	// Set remote description from browser's offer
 	if err := s.pc.SetRemoteDescription(webrtc.SessionDescription{
 		Type: webrtc.SDPTypeOffer,
 		SDP:  sdpOffer,
 	}); err != nil {
-		fmt.Printf("[desktop] Error setting remote description: %v\n", err)
+		s.log.Printf("SetRemoteDescription error: %v", err)
 		return "", fmt.Errorf("setting remote description: %w", err)
 	}
 
-	fmt.Printf("[desktop] Remote description set successfully, signalingState=%s\n", s.pc.SignalingState())
+	s.log.Printf("Remote description set, signalingState=%s", s.pc.SignalingState())
 
-	// Create answer
 	answer, err := s.pc.CreateAnswer(nil)
 	if err != nil {
-		fmt.Printf("[desktop] Error creating answer: %v\n", err)
+		s.log.Printf("CreateAnswer error: %v", err)
 		return "", fmt.Errorf("creating answer: %w", err)
 	}
 
-	fmt.Printf("[desktop] Answer created, waiting for ICE gathering...\n")
+	s.log.Printf("Answer created, waiting for ICE gathering...")
 
-	// Wait for ICE gathering to complete
 	gatherComplete := webrtc.GatheringCompletePromise(s.pc)
 	if err := s.pc.SetLocalDescription(answer); err != nil {
-		fmt.Printf("[desktop] Error setting local description: %v\n", err)
+		s.log.Printf("SetLocalDescription error: %v", err)
 		return "", fmt.Errorf("setting local description: %w", err)
 	}
 	<-gatherComplete
 
 	answerSDP := s.pc.LocalDescription().SDP
-	fmt.Printf("[desktop] Answer ready, signalingState=%s\n", s.pc.SignalingState())
-	fmt.Printf("[desktop] Answer SDP (first 200 chars): %s...\n", truncate(answerSDP, 200))
+	s.log.Printf("Answer ready, signalingState=%s", s.pc.SignalingState())
+	s.log.Printf("Answer SDP (first 200 chars): %s...", truncate(answerSDP, 200))
 
 	return answerSDP, nil
 }
@@ -186,38 +200,47 @@ func (s *DesktopSession) AddICECandidate(candidateJSON string) error {
 		return fmt.Errorf("parsing ICE candidate: %w", err)
 	}
 
-	// Check if remote description is set (required before adding candidates)
 	if s.pc.RemoteDescription() == nil {
-		fmt.Printf("[desktop] AddICECandidate for %s: WARNING - remote description not set yet, candidate ignored\n", s.sessionID)
+		s.log.Printf("AddICECandidate: remote description not set, candidate dropped")
 		return fmt.Errorf("remote description not set")
 	}
 
-	fmt.Printf("[desktop] AddICECandidate for %s: adding candidate (signalingState=%s)\n", s.sessionID, s.pc.SignalingState())
+	s.log.Printf("AddICECandidate: signalingState=%s", s.pc.SignalingState())
 	if err := s.pc.AddICECandidate(init); err != nil {
-		fmt.Printf("[desktop] AddICECandidate error: %v\n", err)
+		s.log.Printf("AddICECandidate error: %v", err)
 		return err
 	}
 	return nil
 }
 
 func (s *DesktopSession) dispatchInputEvent(ev inputEvent) {
+	var err error
 	switch ev.Type {
 	case "mousemove":
-		s.injector.MouseMove(ev.X, ev.Y) //nolint:errcheck
+		err = s.injector.MouseMove(ev.X, ev.Y)
 	case "mousedown":
-		s.injector.MouseButton(ev.Button, true) //nolint:errcheck
+		err = s.injector.MouseButton(ev.Button, true)
 	case "mouseup":
-		s.injector.MouseButton(ev.Button, false) //nolint:errcheck
+		err = s.injector.MouseButton(ev.Button, false)
+	case "wheel":
+		err = s.injector.MouseScroll(ev.DeltaX, ev.DeltaY)
 	case "keydown":
-		s.injector.KeyEvent(ev.KeyCode, true) //nolint:errcheck
+		err = s.injector.KeyEvent(ev.KeyCode, true)
 	case "keyup":
-		s.injector.KeyEvent(ev.KeyCode, false) //nolint:errcheck
+		err = s.injector.KeyEvent(ev.KeyCode, false)
+	}
+	if err != nil {
+		s.log.Printf("input %s error: %v", ev.Type, err)
 	}
 }
 
 func (s *DesktopSession) Close() error {
 	s.injector.Close() //nolint:errcheck
-	return s.pc.Close()
+	err := s.pc.Close()
+	if s.logFile != nil {
+		s.logFile.Close()
+	}
+	return err
 }
 
 func getCodecFmtpLine(mimeType string) string {
