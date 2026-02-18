@@ -44,34 +44,42 @@ func newSessionLogger(sessionID string) (*log.Logger, *os.File) {
 func NewSession(sessionID string, turnURLs []string, turnSecret string) (*DesktopSession, error) {
 	m := &webrtc.MediaEngine{}
 
-	// Windows: try H264 (with fallback to VP9), Linux: use VP9
-	var codecMimeType string
-	var payloadType webrtc.PayloadType
-	var fmtpLine string
-
 	logger, logFile := newSessionLogger(sessionID)
 
 	if runtime.GOOS == "windows" {
-		codecMimeType = webrtc.MimeTypeH264
-		payloadType = 102
-		fmtpLine = "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01f"
+		if err := m.RegisterCodec(webrtc.RTPCodecParameters{
+			RTPCodecCapability: webrtc.RTPCodecCapability{
+				MimeType:    webrtc.MimeTypeH264,
+				ClockRate:   90000,
+				SDPFmtpLine: "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01f",
+			},
+			PayloadType: 102,
+		}, webrtc.RTPCodecTypeVideo); err != nil {
+			return nil, fmt.Errorf("registering H264 codec: %w", err)
+		}
 		logger.Println("Registering H264 codec for Windows")
 	} else {
-		codecMimeType = webrtc.MimeTypeVP9
-		payloadType = 98
-		fmtpLine = ""
-		logger.Println("Registering VP9 codec for Linux")
-	}
-
-	if err := m.RegisterCodec(webrtc.RTPCodecParameters{
-		RTPCodecCapability: webrtc.RTPCodecCapability{
-			MimeType:    codecMimeType,
-			ClockRate:   90000,
-			SDPFmtpLine: fmtpLine,
-		},
-		PayloadType: payloadType,
-	}, webrtc.RTPCodecTypeVideo); err != nil {
-		return nil, fmt.Errorf("registering codec: %w", err)
+		// Linux: H264 primary (hardware or libx264), VP9 as last resort fallback
+		if err := m.RegisterCodec(webrtc.RTPCodecParameters{
+			RTPCodecCapability: webrtc.RTPCodecCapability{
+				MimeType:    webrtc.MimeTypeH264,
+				ClockRate:   90000,
+				SDPFmtpLine: "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01f",
+			},
+			PayloadType: 102,
+		}, webrtc.RTPCodecTypeVideo); err != nil {
+			return nil, fmt.Errorf("registering H264 codec: %w", err)
+		}
+		if err := m.RegisterCodec(webrtc.RTPCodecParameters{
+			RTPCodecCapability: webrtc.RTPCodecCapability{
+				MimeType:  webrtc.MimeTypeVP9,
+				ClockRate: 90000,
+			},
+			PayloadType: 98,
+		}, webrtc.RTPCodecTypeVideo); err != nil {
+			return nil, fmt.Errorf("registering VP9 codec: %w", err)
+		}
+		logger.Println("Registering H264 (primary) and VP9 (fallback) codecs for Linux")
 	}
 
 	api := webrtc.NewAPI(webrtc.WithMediaEngine(m))
