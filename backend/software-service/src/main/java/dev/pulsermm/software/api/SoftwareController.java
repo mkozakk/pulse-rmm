@@ -77,7 +77,7 @@ public class SoftwareController {
         if (auth == null || !auth.isAuthenticated()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        var cmd = softwareService.createCommand(endpointId, "install", request.name(), request.version());
+        var cmd = softwareService.createCommand(endpointId, "install", request.name(), request.appId(), request.version());
         return ResponseEntity.status(HttpStatus.CREATED).body(new CommandResponse(cmd.id(), cmd.status()));
     }
 
@@ -94,7 +94,7 @@ public class SoftwareController {
         if (auth == null || !auth.isAuthenticated()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        var cmd = softwareService.createCommand(endpointId, "update", request.name(), request.version());
+        var cmd = softwareService.createCommand(endpointId, "update", request.name(), request.appId(), request.version());
         return ResponseEntity.status(HttpStatus.CREATED).body(new CommandResponse(cmd.id(), cmd.status()));
     }
 
@@ -111,7 +111,7 @@ public class SoftwareController {
         if (auth == null || !auth.isAuthenticated()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        var cmd = softwareService.createCommand(endpointId, "remove", request.name(), null);
+        var cmd = softwareService.createCommand(endpointId, "remove", request.name(), request.appId(), null);
         return ResponseEntity.status(HttpStatus.CREATED).body(new CommandResponse(cmd.id(), cmd.status()));
     }
 

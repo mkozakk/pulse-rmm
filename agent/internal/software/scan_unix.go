@@ -68,6 +68,7 @@ func scanAptLinux() ([]SoftwareItem, error) {
 			Name:    pkgName,
 			Version: version,
 			Source:  "apt",
+			ID:      pkgName,
 		}
 	}
 
@@ -109,6 +110,7 @@ func scanDnfLinux() ([]SoftwareItem, error) {
 			Name:    parts[0],
 			Version: parts[1],
 			Source:  "dnf",
+			ID:      parts[0],
 		})
 	}
 

@@ -23,10 +23,10 @@ public class GatewayClient {
         logger.info("GatewayClient initialized with URL: {}", gatewayUrl);
     }
 
-    public void dispatchSoftwareCommand(UUID endpointId, String commandId, String action, String name, String version) {
+    public void dispatchSoftwareCommand(UUID endpointId, String commandId, String action, String name, String appId, String version) {
         logger.info("Dispatching software command to gateway: endpoint={}, command={}, action={}", endpointId, commandId, action);
         try {
-            var request = new DispatchRequest(endpointId, commandId, action, name, version);
+            var request = new DispatchRequest(endpointId, commandId, action, name, appId, version);
             restClient.post()
                 .uri("/internal/software-commands/dispatch")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -39,5 +39,5 @@ public class GatewayClient {
         }
     }
 
-    public record DispatchRequest(UUID endpointId, String commandId, String action, String name, String version) {}
+    public record DispatchRequest(UUID endpointId, String commandId, String action, String name, String appId, String version) {}
 }

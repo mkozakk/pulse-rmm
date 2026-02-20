@@ -9,7 +9,7 @@ import (
 
 func TestExecuteInstall(t *testing.T) {
 	// Execute apt-get install hello
-	exitCode, output, err := Execute("install", "hello", "")
+	exitCode, output, err := Execute("install", "hello", "", "")
 	if err != nil {
 		t.Fatalf("Execute failed: %v", err)
 	}
@@ -31,7 +31,7 @@ func TestScanAfterInstall(t *testing.T) {
 	t.Logf("Scan 1: %d items", len(items1))
 
 	// Install hello
-	exitCode, output, err := Execute("install", "hello", "")
+	exitCode, output, err := Execute("install", "hello", "", "")
 	if err != nil {
 		t.Fatalf("Install failed: %v", err)
 	}
@@ -63,7 +63,7 @@ func TestScanAfterInstall(t *testing.T) {
 
 func TestRemovePackage(t *testing.T) {
 	// Remove hello
-	exitCode, output, err := Execute("remove", "hello", "")
+	exitCode, output, err := Execute("remove", "hello", "", "")
 	if err != nil {
 		t.Fatalf("Remove failed: %v", err)
 	}

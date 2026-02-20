@@ -26,10 +26,11 @@ public class SoftwareCommandInternalController {
             request.commandId(),
             request.action(),
             request.name(),
+            request.appId(),
             request.version()
         );
         return ResponseEntity.status(HttpStatus.ACCEPTED).build();
     }
 
-    public record DispatchRequest(UUID endpointId, String commandId, String action, String name, String version) {}
+    public record DispatchRequest(UUID endpointId, String commandId, String action, String name, String appId, String version) {}
 }

@@ -53,8 +53,15 @@ public class AgentServiceGrpcServer extends AgentServiceGrpc.AgentServiceImplBas
     @Override
     public void pushSoftwareList(SoftwareList request, StreamObserver<Ack> responseObserver) {
         try {
-            List<Map<String, String>> items = request.getItemsList().stream()
-                    .map(i -> Map.of("name", i.getName(), "version", i.getVersion(), "source", i.getSource()))
+            List<Map<String, Object>> items = request.getItemsList().stream()
+                    .map(i -> Map.<String, Object>of(
+                            "name", i.getName(),
+                            "id", i.getId(),
+                            "version", i.getVersion(),
+                            "updateTo", i.getUpdateTo(),
+                            "isStore", i.getIsStore(),
+                            "source", i.getSource()
+                    ))
                     .toList();
 
             restClient.post()

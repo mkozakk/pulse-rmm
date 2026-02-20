@@ -39,8 +39,8 @@ public class SoftwareInternalController {
         var seen = new HashSet<String>();
         var dupes = new java.util.ArrayList<String>();
         for (var item : request.items()) {
-            if (!seen.add(item.name())) {
-                dupes.add(item.name());
+            if (!seen.add(item.id() != null ? item.id() : item.name())) {
+                dupes.add(item.id() != null ? item.id() : item.name());
             }
         }
         if (!dupes.isEmpty()) {
@@ -48,7 +48,7 @@ public class SoftwareInternalController {
         }
 
         var items = request.items().stream()
-                .map(i -> new SoftwareService.SoftwareItemDTO(i.name(), i.version(), i.source()))
+                .map(i -> new SoftwareService.SoftwareItemDTO(i.name(), i.id(), i.version(), i.updateTo(), i.isStore(), i.source()))
                 .toList();
         softwareService.storeSoftwareList(request.endpointId(), items);
         return ResponseEntity.noContent().build();
@@ -58,5 +58,5 @@ public class SoftwareInternalController {
 
     public record SoftwareListRequest(UUID endpointId, List<ItemDTO> items) {}
 
-    public record ItemDTO(String name, String version, String source) {}
+    public record ItemDTO(String name, String id, String version, String updateTo, Boolean isStore, String source) {}
 }

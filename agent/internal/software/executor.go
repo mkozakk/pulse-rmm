@@ -7,48 +7,58 @@ import (
 	"runtime"
 )
 
-func Execute(action, name, version string) (int32, string, error) {
+func Execute(action, name, version, id string) (int32, string, error) {
 	switch action {
 	case "install":
-		return executeInstall(name, version)
+		return executeInstall(name, version, id)
 	case "update":
-		return executeUpdate(name, version)
+		return executeUpdate(name, version, id)
 	case "remove":
-		return executeRemove(name)
+		return executeRemove(name, id)
 	default:
 		return -1, "", fmt.Errorf("unknown action: %s", action)
 	}
 }
 
-func executeInstall(name, version string) (int32, string, error) {
+func executeInstall(name, version, id string) (int32, string, error) {
 	if runtime.GOOS == "windows" {
-		return executeChocoCommand("install", name, version)
+		return executeWingetCommand("install", name, version, id)
 	}
 	return executeAptCommand("install", name, version)
 }
 
-func executeUpdate(name, version string) (int32, string, error) {
+func executeUpdate(name, version, id string) (int32, string, error) {
 	if runtime.GOOS == "windows" {
-		return executeChocoCommand("upgrade", name, version)
+		return executeWingetCommand("upgrade", name, version, id)
 	}
 	return executeAptCommand("install", "--upgrade", name)
 }
 
-func executeRemove(name string) (int32, string, error) {
+func executeRemove(name, id string) (int32, string, error) {
 	if runtime.GOOS == "windows" {
-		return executeChocoCommand("uninstall", name, "")
+		return executeWingetCommand("uninstall", name, "", id)
 	}
 	return executeAptCommand("remove", name)
 }
 
-func executeChocoCommand(action, name, version string) (int32, string, error) {
+func executeWingetCommand(action, name, version, id string) (int32, string, error) {
 	var args []string
-	args = append(args, action, "-y", name)
+	args = append(args, action)
+	
+	// winget prefers ID, fallback to Name
+	if id != "" {
+		args = append(args, "--exact", "--id", id)
+	} else {
+		args = append(args, "--exact", "--name", name)
+	}
+	
+	args = append(args, "--silent", "--accept-package-agreements", "--accept-source-agreements")
+	
 	if version != "" && action == "install" {
 		args = append(args, "--version", version)
 	}
 
-	cmd := exec.Command("choco", args...)
+	cmd := exec.Command("winget", args...)
 	output, err := cmd.CombinedOutput()
 
 	exitCode := int32(0)

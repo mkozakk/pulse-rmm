@@ -5,7 +5,7 @@ import (
 )
 
 func TestExecuteWithUnknownAction(t *testing.T) {
-	exitCode, output, err := Execute("unknown", "test", "1.0")
+	exitCode, output, err := Execute("unknown", "test", "1.0", "")
 	if err == nil {
 		t.Error("Expected error for unknown action, got nil")
 	}
@@ -17,14 +17,14 @@ func TestExecuteWithUnknownAction(t *testing.T) {
 	}
 }
 
-func TestExecuteInstall(t *testing.T) {
+func TestExecuteInstallMock(t *testing.T) {
 	// This test will fail in environments without package managers
 	// It's just a smoke test to ensure the function is callable
-	_, _, _ = Execute("install", "nonexistent-package-xyz", "")
+	_, _, _ = Execute("install", "nonexistent-package-xyz", "", "")
 }
 
 func TestExecuteRemove(t *testing.T) {
 	// This test will fail in environments without package managers
 	// It's just a smoke test to ensure the function is callable
-	_, _, _ = Execute("remove", "nonexistent-package-xyz", "")
+	_, _, _ = Execute("remove", "nonexistent-package-xyz", "", "")
 }

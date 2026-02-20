@@ -256,9 +256,12 @@ func pushSoftwareList(ctx context.Context, endpointID string, client pb.AgentSer
 	pbItems := make([]*pb.SoftwareItem, 0, len(items))
 	for _, item := range items {
 		pbItems = append(pbItems, &pb.SoftwareItem{
-			Name:    item.Name,
-			Version: item.Version,
-			Source:  item.Source,
+			Name:     item.Name,
+			Version:  item.Version,
+			Source:   item.Source,
+			Id:       item.ID,
+			UpdateTo: item.UpdateTo,
+			IsStore:  item.IsStore,
 		})
 	}
 
@@ -289,7 +292,7 @@ func executeSoftwareCommand(cmd *pb.SoftwareCommand, outCh chan<- *pb.AgentEvent
 		}
 	}
 
-	exitCode, output, err := software.Execute(cmd.Action, cmd.Name, cmd.Version)
+	exitCode, output, err := software.Execute(cmd.Action, cmd.Name, cmd.Version, cmd.Id)
 	if err != nil {
 		exitCode = -1
 		output = err.Error()
