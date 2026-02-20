@@ -19,4 +19,5 @@ identity-service/
 
 * **[Authentication & JWT](docs/auth.md)** - Explains user registration, login flows, token generation, and domain exceptions.
 * **[Role-Based Access Control (RBAC)](docs/rbac.md)** - Details the comprehensive entity graph of users, roles, permissions, and endpoint groups.
+* **[Permissions Catalog](docs/permissions.md)** - The complete catalog of granular permissions and what they grant.
 * **[Core Configuration](docs/config.md)** - Covers security contexts, OpenAPI definitions, and global error handling logic.
