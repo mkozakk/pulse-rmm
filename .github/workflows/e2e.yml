@@ -1,0 +1,33 @@
+name: E2E Tests
+
+on:
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  e2e:
+    name: End-to-End Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install Python dependencies
+        run: |
+          cd e2e
+          pip install -r requirements.txt
+
+      - name: Install podman-compose
+        run: pip install podman-compose
+
+      - name: Run E2E Tests
+        run: make e2e FULL_LOG=1
+
+      - name: Dump Logs on Failure
+        if: failure()
+        run: make e2e-logs
