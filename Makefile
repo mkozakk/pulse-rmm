@@ -12,7 +12,7 @@ E2E_COMPOSE = JAVA_HOME=/usr/lib/jvm/java-21-openjdk podman compose \
         --env-file deploy/.env.e2e \
         --project-name pulse-e2e
 
-.PHONY: e2e e2e-logs
+.PHONY: e2e e2e-logs e2e-up e2e-down
 
 e2e:
 	@echo "Cleaning up from previous run..."
@@ -27,6 +27,12 @@ e2e:
 	cd e2e && python -m pytest tests/ $(PYTEST_FLAGS)
 	@echo "Stopping containers..."
 	$(E2E_COMPOSE) down -v $(COMPOSE_OUTPUT)
+
+e2e-up:
+	$(E2E_COMPOSE) up --pull=never -d
+
+e2e-down:
+	$(E2E_COMPOSE) down -v
 
 e2e-logs:
 	$(E2E_COMPOSE) logs -f
