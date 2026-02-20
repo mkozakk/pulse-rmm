@@ -39,8 +39,9 @@ public class SoftwareInternalController {
         var seen = new HashSet<String>();
         var dupes = new java.util.ArrayList<String>();
         for (var item : request.items()) {
-            if (!seen.add(item.id() != null ? item.id() : item.name())) {
-                dupes.add(item.id() != null ? item.id() : item.name());
+            String identifier = (item.id() != null && !item.id().isBlank()) ? item.id() : item.name();
+            if (!seen.add(identifier)) {
+                dupes.add(identifier);
             }
         }
         if (!dupes.isEmpty()) {
