@@ -88,6 +88,25 @@ public class EnrolmentController {
         return ResponseEntity.ok(endpoints.stream().map(EndpointResponse::from).toList());
     }
 
+    @Operation(summary = "Get endpoint details")
+    @ApiResponse(responseCode = "200", description = "Endpoint details",
+        content = @Content(schema = @Schema(implementation = EndpointResponse.class)))
+    @ApiResponse(responseCode = "401", description = "Unauthorized")
+    @ApiResponse(responseCode = "404", description = "Endpoint not found")
+    @GetMapping("/api/endpoints/{id}")
+    public ResponseEntity<EndpointResponse> getEndpoint(
+            @PathVariable UUID id,
+            Authentication auth) {
+        if (auth == null || !auth.isAuthenticated()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        return endpointRepository.findById(id)
+            .map(EndpointResponse::from)
+            .map(ResponseEntity::ok)
+            .orElse(ResponseEntity.notFound().build());
+    }
+
     private List<Endpoint> filterByTags(List<String> tags) {
         StringBuilder sql = new StringBuilder(
             "SELECT id, hostname, os, arch, group_id, public_key, enrolled_at, last_seen FROM enrolment.endpoints e WHERE 1=1");
