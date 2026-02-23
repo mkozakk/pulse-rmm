@@ -28,6 +28,9 @@ type DesktopSession struct {
 	rateLimiter *rateLimiter
 	log         *log.Logger
 	logFile     *os.File
+	mu          sync.Mutex
+	pendingICE  []webrtc.ICECandidateInit
+	closeOnce   sync.Once
 }
 
 func newSessionLogger(sessionID string) (*log.Logger, *os.File) {
@@ -74,15 +77,19 @@ func NewSession(sessionID string, turnURLs []string, turnSecret string) (*Deskto
 
 	api := webrtc.NewAPI(webrtc.WithMediaEngine(m))
 
-	config := webrtc.Configuration{}
+	config := webrtc.Configuration{
+		ICEServers: []webrtc.ICEServer{
+			{URLs: []string{"stun:stun.l.google.com:19302"}},
+		},
+	}
 	if len(turnURLs) > 0 && turnSecret != "" {
 		username, credential := generateTurnCredentials(sessionID, turnSecret)
-		config.ICEServers = []webrtc.ICEServer{{
+		config.ICEServers = append(config.ICEServers, webrtc.ICEServer{
 			URLs:           turnURLs,
 			Username:       username,
 			Credential:     credential,
 			CredentialType: webrtc.ICECredentialTypePassword,
-		}}
+		})
 	}
 
 	pc, err := api.NewPeerConnection(config)
@@ -157,6 +164,9 @@ func (s *DesktopSession) OnPeerConnectionClosed(fn func()) {
 }
 
 func (s *DesktopSession) HandleOffer(sdpOffer string) (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	s.log.Printf("HandleOffer: signalingState=%s", s.pc.SignalingState())
 	s.log.Printf("Offer SDP (first 200 chars): %s...", truncate(sdpOffer, 200))
 
@@ -168,6 +178,14 @@ func (s *DesktopSession) HandleOffer(sdpOffer string) (string, error) {
 		return "", fmt.Errorf("setting remote description: %w", err)
 	}
 
+	for _, cand := range s.pendingICE {
+		s.log.Printf("Adding pending ICE candidate")
+		if err := s.pc.AddICECandidate(cand); err != nil {
+			s.log.Printf("AddICECandidate (pending) error: %v", err)
+		}
+	}
+	s.pendingICE = nil
+
 	s.log.Printf("Remote description set, signalingState=%s", s.pc.SignalingState())
 
 	answer, err := s.pc.CreateAnswer(nil)
@@ -176,14 +194,10 @@ func (s *DesktopSession) HandleOffer(sdpOffer string) (string, error) {
 		return "", fmt.Errorf("creating answer: %w", err)
 	}
 
-	s.log.Printf("Answer created, waiting for ICE gathering...")
-
-	gatherComplete := webrtc.GatheringCompletePromise(s.pc)
 	if err := s.pc.SetLocalDescription(answer); err != nil {
 		s.log.Printf("SetLocalDescription error: %v", err)
 		return "", fmt.Errorf("setting local description: %w", err)
 	}
-	<-gatherComplete
 
 	answerSDP := s.pc.LocalDescription().SDP
 	s.log.Printf("Answer ready, signalingState=%s", s.pc.SignalingState())
@@ -193,14 +207,18 @@ func (s *DesktopSession) HandleOffer(sdpOffer string) (string, error) {
 }
 
 func (s *DesktopSession) AddICECandidate(candidateJSON string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	var init webrtc.ICECandidateInit
 	if err := json.Unmarshal([]byte(candidateJSON), &init); err != nil {
 		return fmt.Errorf("parsing ICE candidate: %w", err)
 	}
 
 	if s.pc.RemoteDescription() == nil {
-		s.log.Printf("AddICECandidate: remote description not set, candidate dropped")
-		return fmt.Errorf("remote description not set")
+		s.log.Printf("AddICECandidate: remote description not set, queueing candidate")
+		s.pendingICE = append(s.pendingICE, init)
+		return nil
 	}
 
 	s.log.Printf("AddICECandidate: signalingState=%s", s.pc.SignalingState())
@@ -233,11 +251,16 @@ func (s *DesktopSession) dispatchInputEvent(ev inputEvent) {
 }
 
 func (s *DesktopSession) Close() error {
-	s.injector.Close() //nolint:errcheck
-	err := s.pc.Close()
-	if s.logFile != nil {
-		s.logFile.Close()
-	}
+	var err error
+	s.closeOnce.Do(func() {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		s.injector.Close() //nolint:errcheck
+		err = s.pc.Close()
+		if s.logFile != nil {
+			s.logFile.Close()
+		}
+	})
 	return err
 }
 

@@ -28,16 +28,23 @@ export function useDesktopSession(endpointId) {
 
     async function start() {
       const session = await createSession({ endpointId, type: 'desktop' }).unwrap()
-      if (cancelled) return
+      if (cancelled) {
+        deleteSession(session.sessionId)
+        return
+      }
 
-      sessionIdRef.current = session.sessionId
+      const sid = session.sessionId
+      sessionIdRef.current = sid
       setCanControl(!!session.canControl)
 
-      const iceServers = session.turnUrls?.length ? [{
-        urls: session.turnUrls,
-        username: session.turnUsername,
-        credential: session.turnCredential
-      }] : []
+      const iceServers = [
+        { urls: 'stun:stun.l.google.com:19302' },
+        ...(session.turnUrls?.length ? [{
+          urls: session.turnUrls,
+          username: session.turnUsername,
+          credential: session.turnCredential
+        }] : [])
+      ]
 
       const pc = new RTCPeerConnection({ iceServers })
       pcRef.current = pc
@@ -47,7 +54,7 @@ export function useDesktopSession(endpointId) {
         setStatus('connected')
       }
 
-      const ws = new WebSocket(`${WS_BASE}/ws/sessions/${session.sessionId}/signal?token=${token}`)
+      const ws = new WebSocket(`${WS_BASE}/ws/sessions/${sid}/signal?token=${token}`)
       wsRef.current = ws
 
       ws.onclose = () => { if (!cancelled) setStatus(s => s === 'connecting' ? 'error' : s) }
@@ -66,7 +73,6 @@ export function useDesktopSession(endpointId) {
       }
       fileChannelRef.current = pc.createDataChannel('file-transfer')
 
-      // Wait for session_ready before sending offer — agent needs time to set up capture
       ws.onmessage = async (e) => {
         const msg = JSON.parse(e.data)
         if (msg.type === 'session_ready') {
@@ -91,6 +97,10 @@ export function useDesktopSession(endpointId) {
 
     return () => {
       cancelled = true
+      const sid = sessionIdRef.current
+      if (sid) {
+        deleteSession(sid).catch(() => {})
+      }
       wsRef.current?.close()
       pcRef.current?.close()
     }
@@ -173,6 +183,7 @@ export function useDesktopSession(endpointId) {
     const sid = sessionIdRef.current
     if (sid) {
       try { await deleteSession(sid).unwrap() } catch {}
+      sessionIdRef.current = null
     }
     wsRef.current?.close()
     pcRef.current?.close()

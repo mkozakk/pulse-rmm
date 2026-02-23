@@ -2,25 +2,28 @@ package desktop
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"sync"
-	"time"
 
+	"github.com/pion/webrtc/v4"
 	pb "github.com/pulsermm/pulse-rmm/agent/gen/pulse/v1"
 )
 
 type Handler struct {
-	mu       sync.Mutex
-	startMu  sync.Mutex
-	sessions map[string]*DesktopSession
-	cancels  map[string]context.CancelFunc
+	mu         sync.Mutex
+	startMu    sync.Mutex
+	sessions   map[string]*DesktopSession
+	cancels    map[string]context.CancelFunc
+	endedBeforeStart map[string]struct{}
 }
 
 func NewHandler() *Handler {
 	return &Handler{
-		sessions: make(map[string]*DesktopSession),
-		cancels:  make(map[string]context.CancelFunc),
+		sessions:   make(map[string]*DesktopSession),
+		cancels:    make(map[string]context.CancelFunc),
+		endedBeforeStart: make(map[string]struct{}),
 	}
 }
 
@@ -29,16 +32,26 @@ func (h *Handler) HandleStartSession(cmd *pb.StartDesktopSessionCommand, send fu
 	defer h.startMu.Unlock()
 
 	sessionID := cmd.GetSessionId()
+
+	h.mu.Lock()
+	if _, wasEnded := h.endedBeforeStart[sessionID]; wasEnded {
+		delete(h.endedBeforeStart, sessionID)
+		h.mu.Unlock()
+		fmt.Printf("[desktop] HandleStartSession: %s rejected (ended before start)\n", sessionID)
+		return
+	}
+	h.mu.Unlock()
+
 	fmt.Printf("[desktop] HandleStartSession: %s, TURN URLs: %v\n", sessionID, cmd.GetTurnUrls())
 
-	// Cancel any existing sessions before starting a new one — prevents zombie
-	// capture goroutines from previous failed/retried session attempts.
 	h.mu.Lock()
 	for id, s := range h.sessions {
 		if cancel, ok := h.cancels[id]; ok {
 			cancel()
 		}
-		s.Close()
+		if s != nil {
+			s.Close()
+		}
 		delete(h.sessions, id)
 		delete(h.cancels, id)
 	}
@@ -53,7 +66,36 @@ func (h *Handler) HandleStartSession(cmd *pb.StartDesktopSessionCommand, send fu
 
 	ctx, cancel := context.WithCancel(context.Background())
 
+	h.mu.Lock()
+	h.sessions[sessionID] = sess
+	h.cancels[sessionID] = cancel
+	h.mu.Unlock()
+
+	// Implement Trickle ICE: send generated candidates to frontend
+	sess.pc.OnICECandidate(func(c *webrtc.ICECandidate) {
+		if c == nil {
+			return
+		}
+		b, err := json.Marshal(c.ToJSON())
+		if err != nil {
+			return
+		}
+		send(&pb.AgentEvent{
+			Payload: &pb.AgentEvent_DesktopSignal{
+				DesktopSignal: &pb.DesktopSignalMessage{
+					SessionId: sessionID,
+					Type:      "candidate",
+					Payload:   string(b),
+				},
+			},
+		})
+	})
+
 	if err := startCapture(sess, ctx); err != nil {
+		h.mu.Lock()
+		delete(h.sessions, sessionID)
+		delete(h.cancels, sessionID)
+		h.mu.Unlock()
 		cancel()
 		sess.Close()
 		errMsg := err.Error()
@@ -65,13 +107,6 @@ func (h *Handler) HandleStartSession(cmd *pb.StartDesktopSessionCommand, send fu
 		return
 	}
 
-	h.mu.Lock()
-	h.sessions[sessionID] = sess
-	h.cancels[sessionID] = cancel
-	h.mu.Unlock()
-
-	// Cancel capture when the browser closes the WebRTC connection without
-	// an explicit EndSession command (e.g. tab close, network drop).
 	sess.OnPeerConnectionClosed(func() {
 		fmt.Printf("[desktop] peer connection closed, terminating session %s\n", sessionID)
 		h.mu.Lock()
@@ -79,11 +114,13 @@ func (h *Handler) HandleStartSession(cmd *pb.StartDesktopSessionCommand, send fu
 		delete(h.cancels, sessionID)
 		h.mu.Unlock()
 		cancel()
+		sess.Close()
 	})
 
-	fmt.Printf("[desktop] Session created, waiting 500ms before ready signal\n")
-	// Give browser time to be ready for WebRTC connection before sending ready signal
-	time.Sleep(500 * time.Millisecond)
+	if ctx.Err() != nil {
+		fmt.Printf("[desktop] Session %s cancelled before ready signal\n", sessionID)
+		return
+	}
 
 	sendSessionReady(send, sessionID, "")
 	fmt.Printf("[desktop] Session ready signal sent: %s\n", sessionID)
@@ -105,7 +142,6 @@ func (h *Handler) HandleSignal(msg *pb.DesktopSignalMessage, send func(*pb.Agent
 	switch msg.GetType() {
 	case "offer":
 		fmt.Printf("[desktop] Processing offer for session %s\n", sessionID)
-		// HandleOffer waits for ICE gathering; answer SDP includes all candidates (bundled ICE)
 		answer, err := sess.HandleOffer(msg.GetPayload())
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "desktop: HandleOffer for %s: %v\n", sessionID, err)
@@ -141,6 +177,12 @@ func (h *Handler) HandleEndSession(cmd *pb.EndDesktopSessionCommand) {
 
 	if cancel == nil && sess == nil {
 		fmt.Printf("[desktop] EndSession: session %s not found (already ended)\n", sessionID)
+		h.mu.Lock()
+		h.endedBeforeStart[sessionID] = struct{}{}
+		if len(h.endedBeforeStart) > 100 {
+			h.endedBeforeStart = make(map[string]struct{})
+		}
+		h.mu.Unlock()
 		return
 	}
 
@@ -151,6 +193,12 @@ func (h *Handler) HandleEndSession(cmd *pb.EndDesktopSessionCommand) {
 	if sess != nil {
 		sess.Close()
 	}
+	h.mu.Lock()
+	h.endedBeforeStart[sessionID] = struct{}{}
+	if len(h.endedBeforeStart) > 100 {
+		h.endedBeforeStart = make(map[string]struct{})
+	}
+	h.mu.Unlock()
 }
 
 func sendSessionReady(send func(*pb.AgentEvent), sessionID, errMsg string) {
