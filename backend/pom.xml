@@ -25,6 +25,7 @@
         <module>script-service</module>
         <module>software-service</module>
         <module>remote-service</module>
+        <module>alert-service</module>
     </modules>
 
     <properties>
