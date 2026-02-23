@@ -13,7 +13,7 @@ agent/
 │   ├── metrics/            # Gathers CPU, RAM, Disk stats and sends Heartbeats
 │   ├── script/             # Executes raw shell scripts pushed by the backend
 │   ├── shell/              # Handles Remote Terminal features (pty, piping inputs/outputs)
-│   ├── software/           # Scans installed software on the OS and runs package managers
+│   ├── software/           # Scans installed software via Registry/dpkg/dnf/flatpak and handles uninstalls
 │   └── store/              # Handles saving/reading the endpoint ID and private keys to disk
 ├── main.go                 # The entry point of the app that wires everything together
 └── go.mod / go.sum         # Go dependency files
@@ -28,7 +28,7 @@ agent/
 * **[Metrics & Heartbeat](docs/metrics.md)** - Hardware telemetry gathering (`gopsutil`).
 * **[Script Execution](docs/script.md)** - Running arbitrary `bash`/`powershell` blocks on the host.
 * **[Remote Terminal (Shell)](docs/shell.md)** - Proxied pseudo-terminal (PTY) for live browser-based CLI access.
-* **[Software Management](docs/software.md)** - Scanning and installing packages via Chocolatey/APT.
+* **[Software Management](docs/software.md)** - Native software scanning and uninstallation (Windows Registry, APT, DNF, Flatpak).
 * **[Remote Desktop (WebRTC)](docs/desktop.md)** - Screen capture and mouse/keyboard injection powered by Pion WebRTC.
 
 ## Flow of Requests / Sessions
