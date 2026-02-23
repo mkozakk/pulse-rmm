@@ -4,41 +4,19 @@ import (
 	"fmt"
 	"os/exec"
 	"os/user"
-	"runtime"
 )
 
 func Execute(action, name, version, id string) (int32, string, error) {
 	switch action {
 	case "install":
-		return executeInstall(name, version, id)
+		return -1, "", fmt.Errorf("install action is not supported (requires manual package IDs)")
 	case "update":
-		return executeUpdate(name, version, id)
+		return -1, "", fmt.Errorf("update action is not supported (requires manual package IDs)")
 	case "remove":
-		return executeRemove(name, id)
+		return osExecuteRemove(name, id)
 	default:
 		return -1, "", fmt.Errorf("unknown action: %s", action)
 	}
-}
-
-func executeInstall(name, version, id string) (int32, string, error) {
-	if runtime.GOOS == "windows" {
-		return executeWingetCommand("install", name, version, id)
-	}
-	return executeAptCommand("install", name, version)
-}
-
-func executeUpdate(name, version, id string) (int32, string, error) {
-	if runtime.GOOS == "windows" {
-		return executeWingetCommand("upgrade", name, version, id)
-	}
-	return executeAptCommand("install", "--upgrade", name)
-}
-
-func executeRemove(name, id string) (int32, string, error) {
-	if runtime.GOOS == "windows" {
-		return executeWingetCommand("uninstall", name, "", id)
-	}
-	return executeAptCommand("remove", name)
 }
 
 func executeWingetCommand(action, name, version, id string) (int32, string, error) {
@@ -52,7 +30,7 @@ func executeWingetCommand(action, name, version, id string) (int32, string, erro
 		args = append(args, "--exact", "--name", name)
 	}
 	
-	args = append(args, "--silent", "--accept-package-agreements", "--accept-source-agreements")
+	args = append(args, "--silent", "--accept-source-agreements")
 	
 	if version != "" && action == "install" {
 		args = append(args, "--version", version)

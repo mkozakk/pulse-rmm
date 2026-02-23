@@ -37,8 +37,8 @@ public class MetricIngestionService {
     public void pushMetrics(UUID endpointId, List<MetricSampleInput> samples) {
         for (var s : samples) {
             jdbc.update(
-                "INSERT INTO metric_samples (endpoint_id, type, value, sampled_at) VALUES (?, ?, ?, ?)",
-                endpointId, s.type(), s.value(), java.sql.Timestamp.from(s.sampledAt())
+                "INSERT INTO metric_samples (endpoint_id, type, value, sampled_at) VALUES (?, ?, ?, CAST(? AS TIMESTAMPTZ))",
+                endpointId, s.type(), s.value(), s.sampledAt().toString()
             );
         }
     }
@@ -46,9 +46,9 @@ public class MetricIngestionService {
     public List<Map<String, Object>> queryMetrics(UUID endpointId, Instant from, Instant to, String type) {
         return jdbc.queryForList(
             "SELECT sampled_at, value FROM metric_samples " +
-            "WHERE endpoint_id = ? AND type = ? AND sampled_at >= ? AND sampled_at <= ? " +
+            "WHERE endpoint_id = ? AND type = ? AND sampled_at >= CAST(? AS TIMESTAMPTZ) AND sampled_at <= CAST(? AS TIMESTAMPTZ) " +
             "ORDER BY sampled_at ASC",
-            endpointId, type, java.sql.Timestamp.from(from), java.sql.Timestamp.from(to)
+            endpointId, type, from.toString(), to.toString()
         );
     }
 
