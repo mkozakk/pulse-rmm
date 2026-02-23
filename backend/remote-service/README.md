@@ -19,3 +19,4 @@ remote-service/
 
 * **[Session Lifecycle](docs/sessions.md)** - Details how interactive remote control sessions are securely requested, authorized, and tracked.
 * **[API & Configuration](docs/config.md)** - Covers application bootstrapping, local security contexts, and global error handling.
+* **Orphan Session Cleanup** - A `@Scheduled` job (`SessionCleanupJob`) runs every 60 seconds, marking desktop sessions stuck in `pending` status for more than 5 minutes as `ended`. Prevents accumulation of stale sessions when the agent disconnects or the session creation flow is interrupted.

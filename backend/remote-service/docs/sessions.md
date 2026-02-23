@@ -1,39 +1,45 @@
 # Session Lifecycle (`api/`, `application/`, `domain/`, `infrastructure/`)
 
-Manages the secure initiation, state tracking, and token validation of interactive remote control features like Shells and Desktop sharing.
+Manages the secure initiation, state tracking, and cleanup of interactive remote control features like Desktop sharing.
 
 ### code
 **API & Routing**
 [`SessionController.java`](../src/main/java/dev/pulsermm/remote/api/SessionController.java):
-	- `createSession` & `getSessionStatus` - Expose REST endpoints allowing the frontend web application to request the initiation of a new interactive session and poll its current connectivity state.
+	- `createSession` — POST `/api/sessions`. Creates a desktop session with `pending` status, generates TURN credentials, checks `remote:desktop:control` permission, dispatches `StartDesktopSession` to the agent via the gateway, and returns `201 {sessionId, turnUrls, turnUsername, turnCredential, canControl}`.
+	- `getSession` — GET `/api/sessions/{id}`. Returns `200 {id, status}`.
+	- `endSession` — DELETE `/api/sessions/{id}`. Marks session `ended`, dispatches `EndDesktopSession` to the agent. Returns `204`.
 
 **Data Transfer Objects (DTOs)**
 [`CreateSessionRequest.java`](../src/main/java/dev/pulsermm/remote/api/dto/CreateSessionRequest.java) & [`CreateSessionResponse.java`](../src/main/java/dev/pulsermm/remote/api/dto/CreateSessionResponse.java):
-	- Encapsulate the inbound payload defining the target endpoint UUID and requested session type (e.g., "shell" or "desktop"), and return the critical, cryptographically secure one-time token required to open the WebSocket.
-[`SessionStatusResponse.java`](../src/main/java/dev/pulsermm/remote/api/dto/SessionStatusResponse.java):
-	- Structures the outbound JSON reflecting the real-time operational state of the session (e.g., Pending, Active, Closed).
+	- Encapsulate the inbound payload (endpointId, type) and return the session ID, TURN URLs, TURN credentials, and `canControl` flag.
 
 **Domain Exceptions**
 [`SessionNotFoundException.java`](../src/main/java/dev/pulsermm/remote/application/SessionNotFoundException.java):
-	- Thrown when a polling request or the Gateway attempts to validate a token associated with a session that has either expired, been closed, or does not exist, triggering a standard 404 response.
+	- Thrown when querying a session that doesn't exist, triggering a 404 response.
 
 **Application Logic & Integrations**
 [`SessionService.java`](../src/main/java/dev/pulsermm/remote/application/SessionService.java):
-	- The core orchestrator that validates incoming requests, guarantees the target endpoint is online, evaluates RBAC permissions, and generates the temporary tokens to authorize the connection.
+	- Core orchestrator: persists `DesktopSession`, checks RBAC via `IdentityClient`, generates TURN credentials (HMAC-SHA1, 1-hour expiry), dispatches session lifecycle to the agent via `GatewayClient`.
 [`GatewayClient.java`](../src/main/java/dev/pulsermm/remote/infrastructure/GatewayClient.java):
-	- An internal HTTP client utilized to proactively query the API Gateway to confirm the target agent actually has an active gRPC stream before attempting to initialize a complex WebRTC or shell connection.
+	- Internal HTTP client to the API Gateway's `/internal/desktop-sessions/start` and `/internal/desktop-sessions/end` endpoints.
 [`IdentityClient.java`](../src/main/java/dev/pulsermm/remote/infrastructure/IdentityClient.java):
-	- An internal HTTP client used to verify that the requesting administrator possesses the explicit granular permissions (like `remote:desktop`) required to interact with the target machine.
+	- Internal HTTP client to verify the technician has the `remote:desktop:control` permission.
+[`SessionCleanupJob.java`](../src/main/java/dev/pulsermm/remote/application/SessionCleanupJob.java):
+	- `@Scheduled(fixedDelay=60s)`: marks sessions stuck in `pending` for more than 5 minutes as `ended`. Prevents orphan accumulation when the agent disconnects or the session flow is interrupted.
 
 **Domain Entities & Repositories**
 [`DesktopSession.java`](../src/main/java/dev/pulsermm/remote/domain/DesktopSession.java):
-	- The core domain entity representing an authorized attempt to remotely view or control a specific endpoint. It stores the generated one-time token, the session type, and a strict expiration timestamp.
+	- JPA entity with status transitions: `pending` → `ended`. Stores TURN credentials and timestamps.
 [`SessionRepository.java`](../src/main/java/dev/pulsermm/remote/infrastructure/persistence/SessionRepository.java):
-	- Interfaces with the database to persist the session tracking records and retrieve them efficiently when the API Gateway attempts to validate a token during the WebSocket handshake.
+	- Spring Data JPA repository. Adds `findStalePending(cutoff)` for the cleanup job.
 
 ### description
-Interactive features like Remote Desktop and Terminal Shells bypass standard stateless HTTP mechanics, relying instead on long-lived WebSocket connections proxied through the API Gateway. To secure these persistent connections, the system requires a specialized, stateful authorization mechanism managed by the Remote Service. When an administrator clicks "Connect" in the web application, the frontend issues a `CreateSessionRequest` to the `SessionController`. 
+Desktop sessions use a two-phase creation pattern. The frontend first calls `POST /api/sessions` to create a server-side session and obtain TURN credentials. The `SessionService` persists a `DesktopSession` (status `pending`), checks permissions, and dispatches `StartDesktopSession` to the agent via the gateway's internal REST API. The gateway forwards the command to the agent's gRPC stream, and the agent begins H.264 screen capture.
 
-The `SessionService` intercepts this and begins a multi-step verification process. First, it uses the `IdentityClient` to verify the user has the required RBAC permissions. Next, it utilizes the `GatewayClient` to ensure the target endpoint is currently online and capable of receiving commands. If authorized and online, the service generates a temporary, highly secure random token and persists a `DesktopSession` entity to the database via the `SessionRepository`, setting a strict expiration time (e.g., 30 seconds). 
+The response includes TURN URLs/credentials and a `canControl` flag (derived from RBAC). The frontend then opens a WebSocket to `/ws/sessions/{id}/signal` on the gateway. The gateway validates the session exists in the `DesktopSessionRegistry` (registered during the `/internal/desktop-sessions/start` call), then bridges WebSocket messages to the agent's gRPC stream for SDP and ICE candidate exchange.
 
-The service returns this token to the frontend via `CreateSessionResponse`. The frontend then immediately attempts to open a WebSocket connection to the API Gateway, injecting this temporary token into the initial upgrade request. The Gateway pauses the handshake, performs an internal HTTP call back to the Remote Service to validate the token against the database, and only upon success does it bridge the browser's WebSocket to the agent's gRPC stream, allowing the WebRTC signaling or interactive shell session to commence securely.
+Session teardown: the frontend calls `DELETE /api/sessions/{id}`, the service marks the session `ended` in the DB and dispatches `EndDesktopSession` to the agent. If the frontend's React effect is cancelled before the session fully establishes, a `deleteSession` call in the cancelled path prevents orphaned agent-side sessions.
+
+A `SessionCleanupJob` runs every 60 seconds to find sessions stuck in `pending` for more than 5 minutes and marks them `ended`. This handles the case where the agent disconnects or the gRPC command race causes a session to never transition.
+
+**Known race**: The gateway's internal `/internal/desktop-sessions/start` and `/internal/desktop-sessions/end` endpoints are concurrent HTTP calls. The `SynchronizedObserver` on the agent's gRPC stream serializes `onNext` calls but does not guarantee ordering between `StartDesktopSession` and `EndDesktopSession` for the same session. The agent mitigates this by tracking ended session IDs — a `HandleStartSession` that arrives after its corresponding `HandleEndSession` is silently rejected.
