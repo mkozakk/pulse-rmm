@@ -5,83 +5,70 @@ package software
 
 import (
 	"bufio"
-	"fmt"
 	"os/exec"
 	"strings"
 )
 
 func scan() ([]SoftwareItem, error) {
-	// Try apt first (Debian/Ubuntu)
-	items, err := scanAptLinux()
-	if err == nil {
-		return items, nil
+	var allItems []SoftwareItem
+
+	// 1. Try APT (Debian/Ubuntu)
+	if items, err := scanAptLinux(); err == nil {
+		allItems = append(allItems, items...)
 	}
 
-	// Fallback to dnf (Fedora/RHEL)
-	items, err = scanDnfLinux()
-	if err == nil {
-		return items, nil
+	// 2. Try DNF (Fedora/RHEL)
+	// Only run if APT didn't find anything, since systems rarely mix them usefully for base OS
+	if len(allItems) == 0 {
+		if items, err := scanDnfLinux(); err == nil {
+			allItems = append(allItems, items...)
+		}
 	}
 
-	// If both fail, return empty list (package manager unavailable)
-	return []SoftwareItem{}, nil
+	// 3. Try Flatpak (Desktop Apps - can coexist with APT/DNF)
+	if items, err := scanFlatpakLinux(); err == nil {
+		allItems = append(allItems, items...)
+	}
+
+	return allItems, nil
 }
 
 func scanAptLinux() ([]SoftwareItem, error) {
-	cmd := exec.Command("apt", "list", "--installed")
+	// dpkg-query is much faster than apt list and has a stable CLI format
+	cmd := exec.Command("dpkg-query", "-W", "-f=${binary:Package}|${Version}|${Section}\n")
 	output, err := cmd.Output()
 	if err != nil {
-		return nil, fmt.Errorf("apt list failed: %w", err)
+		return nil, err
 	}
 
-	seen := make(map[string]SoftwareItem)
-	var lineCount, dupeCount int
+	var items []SoftwareItem
 	scanner := bufio.NewScanner(strings.NewReader(string(output)))
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
-		if line == "" || strings.HasPrefix(line, "Listing") {
+		parts := strings.Split(line, "|")
+		if len(parts) != 3 {
 			continue
 		}
 
-		parts := strings.Split(line, "/")
-		if len(parts) < 1 {
+		name := parts[0]
+		version := parts[1]
+		section := parts[2]
+
+		// Filter out noisy system libraries and localized packages
+		if strings.HasPrefix(name, "lib") || 
+		   strings.HasPrefix(section, "libs") || 
+		   strings.HasPrefix(section, "localization") ||
+		   strings.HasPrefix(name, "language-pack") {
 			continue
 		}
 
-		pkgName := strings.TrimSpace(parts[0])
-		version := "unknown"
-
-		// Extract version from the line (after package name)
-		if idx := strings.Index(line, " "); idx > 0 {
-			versionPart := strings.TrimSpace(line[idx:])
-			versionParts := strings.Fields(versionPart)
-			if len(versionParts) > 0 {
-				version = strings.TrimSuffix(versionParts[0], ",")
-			}
-		}
-
-		if _, exists := seen[pkgName]; exists {
-			dupeCount++
-		}
-		lineCount++
-		seen[pkgName] = SoftwareItem{
-			Name:    pkgName,
+		items = append(items, SoftwareItem{
+			Name:    name,
 			Version: version,
 			Source:  "apt",
-			ID:      pkgName,
-		}
+			ID:      name,
+		})
 	}
-
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("scan error: %w", err)
-	}
-
-	items := make([]SoftwareItem, 0, len(seen))
-	for _, item := range seen {
-		items = append(items, item)
-	}
-
-	fmt.Printf("[scan] apt: %d lines, %d duplicates, %d unique packages\n", lineCount, dupeCount, len(items))
 
 	return items, nil
 }
@@ -90,7 +77,7 @@ func scanDnfLinux() ([]SoftwareItem, error) {
 	cmd := exec.Command("dnf", "list", "installed")
 	output, err := cmd.Output()
 	if err != nil {
-		return nil, fmt.Errorf("dnf list failed: %w", err)
+		return nil, err
 	}
 
 	var items []SoftwareItem
@@ -106,16 +93,50 @@ func scanDnfLinux() ([]SoftwareItem, error) {
 			continue
 		}
 
+		name := parts[0]
+		version := parts[1]
+
+		// Basic filter for DNF too
+		if strings.HasPrefix(name, "lib") || strings.Contains(name, "-devel") {
+			continue
+		}
+
 		items = append(items, SoftwareItem{
-			Name:    parts[0],
-			Version: parts[1],
+			Name:    name,
+			Version: version,
 			Source:  "dnf",
-			ID:      parts[0],
+			ID:      name,
 		})
 	}
 
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("scan error: %w", err)
+	return items, nil
+}
+
+func scanFlatpakLinux() ([]SoftwareItem, error) {
+	// Only list apps (no runtimes) to keep it relevant to the user
+	cmd := exec.Command("flatpak", "list", "--app", "--columns=application,name,version")
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, err
+	}
+
+	var items []SoftwareItem
+	scanner := bufio.NewScanner(strings.NewReader(string(output)))
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+
+		parts := strings.Split(line, "\t")
+		if len(parts) >= 3 {
+			items = append(items, SoftwareItem{
+				Name:    strings.TrimSpace(parts[1]),
+				Version: strings.TrimSpace(parts[2]),
+				Source:  "flatpak",
+				ID:      strings.TrimSpace(parts[0]), // App ID like org.mozilla.firefox
+			})
+		}
 	}
 
 	return items, nil
