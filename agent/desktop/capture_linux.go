@@ -95,7 +95,7 @@ func startKmsCapture(sess *DesktopSession, ctx context.Context) error {
 		)
 	case "libx264":
 		args = append(args,
-			"-vf", "hwmap=derive_device=vaapi,hwdownload,format=bgr0,format=yuv420p",
+			"-vf", "hwdownload,format=bgr0,format=yuv420p",
 			"-preset", "veryfast",
 			"-tune", "zerolatency",
 			"-profile:v", "baseline",
@@ -247,7 +247,7 @@ func tryKmsCodec(codec string) bool {
 		)
 	case "libx264":
 		args = append(args,
-			"-vf", "hwmap=derive_device=vaapi,hwdownload,format=bgr0,format=yuv420p",
+			"-vf", "hwdownload,format=bgr0,format=yuv420p",
 			"-preset", "veryfast",
 			"-profile:v", "baseline",
 			"-level", "3.1",
