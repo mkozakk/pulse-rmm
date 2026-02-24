@@ -13,6 +13,7 @@ import EndpointsPage from './pages/EndpointsPage'
 import EndpointDetailPage from './pages/EndpointDetailPage'
 import TerminalPage from './pages/TerminalPage'
 import DesktopPage from './pages/DesktopPage'
+import AlertsPage from './pages/AlertsPage'
 
 function Bootstrap({ children }) {
   const dispatch = useDispatch()
@@ -44,6 +45,7 @@ export default function App() {
             <Route path="/endpoints/:id" element={<EndpointDetailPage />} />
             <Route path="/endpoints/:id/shell" element={<TerminalPage />} />
             <Route path="/endpoints/:id/desktop" element={<DesktopPage />} />
+            <Route path="/alerts" element={<AlertsPage />} />
           </Route>
           <Route path="/" element={<Navigate to="/endpoints" replace />} />
           <Route path="*" element={<Navigate to="/endpoints" replace />} />
