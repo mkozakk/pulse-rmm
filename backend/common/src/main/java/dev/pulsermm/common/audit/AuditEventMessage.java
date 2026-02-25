@@ -1,5 +1,6 @@
 package dev.pulsermm.common.audit;
 
+import java.io.Serializable;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -11,4 +12,4 @@ public record AuditEventMessage(
     UUID endpointId,
     String payloadJson,
     Instant createdAt
-) {}
+) implements Serializable {}

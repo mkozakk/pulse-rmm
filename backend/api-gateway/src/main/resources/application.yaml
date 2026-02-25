@@ -55,6 +55,10 @@ spring:
             uri: ${ALERT_SERVICE_URL:http://localhost:8087}
             predicates:
               - Path=/api/alert-rules/**,/api/alerts/**
+          - id: audit
+            uri: ${AUDIT_SERVICE_URL:http://localhost:8088}
+            predicates:
+              - Path=/api/audit/**
 
 pulse:
   jwt:
@@ -98,6 +102,8 @@ springdoc:
         url: http://localhost:8092/v3/api-docs
       - name: Alerts
         url: http://localhost:8087/v3/api-docs
+      - name: Audit
+        url: http://localhost:8088/v3/api-docs
     urls-primary-name: Identity
     tags-sorter: alpha
     operations-sorter: alpha
