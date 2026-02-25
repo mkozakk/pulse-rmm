@@ -22,6 +22,7 @@ services:
       SOFTWARE_SERVICE_URL: http://software-service:8085
       REMOTE_SERVICE_URL: http://remote-service:8092
       ALERT_SERVICE_URL: http://alert-service:8087
+      AUDIT_SERVICE_URL: http://audit-service:8088
       JWT_SECRET: ${JWT_SECRET}
       INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
     ports:
@@ -47,6 +48,8 @@ services:
       remote-service:
         condition: service_healthy
       alert-service:
+        condition: service_healthy
+      audit-service:
         condition: service_healthy
       <<: *app-deps
 
@@ -214,6 +217,32 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+
+  audit-service:
+    build:
+      context: ..
+      dockerfile: backend/audit-service/Dockerfile
+    environment:
+      SERVICE_PORT: 8088
+      POSTGRES_HOST: postgres
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      JWT_SECRET: ${JWT_SECRET}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+    ports:
+      - "8088:8088"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8088/actuator/health"]
+      interval: 5s
+      timeout: 2s
+      retries: 5
+      start_period: 5s
+    depends_on:
+      <<: *app-deps
 
   coturn:
     image: docker.io/coturn/coturn:4.6.2

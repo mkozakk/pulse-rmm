@@ -26,6 +26,7 @@
         <module>software-service</module>
         <module>remote-service</module>
         <module>alert-service</module>
+        <module>audit-service</module>
     </modules>
 
     <properties>
