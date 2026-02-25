@@ -5,6 +5,7 @@ import dev.pulsermm.enrolment.domain.Endpoint;
 import dev.pulsermm.enrolment.domain.EnrolmentToken;
 import dev.pulsermm.enrolment.infrastructure.EndpointRepository;
 import dev.pulsermm.enrolment.infrastructure.EnrolmentTokenRepository;
+import dev.pulsermm.common.audit.Auditable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,6 +27,7 @@ public class EnrolService {
         this.tagRuleService = tagRuleService;
     }
 
+    @Auditable(action = "endpoint.enrol", permission = "enrolment:manage")
     public UUID enrol(UUID tokenId, byte[] publicKey, String hostname, String os, String arch) {
         Instant now = Instant.now();
 

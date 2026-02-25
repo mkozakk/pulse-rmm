@@ -1,5 +1,6 @@
 package dev.pulsermm.identity.application;
 
+import dev.pulsermm.common.audit.Auditable;
 import dev.pulsermm.identity.api.dto.LoginRequest;
 import dev.pulsermm.identity.api.dto.RegisterRequest;
 import dev.pulsermm.identity.api.dto.RegisterResponse;
@@ -52,6 +53,7 @@ public class AuthService {
         dummyHash = passwordEncoder.encode("_dummy_timing_token_");
     }
 
+    @Auditable(action = "user.register", permission = "identity:user:manage", capturePayload = false)
     @Transactional
     public RegisterResponse register(RegisterRequest request) {
         if (userRepository.count() > 0) {
