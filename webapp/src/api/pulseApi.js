@@ -178,6 +178,19 @@ export const pulseApi = createApi({
     }),
     ackAlert: builder.mutation({
       query: (id) => ({ url: `/alerts/${id}/ack`, method: 'POST' })
+    }),
+    getAuditLog: builder.query({
+      query: ({ user, endpoint, from, to, page = 0, size = 50 } = {}) => {
+        const params = new URLSearchParams()
+        if (user) params.set('user', user)
+        if (endpoint) params.set('endpoint', endpoint)
+        if (from) params.set('from', from)
+        if (to) params.set('to', to)
+        params.set('page', page)
+        params.set('size', size)
+        return `/audit?${params}`
+      },
+      keepUnusedDataFor: 0
     })
   })
 })
@@ -216,5 +229,6 @@ export const {
   useCreateAlertRuleMutation,
   useDeleteAlertRuleMutation,
   useGetAlertsQuery,
-  useAckAlertMutation
+  useAckAlertMutation,
+  useGetAuditLogQuery
 } = pulseApi
