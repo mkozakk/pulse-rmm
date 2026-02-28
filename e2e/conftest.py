@@ -158,6 +158,7 @@ def enrolled_agent(admin_session):
     result = subprocess.run(
         [
             "podman", "run", "-d",
+            "--log-driver=k8s-file",
             "--network", E2E_NETWORK,
             "-e", f"PULSE_TOKEN={enrolment_token}",
             "-e", "PULSE_SERVER=enrolment-service:9091",

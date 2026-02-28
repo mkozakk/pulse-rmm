@@ -1,23 +1,28 @@
 package dev.pulsermm.audit.infrastructure.persistence;
 
 import dev.pulsermm.audit.domain.AuditEvent;
+import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
-public interface AuditEventRepository extends JpaRepository<AuditEvent, UUID> {
+public interface AuditEventRepository extends JpaRepository<AuditEvent, UUID>, JpaSpecificationExecutor<AuditEvent> {
 
-    @Query("""
-        SELECT a FROM AuditEvent a
-        WHERE (:userId IS NULL OR a.userId = :userId)
-          AND (:endpointId IS NULL OR a.endpointId = :endpointId)
-          AND (:from IS NULL OR a.createdAt >= :from)
-          AND (:to IS NULL OR a.createdAt <= :to)
-        ORDER BY a.createdAt DESC
-    """)
-    Page<AuditEvent> findFiltered(UUID userId, UUID endpointId, Instant from, Instant to, Pageable pageable);
+    default Page<AuditEvent> findFiltered(UUID userId, UUID endpointId, Instant from, Instant to, Pageable pageable) {
+        return findAll((root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            if (userId != null) predicates.add(cb.equal(root.get("userId"), userId));
+            if (endpointId != null) predicates.add(cb.equal(root.get("endpointId"), endpointId));
+            if (from != null) predicates.add(cb.greaterThanOrEqualTo(root.get("createdAt"), from));
+            if (to != null) predicates.add(cb.lessThanOrEqualTo(root.get("createdAt"), to));
+            query.orderBy(cb.desc(root.get("createdAt")));
+            return cb.and(predicates.toArray(new Predicate[0]));
+        }, pageable);
+    }
 }
