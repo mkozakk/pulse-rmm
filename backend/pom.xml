@@ -27,6 +27,7 @@
         <module>remote-service</module>
         <module>alert-service</module>
         <module>audit-service</module>
+        <module>agent-update-service</module>
     </modules>
 
     <properties>
