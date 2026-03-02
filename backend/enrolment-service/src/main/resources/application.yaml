@@ -48,6 +48,8 @@ pulse:
   identity:
     url: ${IDENTITY_SERVICE_URL:http://localhost:8083}
     internal-secret: ${INTERNAL_API_SECRET:change-me-in-production}
+  api:
+    url: ${PULSE_API_URL:http://localhost:8080}
 
 management:
   endpoints:

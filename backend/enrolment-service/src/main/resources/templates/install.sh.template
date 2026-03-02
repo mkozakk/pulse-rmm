@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+PULSE_API_URL="{{API_URL}}"
+PULSE_TOKEN="{{TOKEN}}"
+
+if [[ "$EUID" -ne 0 ]]; then
+    echo "error: must be run as root (use sudo)" >&2
+    exit 1
+fi
+
+if command -v dpkg >/dev/null 2>&1; then
+    PKG_URL="$PULSE_API_URL/install/pulse-agent.deb"
+    TMP=$(mktemp --suffix=.deb)
+    curl -fsSL "$PKG_URL" -o "$TMP"
+    dpkg -i "$TMP" || apt-get install -f -y
+    rm "$TMP"
+elif command -v rpm >/dev/null 2>&1; then
+    PKG_URL="$PULSE_API_URL/install/pulse-agent.rpm"
+    TMP=$(mktemp --suffix=.rpm)
+    curl -fsSL "$PKG_URL" -o "$TMP"
+    rpm -i "$TMP" || dnf install -y "$TMP"
+    rm "$TMP"
+else
+    echo "error: no supported package manager (dpkg or rpm) found" >&2
+    exit 1
+fi
+
+install -d -m 0755 /etc/pulse-agent
+cat > /etc/pulse-agent/config.yaml <<EOF
+api_url: $PULSE_API_URL
+enrolment_token: $PULSE_TOKEN
+data_dir: /var/lib/pulse-agent
+log_level: info
+EOF
+chmod 0600 /etc/pulse-agent/config.yaml
+
+systemctl enable --now pulse-agent.service
+echo "pulse-agent installed and started. Check: systemctl status pulse-agent"
