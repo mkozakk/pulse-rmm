@@ -9,9 +9,16 @@ import (
 )
 
 var (
-	KeyFile       = "/var/lib/pulse-agent/key.pem"
-	EndpointFile  = "/var/lib/pulse-agent/endpoint.id"
+	KeyFile      = "/var/lib/pulse-agent/key.pem"
+	EndpointFile = "/var/lib/pulse-agent/endpoint.id"
 )
+
+// Init sets the file paths derived from dataDir. Call once at startup before
+// any Load/Save calls. Tests override the vars directly instead.
+func Init(dataDir string) {
+	KeyFile = dataDir + "/key.pem"
+	EndpointFile = dataDir + "/endpoint.id"
+}
 
 func LoadOrGenerateKey() (ed25519.PrivateKey, error) {
 	keyBytes, err := os.ReadFile(KeyFile)
