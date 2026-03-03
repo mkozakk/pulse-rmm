@@ -12,6 +12,37 @@ import {
   useUpdateEndpointTagsMutation
 } from '../api/pulseApi'
 
+const API_URL = (import.meta.env.VITE_API_BASE || 'http://localhost:8080/api').replace(/\/api$/, '')
+
+function InstallCommands({ tokenId, expiresAt }) {
+  const [copied, setCopied] = useState('')
+
+  const linuxCmd = `curl -fsSL ${API_URL}/install/${tokenId}.sh | sudo bash`
+
+  function copy(text, key) {
+    navigator.clipboard.writeText(text)
+    setCopied(key)
+    setTimeout(() => setCopied(''), 2000)
+  }
+
+  return (
+    <div className="stack" style={{ marginTop: 8 }}>
+      <p className="panel-empty">Token {tokenId} · expires {expiresAt}</p>
+      <div>
+        <p style={{ marginBottom: 4, fontSize: 13 }}>Linux (run as root):</p>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <code style={{ flex: 1, padding: '6px 8px', background: '#1a1a2e', borderRadius: 4, fontSize: 12, wordBreak: 'break-all' }}>
+            {linuxCmd}
+          </code>
+          <button onClick={() => copy(linuxCmd, 'linux')} style={{ whiteSpace: 'nowrap' }}>
+            {copied === 'linux' ? 'Copied!' : 'Copy'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function TagsEditor({ endpoint, groups, onSave, saving }) {
   const [groupId, setGroupId] = useState(endpoint.groupId ?? '')
   const [tagsText, setTagsText] = useState((endpoint.tags ?? []).map(tag => `${tag.key}=${tag.value}`).join(', '))
@@ -119,7 +150,7 @@ export default function EnrolmentPage() {
           <input value={tokenTtl} onChange={e => setTokenTtl(e.target.value)} type="number" min="1" placeholder="TTL hours" />
           <button onClick={handleCreateToken} disabled={busy === 'token'}>Create token</button>
         </div>
-        {tokenResult && <p className="panel-empty">Token {tokenResult.id} expires at {tokenResult.expiresAt}</p>}
+        {tokenResult && <InstallCommands tokenId={tokenResult.id} expiresAt={tokenResult.expiresAt} />}
       </section>
 
       <section className="panel-card stack">
