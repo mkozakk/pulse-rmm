@@ -80,6 +80,10 @@ spring:
             uri: ${ENROLMENT_SERVICE_URL:http://localhost:8081}
             predicates:
               - Path=/install/**
+          - id: webhooks
+            uri: ${INTEGRATION_SERVICE_URL:http://localhost:8091}
+            predicates:
+              - Path=/api/webhooks/**
 
 pulse:
   jwt:
@@ -127,6 +131,8 @@ springdoc:
         url: http://localhost:8088/v3/api-docs
       - name: Agent Updates
         url: http://localhost:8089/v3/api-docs
+      - name: Integrations
+        url: http://localhost:8091/v3/api-docs
     urls-primary-name: Identity
     tags-sorter: alpha
     operations-sorter: alpha
