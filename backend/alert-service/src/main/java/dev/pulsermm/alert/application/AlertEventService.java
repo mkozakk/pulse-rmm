@@ -3,19 +3,24 @@ package dev.pulsermm.alert.application;
 import dev.pulsermm.alert.domain.AlertEvent;
 import dev.pulsermm.alert.infrastructure.persistence.AlertEventRepository;
 import dev.pulsermm.common.audit.Auditable;
+import dev.pulsermm.common.events.DomainEvent;
+import dev.pulsermm.common.events.DomainEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
 public class AlertEventService {
 
     private final AlertEventRepository eventRepository;
+    private final DomainEventPublisher domainEventPublisher;
 
-    public AlertEventService(AlertEventRepository eventRepository) {
+    public AlertEventService(AlertEventRepository eventRepository, DomainEventPublisher domainEventPublisher) {
         this.eventRepository = eventRepository;
+        this.domainEventPublisher = domainEventPublisher;
     }
 
     public List<AlertEvent> listOpen() {
@@ -33,6 +38,10 @@ public class AlertEventService {
             if (event.isOpen()) {
                 event.ack(userId);
                 eventRepository.save(event);
+                domainEventPublisher.publish(DomainEvent.of("alert.acknowledged", Map.of(
+                    "alertEventId", eventId.toString(),
+                    "ackedBy", userId.toString()
+                )));
             }
         });
     }

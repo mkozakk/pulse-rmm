@@ -1,7 +1,9 @@
 package dev.pulsermm.common.audit;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.pulsermm.common.events.DomainEventPublisher;
 import org.springframework.amqp.core.FanoutExchange;
+import org.springframework.amqp.core.TopicExchange;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -37,5 +39,16 @@ public class AuditAutoConfiguration {
     @Bean
     public FanoutExchange auditEventsExchange() {
         return new FanoutExchange("audit.events", true, false);
+    }
+
+    @Bean
+    public TopicExchange pulseEventsExchange() {
+        return new TopicExchange(DomainEventPublisher.EXCHANGE, true, false);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public DomainEventPublisher domainEventPublisher(RabbitTemplate rabbitTemplate) {
+        return new DomainEventPublisher(rabbitTemplate);
     }
 }

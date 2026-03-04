@@ -6,6 +6,8 @@ import dev.pulsermm.alert.infrastructure.EndpointResolver;
 import dev.pulsermm.alert.infrastructure.MetricQueryGateway;
 import dev.pulsermm.alert.infrastructure.persistence.AlertEventRepository;
 import dev.pulsermm.alert.infrastructure.persistence.AlertRuleRepository;
+import dev.pulsermm.common.events.DomainEvent;
+import dev.pulsermm.common.events.DomainEventPublisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
@@ -13,6 +15,8 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Map;
 
 import java.util.List;
 import java.util.UUID;
@@ -27,17 +31,20 @@ public class AlertEvaluator {
     private final EndpointResolver endpointResolver;
     private final MetricQueryGateway metricQueryGateway;
     private final ApplicationEventPublisher eventPublisher;
+    private final DomainEventPublisher domainEventPublisher;
 
     public AlertEvaluator(AlertRuleRepository ruleRepository,
                           AlertEventRepository eventRepository,
                           EndpointResolver endpointResolver,
                           MetricQueryGateway metricQueryGateway,
-                          ApplicationEventPublisher eventPublisher) {
+                          ApplicationEventPublisher eventPublisher,
+                          DomainEventPublisher domainEventPublisher) {
         this.ruleRepository = ruleRepository;
         this.eventRepository = eventRepository;
         this.endpointResolver = endpointResolver;
         this.metricQueryGateway = metricQueryGateway;
         this.eventPublisher = eventPublisher;
+        this.domainEventPublisher = domainEventPublisher;
     }
 
     @Scheduled(fixedDelay = 30_000)
@@ -82,6 +89,13 @@ public class AlertEvaluator {
             var event = eventRepository.save(new AlertEvent(rule, endpointId));
             log.info("Alert fired: rule={} endpoint={}", rule.getId(), endpointId);
             eventPublisher.publishEvent(new AlertFiredEvent(this, event));
+            domainEventPublisher.publish(DomainEvent.of("alert.fired", Map.of(
+                "alertEventId", event.getId().toString(),
+                "ruleId", rule.getId().toString(),
+                "endpointId", endpointId.toString(),
+                "metricType", rule.getMetricType(),
+                "threshold", rule.getThreshold()
+            )));
         } catch (DataIntegrityViolationException e) {
             // Unique constraint on (rule_id, endpoint_id) WHERE acked_at IS NULL — race condition, safe to ignore
             log.debug("Alert event already exists for rule={} endpoint={}", rule.getId(), endpointId);

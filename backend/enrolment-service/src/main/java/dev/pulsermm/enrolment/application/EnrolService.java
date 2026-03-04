@@ -6,10 +6,13 @@ import dev.pulsermm.enrolment.domain.EnrolmentToken;
 import dev.pulsermm.enrolment.infrastructure.EndpointRepository;
 import dev.pulsermm.enrolment.infrastructure.EnrolmentTokenRepository;
 import dev.pulsermm.common.audit.Auditable;
+import dev.pulsermm.common.events.DomainEvent;
+import dev.pulsermm.common.events.DomainEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -18,13 +21,16 @@ public class EnrolService {
     private final EnrolmentTokenRepository tokenRepository;
     private final EndpointRepository endpointRepository;
     private final TagRuleService tagRuleService;
+    private final DomainEventPublisher domainEventPublisher;
 
     public EnrolService(EnrolmentTokenRepository tokenRepository,
                         EndpointRepository endpointRepository,
-                        TagRuleService tagRuleService) {
+                        TagRuleService tagRuleService,
+                        DomainEventPublisher domainEventPublisher) {
         this.tokenRepository = tokenRepository;
         this.endpointRepository = endpointRepository;
         this.tagRuleService = tagRuleService;
+        this.domainEventPublisher = domainEventPublisher;
     }
 
     @Auditable(action = "endpoint.enrol", permission = "enrolment:manage")
@@ -52,6 +58,12 @@ public class EnrolService {
 
         Endpoint saved = endpointRepository.save(endpoint);
         tagRuleService.applyRulesTo(saved);
+        domainEventPublisher.publish(DomainEvent.of("endpoint.enrolled", Map.of(
+            "endpointId", saved.getId().toString(),
+            "hostname", saved.getHostname(),
+            "os", saved.getOs(),
+            "groupId", saved.getGroupId().toString()
+        )));
         return saved.getId();
     }
 }
