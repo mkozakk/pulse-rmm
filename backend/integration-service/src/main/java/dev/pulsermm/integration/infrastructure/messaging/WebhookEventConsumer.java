@@ -1,7 +1,7 @@
 package dev.pulsermm.integration.infrastructure.messaging;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.pulsermm.common.events.DomainEvent;
+import dev.pulsermm.integration.application.WebhookDispatcher;
 import dev.pulsermm.integration.domain.Webhook;
 import dev.pulsermm.integration.domain.WebhookDelivery;
 import dev.pulsermm.integration.infrastructure.persistence.WebhookDeliveryRepository;
@@ -12,7 +12,9 @@ import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Component
 public class WebhookEventConsumer {
@@ -21,14 +23,14 @@ public class WebhookEventConsumer {
 
     private final WebhookRepository webhookRepository;
     private final WebhookDeliveryRepository deliveryRepository;
-    private final ObjectMapper objectMapper;
+    private final WebhookDispatcher dispatcher;
 
     public WebhookEventConsumer(WebhookRepository webhookRepository,
                                  WebhookDeliveryRepository deliveryRepository,
-                                 ObjectMapper objectMapper) {
+                                 WebhookDispatcher dispatcher) {
         this.webhookRepository = webhookRepository;
         this.deliveryRepository = deliveryRepository;
-        this.objectMapper = objectMapper;
+        this.dispatcher = dispatcher;
     }
 
     @RabbitListener(queues = "webhook.dispatch")
@@ -39,9 +41,15 @@ public class WebhookEventConsumer {
             return;
         }
         log.debug("Routing event type={} to {} webhooks", event.type(), matches.size());
+        Map<String, Object> envelope = new LinkedHashMap<>();
+        envelope.put("id", event.id().toString());
+        envelope.put("type", event.type());
+        envelope.put("occurred_at", event.occurredAt().toString());
+        envelope.put("data", event.data());
         for (Webhook webhook : matches) {
-            var delivery = new WebhookDelivery(webhook, event.type(), event.id(), event.data());
+            var delivery = new WebhookDelivery(webhook, event.type(), event.id(), envelope);
             deliveryRepository.save(delivery);
+            dispatcher.dispatch(delivery);
         }
     }
 
