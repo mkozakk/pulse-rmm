@@ -23,6 +23,7 @@ spring:
     password: ${POSTGRES_PASSWORD:postgres}
     hikari:
       maximum-pool-size: 10
+      minimum-idle: 2
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost}
     port: ${RABBITMQ_PORT:5672}
