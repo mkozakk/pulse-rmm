@@ -16,6 +16,8 @@ import DesktopPage from './pages/DesktopPage'
 import AlertsPage from './pages/AlertsPage'
 import AuditPage from './pages/AuditPage'
 import AgentVersionsPage from './pages/AgentVersionsPage'
+import WebhooksPage from './pages/WebhooksPage'
+import WebhookDetailPage from './pages/WebhookDetailPage'
 
 function Bootstrap({ children }) {
   const dispatch = useDispatch()
@@ -50,6 +52,8 @@ export default function App() {
             <Route path="/alerts" element={<AlertsPage />} />
             <Route path="/audit" element={<AuditPage />} />
             <Route path="/agent-versions" element={<AgentVersionsPage />} />
+            <Route path="/webhooks" element={<WebhooksPage />} />
+            <Route path="/webhooks/:id" element={<WebhookDetailPage />} />
           </Route>
           <Route path="/" element={<Navigate to="/endpoints" replace />} />
           <Route path="*" element={<Navigate to="/endpoints" replace />} />
