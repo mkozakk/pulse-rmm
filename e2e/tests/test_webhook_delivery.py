@@ -213,3 +213,96 @@ def test_no_retry_on_400(admin_session):
             admin_session.delete(f"{BASE_URL}/api/webhooks/{webhook_id}")
         if rule_id:
             admin_session.delete(f"{BASE_URL}/api/alert-rules/{rule_id}")
+
+
+def test_delivery_history_listing(admin_session):
+    port = _free_port()
+    # first two succeed, third fails
+    srv = MockWebhookServer(port, responses=[200, 200, 500, 500, 500])
+    srv.start()
+    webhook_id = None
+    rule_ids = []
+    try:
+        webhook_url = f"http://{HOST_FROM_CONTAINER}:{port}/webhook"
+        webhook_id = _create_webhook(admin_session, webhook_url, ["audit.*"])
+
+        # trigger 2 successful events
+        for _ in range(2):
+            rid = _trigger_audit_event(admin_session)
+            rule_ids.append(rid)
+
+        # trigger 1 that will exhaust retries (500 × 3)
+        rid = _trigger_audit_event(admin_session)
+        rule_ids.append(rid)
+
+        # wait for all 5 POSTs (2 successes + 3 attempts for the failing one)
+        assert _wait_for(lambda: len(srv.received) >= 5, timeout=45), \
+            f"expected 5 POSTs, got {len(srv.received)}"
+
+        # check delivery history
+        r = admin_session.get(f"{BASE_URL}/api/webhooks/{webhook_id}/deliveries")
+        assert r.status_code == 200, r.text
+        deliveries = r.json()
+        assert len(deliveries) == 3
+
+        statuses = {d["status"] for d in deliveries}
+        assert "success" in statuses
+        assert "dead_letter" in statuses
+
+        # payloadPreview should be a string, not the full map
+        for d in deliveries:
+            assert isinstance(d["payloadPreview"], str)
+            assert "payload" not in d  # full payload not returned in list
+
+        # filter by status
+        r = admin_session.get(f"{BASE_URL}/api/webhooks/{webhook_id}/deliveries?status=success")
+        assert r.status_code == 200
+        assert all(d["status"] == "success" for d in r.json())
+        assert len(r.json()) == 2
+
+        # detail endpoint returns full payload
+        delivery_id = deliveries[0]["id"]
+        r = admin_session.get(f"{BASE_URL}/api/webhooks/deliveries/{delivery_id}")
+        assert r.status_code == 200
+        detail = r.json()
+        assert "payload" in detail
+        assert isinstance(detail["payload"], dict)
+        assert "type" in detail["payload"]
+    finally:
+        srv.stop()
+        if webhook_id:
+            admin_session.delete(f"{BASE_URL}/api/webhooks/{webhook_id}")
+        for rid in rule_ids:
+            admin_session.delete(f"{BASE_URL}/api/alert-rules/{rid}")
+
+
+def test_dead_letter_listing(admin_session):
+    port = _free_port()
+    srv = MockWebhookServer(port, responses=[500, 500, 500])
+    srv.start()
+    webhook_id = None
+    rule_id = None
+    try:
+        webhook_url = f"http://{HOST_FROM_CONTAINER}:{port}/webhook"
+        webhook_id = _create_webhook(admin_session, webhook_url, ["audit.*"])
+
+        rule_id = _trigger_audit_event(admin_session)
+
+        assert _wait_for(lambda: len(srv.received) >= 3, timeout=40), \
+            f"expected 3 attempts, got {len(srv.received)}"
+
+        r = admin_session.get(f"{BASE_URL}/api/webhooks/deliveries/dead-letter")
+        assert r.status_code == 200, r.text
+        dead = r.json()
+        assert len(dead) >= 1
+        assert all(d["status"] == "dead_letter" for d in dead)
+
+        webhook_dead = [d for d in dead if d["webhookId"] == webhook_id]
+        assert len(webhook_dead) == 1
+        assert webhook_dead[0]["attempts"] == 3
+    finally:
+        srv.stop()
+        if webhook_id:
+            admin_session.delete(f"{BASE_URL}/api/webhooks/{webhook_id}")
+        if rule_id:
+            admin_session.delete(f"{BASE_URL}/api/alert-rules/{rule_id}")
