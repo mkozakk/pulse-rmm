@@ -17,7 +17,9 @@ export default function AgentVersionsPage() {
   const [version, setVersion] = useState('')
   const [os, setOs] = useState('linux')
   const [arch, setArch] = useState('amd64')
+  const [artifactType, setArtifactType] = useState('deb')
   const [uploading, setUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState('')
   const [uploadError, setUploadError] = useState('')
   const [busy, setBusy] = useState('')
 
@@ -26,17 +28,22 @@ export default function AgentVersionsPage() {
     setUploading(true)
     setUploadError('')
     try {
+      setUploadProgress('Uploading…')
       const fd = new FormData()
       fd.append('file', file)
       fd.append('version', version)
       fd.append('os', os)
       fd.append('arch', arch)
+      fd.append('artifactType', artifactType)
       await publish(fd).unwrap()
+
       setFile(null)
       setVersion('')
+      setUploadProgress('')
       refetch()
     } catch (e) {
-      setUploadError(e?.data?.message ?? 'Upload failed')
+      setUploadError(e?.data?.detail ?? e?.data?.message ?? e?.message ?? 'Upload failed')
+      setUploadProgress('')
     } finally {
       setUploading(false)
     }
@@ -59,65 +66,65 @@ export default function AgentVersionsPage() {
       await deleteVersion(id).unwrap()
       refetch()
     } catch (e) {
-      alert(e?.data?.message ?? 'Delete failed')
+      alert(e?.data?.detail ?? e?.data?.message ?? 'Delete failed')
     } finally {
       setBusy('')
     }
   }
 
-  const grouped = versions.reduce((acc, v) => {
-    const key = `${v.os}/${v.arch}`
-    if (!acc[key]) acc[key] = []
-    acc[key].push(v)
+  const byVersion = versions.reduce((acc, v) => {
+    if (!acc[v.version]) acc[v.version] = []
+    acc[v.version].push(v)
     return acc
   }, {})
 
+  const artifactTypeOptions = os === 'windows' ? ['zip', 'exe'] : ['deb', 'rpm', 'tar.gz']
+
   return (
-    <AppShell title="Agent Versions" subtitle="Upload and manage agent binaries.">
+    <AppShell title="Agent Versions" subtitle="Upload and manage agent artifacts.">
       <section className="panel-card stack">
-        <h2 className="section-title">Upload new version</h2>
+        <h2 className="section-title">Upload artifact</h2>
         <div className="form-grid">
-          <input
-            type="file"
-            onChange={e => setFile(e.target.files[0] ?? null)}
-          />
+          <input type="file" onChange={e => setFile(e.target.files[0] ?? null)} />
           <input
             value={version}
             onChange={e => setVersion(e.target.value)}
             placeholder="Version (e.g. 1.2.3)"
           />
-          <select value={os} onChange={e => setOs(e.target.value)}>
+          <select value={os} onChange={e => { setOs(e.target.value); setArtifactType(e.target.value === 'windows' ? 'exe' : 'deb') }}>
             <option value="linux">linux</option>
             <option value="windows">windows</option>
           </select>
           <select value={arch} onChange={e => setArch(e.target.value)}>
             <option value="amd64">amd64</option>
-            <option value="arm64">arm64</option>
+          </select>
+          <select value={artifactType} onChange={e => setArtifactType(e.target.value)}>
+            {artifactTypeOptions.map(t => <option key={t} value={t}>{t}</option>)}
           </select>
           <button onClick={handleUpload} disabled={uploading || !file || !version}>
-            {uploading ? 'Uploading…' : 'Upload'}
+            {uploading ? uploadProgress || 'Uploading…' : 'Upload'}
           </button>
         </div>
         {uploadError && <p className="form-error">{uploadError}</p>}
       </section>
 
-      {Object.entries(grouped).map(([platform, rows]) => (
-        <section key={platform} className="panel-card stack">
-          <h2 className="section-title">{platform}</h2>
+      {Object.entries(byVersion).map(([ver, artifacts]) => (
+        <section key={ver} className="panel-card stack">
+          <h2 className="section-title">v{ver}</h2>
           <div className="list-card">
-            {rows.map(v => (
+            {artifacts.map(v => (
               <div key={v.id} className="list-row">
                 <span>
-                  {v.version}
+                  <span className="muted" style={{ marginRight: 8 }}>{v.os}/{v.arch}</span>
+                  {v.artifactType}
                   {v.current && <span className="badge badge-green" style={{ marginLeft: 8 }}>current</span>}
                 </span>
-                <span className="muted">{v.sizeBytes.toLocaleString()} bytes · {v.sha256.slice(0, 12)}…</span>
+                <span className="muted" style={{ fontSize: 12 }}>
+                  {(v.sizeBytes / 1024 / 1024).toFixed(1)} MB · {v.sha256.slice(0, 12)}…
+                </span>
                 <span style={{ display: 'flex', gap: 8 }}>
                   {!v.current && (
-                    <button
-                      onClick={() => handleSetCurrent(v.id)}
-                      disabled={busy === v.id + ':current'}
-                    >
+                    <button onClick={() => handleSetCurrent(v.id)} disabled={busy === v.id + ':current'}>
                       Set current
                     </button>
                   )}
@@ -136,7 +143,7 @@ export default function AgentVersionsPage() {
       ))}
 
       {versions.length === 0 && (
-        <p className="panel-empty">No agent versions uploaded yet.</p>
+        <p className="panel-empty">No agent artifacts uploaded yet.</p>
       )}
     </AppShell>
   )
