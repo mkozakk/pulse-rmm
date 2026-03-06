@@ -1,4 +1,4 @@
-package desktop
+package transfer
 
 import (
 	"encoding/json"
@@ -11,11 +11,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newTestHandler(t *testing.T) (*FileTransferHandler, *[]string, *[][]byte) {
+func newTestHandler(t *testing.T) (*Handler, *[]string, *[][]byte) {
 	t.Helper()
 	var texts []string
 	var binaries [][]byte
-	h := newFileTransferHandler(
+	h := New(
 		func(s string) error { texts = append(texts, s); return nil },
 		func(b []byte) error { binaries = append(binaries, b); return nil },
 		t.TempDir(),
@@ -50,27 +50,23 @@ func TestUploadChunksReassembled(t *testing.T) {
 func TestDownloadChunksFile(t *testing.T) {
 	h, texts, binaries := newTestHandler(t)
 
-	// write a file in the home dir
 	content := []byte("chunk one chunk two chunk three")
 	err := os.WriteFile(filepath.Join(h.homeDir, "report.txt"), content, 0600)
 	require.NoError(t, err)
 
 	h.handleMessage(msg(true, `{"type":"download_request","path":"report.txt"}`))
 
-	// first text should be download_start
 	require.NotEmpty(t, *texts)
 	var start map[string]any
 	require.NoError(t, json.Unmarshal([]byte((*texts)[0]), &start))
 	assert.Equal(t, "download_start", start["type"])
 
-	// binary chunks should contain the full content when concatenated
 	var got []byte
 	for _, chunk := range *binaries {
 		got = append(got, chunk...)
 	}
 	assert.Equal(t, content, got)
 
-	// last text should be download_done
 	last := (*texts)[len(*texts)-1]
 	var done map[string]string
 	require.NoError(t, json.Unmarshal([]byte(last), &done))
@@ -79,7 +75,7 @@ func TestDownloadChunksFile(t *testing.T) {
 
 func TestUploadCreatesDirectory(t *testing.T) {
 	uploadDir := filepath.Join(t.TempDir(), "uploads", "nested")
-	h := newFileTransferHandler(
+	h := New(
 		func(s string) error { return nil },
 		func(b []byte) error { return nil },
 		uploadDir,

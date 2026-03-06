@@ -7,14 +7,6 @@ import (
 	"time"
 )
 
-type InputInjector interface {
-	MouseMove(x, y int) error
-	MouseButton(button int, pressed bool) error
-	MouseScroll(deltaX, deltaY int) error
-	KeyEvent(keyCode int, pressed bool) error
-	Close() error
-}
-
 type inputEvent struct {
 	Type    string `json:"type"`
 	X       int    `json:"x"`
@@ -33,12 +25,11 @@ func parseInputEvent(data []byte) (inputEvent, error) {
 	return ev, nil
 }
 
-// rateLimiter allows up to maxPerSec events per second, dropping the rest.
 type rateLimiter struct {
-	mu         sync.Mutex
-	count      int
+	mu          sync.Mutex
+	count       int
 	windowStart time.Time
-	maxPerSec  int
+	maxPerSec   int
 }
 
 func newRateLimiter(maxPerSec int) *rateLimiter {
@@ -59,11 +50,3 @@ func (r *rateLimiter) allow() bool {
 	r.count++
 	return true
 }
-
-type noopInjector struct{}
-
-func (n *noopInjector) MouseMove(x, y int) error                  { return nil }
-func (n *noopInjector) MouseButton(button int, pressed bool) error { return nil }
-func (n *noopInjector) MouseScroll(deltaX, deltaY int) error       { return nil }
-func (n *noopInjector) KeyEvent(keyCode int, pressed bool) error   { return nil }
-func (n *noopInjector) Close() error                               { return nil }

@@ -1,6 +1,6 @@
 //go:build linux
 
-package desktop
+package input
 
 import (
 	"fmt"
@@ -174,7 +174,6 @@ func newUinputInjector() (InputInjector, error) {
 func detectScreenSize() (int32, int32) {
 	out, err := exec.Command("xrandr", "--query").Output()
 	if err == nil {
-		// First "  1920x1080  60.00*+" line under the first connected output.
 		re := regexp.MustCompile(`(?m)^\s+(\d+)x(\d+)\s+[\d.]+\*`)
 		if m := re.FindStringSubmatch(string(out)); len(m) == 3 {
 			w, _ := strconv.Atoi(m[1])
@@ -272,12 +271,15 @@ func (u *uinputInjector) Close() error {
 
 // --- factory ---
 
-func newInputInjector() (InputInjector, error) {
+// New returns the best InputInjector for the current environment.
+// On Wayland sessions it uses uinput (kernel evdev layer); on X11 it uses
+// XTest; falls back to uinput when no display is detected (system service).
+func New() (InputInjector, error) {
 	// Wayland check comes first: XWayland is running under Wayland sessions so
 	// DISPLAY is always set, but XTest input lands on XWayland only and won't
 	// reach native Wayland clients. uinput injects at the kernel evdev layer
 	// (libinput → compositor) and reaches every app.
-	if isWaylandSession() {
+	if os.Getenv("XDG_SESSION_TYPE") == "wayland" || os.Getenv("WAYLAND_DISPLAY") != "" {
 		return newUinputInjector()
 	}
 	if os.Getenv("DISPLAY") != "" {

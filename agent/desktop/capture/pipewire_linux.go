@@ -1,6 +1,6 @@
 //go:build linux
 
-package desktop
+package capture
 
 import (
 	"context"
@@ -23,7 +23,7 @@ import (
 // PipeWire node. Backend preference: GStreamer first (Debian/Ubuntu ship
 // gstreamer1.0-pipewire reliably), then ffmpeg with pipewiregrab (rare —
 // requires ffmpeg built with --enable-libpipewire).
-func startPipeWireCapture(sess *DesktopSession, ctx context.Context) error {
+func startPipeWireCapture(ctx context.Context, t Target) error {
 	// The portal Start step blocks on user consent. Give the user 60s to
 	// click "Share" before bailing out.
 	consentCtx, consentCancel := context.WithTimeout(ctx, 60*time.Second)
@@ -35,17 +35,17 @@ func startPipeWireCapture(sess *DesktopSession, ctx context.Context) error {
 
 	if len(sc.nodeIDs) == 0 {
 		sc.Close()
-		return errPortalNoStream
+		return ErrPortalNoStream
 	}
 	nodeID := sc.nodeIDs[0]
-	sess.log.Printf("pipewire: portal granted node id %d", nodeID)
+	t.Logger.Printf("pipewire: portal granted node id %d", nodeID)
 
-	backend, cmd, err := selectPipeWireBackend(ctx, sess, nodeID)
+	backend, cmd, err := selectPipeWireBackend(ctx, t, nodeID)
 	if err != nil {
 		sc.Close()
 		return err
 	}
-	sess.log.Printf("pipewire: using backend %s", backend)
+	t.Logger.Printf("pipewire: using backend %s", backend)
 
 	track, err := webrtc.NewTrackLocalStaticSample(webrtc.RTPCodecCapability{
 		MimeType:    webrtc.MimeTypeH264,
@@ -56,14 +56,14 @@ func startPipeWireCapture(sess *DesktopSession, ctx context.Context) error {
 		sc.Close()
 		return fmt.Errorf("creating H264 video track: %w", err)
 	}
-	if err := sess.addVideoTrack(track); err != nil {
+	if err := t.AddTrack(track); err != nil {
 		sc.Close()
 		return fmt.Errorf("adding video track: %w", err)
 	}
 
 	var encLog io.Writer = os.Stderr
-	if sess.logFile != nil {
-		encLog = io.MultiWriter(os.Stderr, sess.logFile)
+	if t.LogFile != nil {
+		encLog = io.MultiWriter(os.Stderr, t.LogFile)
 	}
 	cmd.Stderr = encLog
 
@@ -95,13 +95,13 @@ func startPipeWireCapture(sess *DesktopSession, ctx context.Context) error {
 			_ = stdout.Close()
 			_ = cmd.Wait()
 			sc.Close()
-			sess.log.Println("pipewire capture stopped")
+			t.Logger.Println("pipewire capture stopped")
 		}()
 
 		startTime := time.Now()
 		h264r, err := h264reader.NewReader(stdout)
 		if err != nil {
-			sess.log.Printf("h264reader init error: %v", err)
+			t.Logger.Printf("h264reader init error: %v", err)
 			return
 		}
 
@@ -123,7 +123,7 @@ func startPipeWireCapture(sess *DesktopSession, ctx context.Context) error {
 					return
 				}
 				if frameCount == 0 {
-					sess.log.Printf("pipewire: no frames after %v: %v", time.Since(startTime), err)
+					t.Logger.Printf("pipewire: no frames after %v: %v", time.Since(startTime), err)
 				}
 				return
 			}
@@ -141,41 +141,41 @@ func startPipeWireCapture(sess *DesktopSession, ctx context.Context) error {
 			}
 
 			if err := track.WriteSample(media.Sample{Data: au, Duration: frameDur}); err != nil {
-				sess.log.Printf("WriteSample error: %v", err)
+				t.Logger.Printf("WriteSample error: %v", err)
 				return
 			}
 			au = au[:0]
 
 			frameCount++
 			if frameCount == 1 {
-				sess.log.Printf("pipewire: first frame after %v", time.Since(startTime))
+				t.Logger.Printf("pipewire: first frame after %v", time.Since(startTime))
 			}
 			if frameCount%30 == 0 {
-				sess.log.Printf("pipewire: %d frames sent", frameCount)
+				t.Logger.Printf("pipewire: %d frames sent", frameCount)
 			}
 		}
 	}()
 
-	sess.log.Println("pipewire capture started")
+	t.Logger.Println("pipewire capture started")
 	return nil
 }
 
 // selectPipeWireBackend prefers GStreamer (widely packaged with PipeWire
 // support) and falls back to ffmpeg pipewiregrab (rare). Returns the
 // constructed but not-yet-started command.
-func selectPipeWireBackend(ctx context.Context, sess *DesktopSession, nodeID uint32) (string, *exec.Cmd, error) {
+func selectPipeWireBackend(ctx context.Context, t Target, nodeID uint32) (string, *exec.Cmd, error) {
 	if gstreamerHasPipeWire() {
 		args := pipeWireGStreamerArgs(nodeID)
 		return "gstreamer", exec.CommandContext(ctx, "gst-launch-1.0", args...), nil
 	}
-	sess.log.Println("pipewire: gst-launch-1.0 with pipewiresrc not available, trying ffmpeg")
+	t.Logger.Println("pipewire: gst-launch-1.0 with pipewiresrc not available, trying ffmpeg")
 
 	if _, err := exec.LookPath("ffmpeg"); err == nil && ffmpegHasPipeWire() {
 		args := pipeWireFFmpegArgs("libx264", nodeID)
 		return "ffmpeg", exec.CommandContext(ctx, "ffmpeg", args...), nil
 	}
 
-	return "", nil, errFFmpegNoPipeWire
+	return "", nil, ErrFFmpegNoPipeWire
 }
 
 // pipeWireGStreamerArgs builds a low-latency H264 pipeline that reads from a

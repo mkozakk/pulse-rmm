@@ -1,6 +1,6 @@
 //go:build linux
 
-package desktop
+package capture
 
 import (
 	"context"
@@ -62,7 +62,7 @@ func openScreencast(ctx context.Context) (*screencastSession, error) {
 	var owner string
 	if err := bus.BusObject().CallWithContext(ctx, "org.freedesktop.DBus.GetNameOwner", 0, portalDest).Store(&owner); err != nil {
 		_ = bus.Close()
-		return nil, errPortalNotInstalled
+		return nil, ErrPortalNotInstalled
 	}
 
 	sender := strings.ReplaceAll(strings.TrimPrefix(bus.Names()[0], ":"), ".", "_")
@@ -118,7 +118,7 @@ func openScreencast(ctx context.Context) (*screencastSession, error) {
 	streamsVar, ok := results["streams"]
 	if !ok {
 		_ = bus.Close()
-		return nil, errPortalNoStream
+		return nil, ErrPortalNoStream
 	}
 
 	// streams is a(ua{sv}) — array of (node_id, properties).
@@ -133,7 +133,7 @@ func openScreencast(ctx context.Context) (*screencastSession, error) {
 	}
 	if len(streams) == 0 {
 		_ = bus.Close()
-		return nil, errPortalNoStream
+		return nil, ErrPortalNoStream
 	}
 
 	nodes := make([]uint32, 0, len(streams))
@@ -161,8 +161,6 @@ func portalCall(
 	method string,
 	args ...interface{},
 ) (map[string]dbus.Variant, error) {
-	// Last arg must be the options dict; pull handle_token out of it to
-	// predict the request path the portal will create.
 	opts, ok := args[len(args)-1].(map[string]dbus.Variant)
 	if !ok {
 		return nil, fmt.Errorf("portal call %s: last arg is not options dict", method)
@@ -185,7 +183,7 @@ func portalCall(
 	for {
 		select {
 		case <-ctx.Done():
-			return nil, errConsentTimeout
+			return nil, ErrConsentTimeout
 		case sig := <-sigCh:
 			if sig.Path != expectedReq && sig.Path != actualReq {
 				continue
@@ -205,7 +203,7 @@ func portalCall(
 			case 0:
 				return results, nil
 			case 1:
-				return nil, errConsentDenied
+				return nil, ErrConsentDenied
 			default:
 				return nil, fmt.Errorf("portal %s: response code %d", method, response)
 			}

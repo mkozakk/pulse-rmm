@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 
 	"github.com/pion/webrtc/v4"
+	"github.com/pulsermm/pulse-rmm/agent/desktop/capture"
 	pb "github.com/pulsermm/pulse-rmm/agent/gen/pulse/v1"
 )
 
@@ -54,8 +55,8 @@ func RunHelper(addr string) {
 	defer os.Remove(addr)
 	// Resolve Wayland early so env is backfilled for child ffmpeg invocations
 	// in every session spawned by this helper.
-	wayland := isWaylandSession()
-	fmt.Printf("[desktop-helper] listening on %s wayland=%v %s\n", addr, wayland, describeSessionEnv())
+	wayland := capture.IsWaylandSession()
+	fmt.Printf("[desktop-helper] listening on %s wayland=%v %s\n", addr, wayland, capture.DescribeSessionEnv())
 
 	for {
 		conn, err := l.Accept()
@@ -118,7 +119,7 @@ func serveHelperConn(conn net.Conn) {
 		})
 	})
 
-	if err := startCapture(sess, ctx); err != nil {
+	if err := capture.Start(ctx, capture.Target{Logger: sess.log, LogFile: sess.logFile, AddTrack: sess.addVideoTrack}); err != nil {
 		sess.Close()
 		_ = enc.Encode(helperMsg{Type: "ready", SessionID: sessionID, Error: err.Error()})
 		return

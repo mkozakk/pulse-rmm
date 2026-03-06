@@ -9,6 +9,7 @@ import (
 	"os"
 
 	"github.com/pion/webrtc/v4"
+	"github.com/pulsermm/pulse-rmm/agent/desktop/capture"
 	pb "github.com/pulsermm/pulse-rmm/agent/gen/pulse/v1"
 )
 
@@ -47,7 +48,7 @@ func startKmsSession(sessionID string, turnURLs []string, turnSecret string, ctx
 		})
 	})
 
-	if err := startKmsCapture(sess, ctx); err != nil {
+	if err := capture.StartKMS(ctx, capture.Target{Logger: sess.log, LogFile: sess.logFile, AddTrack: sess.addVideoTrack}); err != nil {
 		sess.Close()
 		return nil, err
 	}

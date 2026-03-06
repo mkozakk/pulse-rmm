@@ -11,6 +11,7 @@ import (
 	"os"
 
 	"github.com/pion/webrtc/v4"
+	"github.com/pulsermm/pulse-rmm/agent/desktop/capture"
 )
 
 // RunHelper is the entry point when the agent binary is spawned as
@@ -59,7 +60,7 @@ func RunHelper(addr string) {
 		sendMsg(pipeMsg{Type: "candidate", Candidate: string(b)})
 	})
 
-	if err := startCapture(sess, ctx); err != nil {
+	if err := capture.Start(ctx, capture.Target{Logger: sess.log, LogFile: sess.logFile, AddTrack: sess.addVideoTrack}); err != nil {
 		sendMsg(pipeMsg{Type: "error", Message: err.Error()})
 		os.Exit(1)
 	}
