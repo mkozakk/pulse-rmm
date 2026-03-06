@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.web.client.RestClient;
 
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 
@@ -18,19 +19,17 @@ public class AgentServiceGrpcServer extends AgentServiceGrpc.AgentServiceImplBas
 
     private static final Logger logger = LoggerFactory.getLogger(AgentServiceGrpcServer.class);
 
-    private final RestClient restClient;
-    private final String softwareServiceUrl;
+    private final RestClient enrolmentClient;
+    private final RestClient metricClient;
+    private final RestClient softwareClient;
 
-    public AgentServiceGrpcServer() {
-        String url = System.getenv("SOFTWARE_SERVICE_URL");
-        if (url == null) {
-            url = "http://localhost:8085";
-        }
-        this.restClient = RestClient.builder()
-                .baseUrl(url)
-                .build();
-        this.softwareServiceUrl = url;
-        logger.info("AgentServiceGrpcServer initialized with software service URL: {}", softwareServiceUrl);
+    public AgentServiceGrpcServer(
+            @Value("${ENROLMENT_SERVICE_URL:http://localhost:8081}") String enrolmentUrl,
+            @Value("${METRIC_SERVICE_URL:http://localhost:8082}") String metricUrl,
+            @Value("${SOFTWARE_SERVICE_URL:http://localhost:8085}") String softwareUrl) {
+        this.enrolmentClient = RestClient.builder().baseUrl(enrolmentUrl).build();
+        this.metricClient = RestClient.builder().baseUrl(metricUrl).build();
+        this.softwareClient = RestClient.builder().baseUrl(softwareUrl).build();
     }
 
     @Override
@@ -41,11 +40,56 @@ public class AgentServiceGrpcServer extends AgentServiceGrpc.AgentServiceImplBas
 
     @Override
     public void enrol(EnrolRequest request, StreamObserver<EnrolResponse> responseObserver) {
-        responseObserver.onError(Status.UNIMPLEMENTED.asException());
+        try {
+            String publicKeyB64 = Base64.getEncoder().encodeToString(request.getPublicKey().toByteArray());
+            Map<String, String> body = Map.of(
+                "token", request.getToken(),
+                "publicKey", publicKeyB64,
+                "hostname", request.getHostname(),
+                "os", request.getOs(),
+                "arch", request.getArch()
+            );
+
+            var result = enrolmentClient.post()
+                .uri("/internal/enrol")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body)
+                .retrieve()
+                .toEntity(Map.class);
+
+            if (result.getStatusCode().is2xxSuccessful() && result.getBody() != null) {
+                Map<?, ?> resp = result.getBody();
+                responseObserver.onNext(EnrolResponse.newBuilder()
+                    .setEndpointId((String) resp.get("endpointId"))
+                    .build());
+                responseObserver.onCompleted();
+            } else {
+                responseObserver.onError(Status.INTERNAL.withDescription("enrol failed").asRuntimeException());
+            }
+        } catch (org.springframework.web.client.HttpClientErrorException.Unauthorized e) {
+            responseObserver.onError(Status.UNAUTHENTICATED.withDescription("invalid token").asRuntimeException());
+        } catch (Exception e) {
+            logger.error("Enrol failed", e);
+            responseObserver.onError(Status.INTERNAL.withDescription(e.getMessage()).asRuntimeException());
+        }
     }
 
     @Override
     public void heartbeat(HeartbeatRequest request, StreamObserver<HeartbeatOk> responseObserver) {
+        Map<String, String> body = Map.of("endpointId", request.getEndpointId());
+        try {
+            enrolmentClient.post().uri("/internal/heartbeat")
+                .contentType(MediaType.APPLICATION_JSON).body(body).retrieve().toBodilessEntity();
+        } catch (Exception e) {
+            logger.warn("Enrolment heartbeat failed for {}: {}", request.getEndpointId(), e.getMessage());
+        }
+        try {
+            metricClient.post().uri("/internal/heartbeat")
+                .contentType(MediaType.APPLICATION_JSON).body(body).retrieve().toBodilessEntity();
+        } catch (Exception e) {
+            logger.warn("Metric heartbeat failed for {}: {}", request.getEndpointId(), e.getMessage());
+        }
+
         responseObserver.onNext(HeartbeatOk.newBuilder().build());
         responseObserver.onCompleted();
     }
@@ -54,30 +98,27 @@ public class AgentServiceGrpcServer extends AgentServiceGrpc.AgentServiceImplBas
     public void pushSoftwareList(SoftwareList request, StreamObserver<Ack> responseObserver) {
         try {
             List<Map<String, Object>> items = request.getItemsList().stream()
-                    .map(i -> Map.<String, Object>of(
-                            "name", i.getName(),
-                            "id", i.getId(),
-                            "version", i.getVersion(),
-                            "updateTo", i.getUpdateTo(),
-                            "isStore", i.getIsStore(),
-                            "source", i.getSource()
-                    ))
-                    .toList();
+                .map(i -> Map.<String, Object>of(
+                    "name", i.getName(),
+                    "id", i.getId(),
+                    "version", i.getVersion(),
+                    "updateTo", i.getUpdateTo(),
+                    "isStore", i.getIsStore(),
+                    "source", i.getSource()
+                ))
+                .toList();
 
-            restClient.post()
-                    .uri(softwareServiceUrl + "/internal/software-list")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(Map.of("endpointId", request.getEndpointId(), "items", items))
-                    .retrieve()
-                    .toBodilessEntity();
-
-            logger.debug("Forwarded software list for endpoint {}: {} items",
-                    request.getEndpointId(), items.size());
+            softwareClient.post()
+                .uri("/internal/software-list")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("endpointId", request.getEndpointId(), "items", items))
+                .retrieve()
+                .toBodilessEntity();
 
             responseObserver.onNext(Ack.newBuilder().build());
             responseObserver.onCompleted();
         } catch (Exception e) {
-            logger.error("Failed to forward software list for {}: {}", request.getEndpointId(), e.getMessage());
+            logger.error("pushSoftwareList failed for {}: {}", request.getEndpointId(), e.getMessage());
             responseObserver.onError(Status.INTERNAL.withDescription(e.getMessage()).asRuntimeException());
         }
     }
