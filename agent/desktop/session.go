@@ -20,6 +20,19 @@ import (
 
 var ErrWaylandNotSupported = errors.New("wayland is not supported")
 
+var ErrNoActiveUserSession = errors.New("no active user session: remote desktop requires a logged-in user")
+
+// Wayland portal error sentinels. Defined here (not in portal_screencast_linux.go)
+// so handler.go can reference them on every build target. The strings are the
+// stable codes the webapp switches on; do not rename without updating the UI.
+var (
+	errPortalNotInstalled = errors.New("wayland_portal_missing")
+	errConsentDenied      = errors.New("wayland_consent_denied")
+	errConsentTimeout     = errors.New("wayland_consent_timeout")
+	errPortalNoStream     = errors.New("wayland_no_stream")
+	errFFmpegNoPipeWire   = errors.New("wayland_ffmpeg_no_pipewire")
+)
+
 type DesktopSession struct {
 	sessionID   string
 	pc          *webrtc.PeerConnection
@@ -33,15 +46,61 @@ type DesktopSession struct {
 	closeOnce   sync.Once
 }
 
+func sessionLogDir() string {
+	if runtime.GOOS == "windows" {
+		pd := os.Getenv("ProgramData")
+		if pd == "" {
+			pd = `C:\ProgramData`
+		}
+		return filepath.Join(pd, "pulse-agent", "logs")
+	}
+	// The system service runs as root and writes here. The user helper runs
+	// as the desktop user and cannot, so fall back to a user-writable spot.
+	const sys = "/var/log/pulse-agent"
+	if err := os.MkdirAll(sys, 0755); err == nil {
+		if f, err := os.CreateTemp(sys, ".probe-*"); err == nil {
+			_ = f.Close()
+			_ = os.Remove(f.Name())
+			return sys
+		}
+	}
+	if rt := os.Getenv("XDG_RUNTIME_DIR"); rt != "" {
+		return filepath.Join(rt, "pulse-agent", "logs")
+	}
+	if home, err := os.UserHomeDir(); err == nil {
+		return filepath.Join(home, ".local", "state", "pulse-agent", "logs")
+	}
+	return os.TempDir()
+}
+
+// tolerantWriter writes to all underlying writers but never returns an error,
+// so a broken stdout cannot prevent the file write from happening.
+type tolerantWriter struct{ ws []io.Writer }
+
+func (t *tolerantWriter) Write(p []byte) (int, error) {
+	for _, w := range t.ws {
+		_, _ = w.Write(p)
+	}
+	return len(p), nil
+}
+
 func newSessionLogger(sessionID string) (*log.Logger, *os.File) {
-	logPath := filepath.Join(os.TempDir(), "pulse-desktop-"+sessionID+".log")
+	dir := sessionLogDir()
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		dir = os.TempDir()
+	}
+	logPath := filepath.Join(dir, "desktop-"+sessionID+".log")
 	f, err := os.Create(logPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "[desktop] could not create log file %s: %v\n", logPath, err)
-		return log.New(os.Stdout, "[desktop] ", log.LstdFlags), nil
+		return log.New(os.Stdout, "[desktop] ", log.LstdFlags|log.Lmicroseconds), nil
 	}
 	fmt.Printf("[desktop] session log: %s\n", logPath)
-	return log.New(io.MultiWriter(os.Stdout, f), "[desktop] ", log.LstdFlags), f
+	w := &tolerantWriter{ws: []io.Writer{os.Stdout, f}}
+	lg := log.New(w, "[desktop] ", log.LstdFlags|log.Lmicroseconds)
+	lg.Printf("session %s starting; go=%s os=%s arch=%s", sessionID, runtime.Version(), runtime.GOOS, runtime.GOARCH)
+	_ = f.Sync()
+	return lg, f
 }
 
 func NewSession(sessionID string, turnURLs []string, turnSecret string) (*DesktopSession, error) {
@@ -54,7 +113,7 @@ func NewSession(sessionID string, turnURLs []string, turnSecret string) (*Deskto
 			RTPCodecCapability: webrtc.RTPCodecCapability{
 				MimeType:    webrtc.MimeTypeH264,
 				ClockRate:   90000,
-				SDPFmtpLine: "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01f",
+				SDPFmtpLine: "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e02a",
 			},
 			PayloadType: 102,
 		}, webrtc.RTPCodecTypeVideo); err != nil {
@@ -66,7 +125,7 @@ func NewSession(sessionID string, turnURLs []string, turnSecret string) (*Deskto
 			RTPCodecCapability: webrtc.RTPCodecCapability{
 				MimeType:    webrtc.MimeTypeH264,
 				ClockRate:   90000,
-				SDPFmtpLine: "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01f",
+				SDPFmtpLine: "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e02a",
 			},
 			PayloadType: 102,
 		}, webrtc.RTPCodecTypeVideo); err != nil {
@@ -145,6 +204,10 @@ func (s *DesktopSession) registerDataChannelHandler() {
 	})
 }
 
+func (s *DesktopSession) OnICECandidate(fn func(*webrtc.ICECandidate)) {
+	s.pc.OnICECandidate(fn)
+}
+
 func (s *DesktopSession) addVideoTrack(track webrtc.TrackLocal) error {
 	if _, err := s.pc.AddTrack(track); err != nil {
 		return err
@@ -168,7 +231,7 @@ func (s *DesktopSession) HandleOffer(sdpOffer string) (string, error) {
 	defer s.mu.Unlock()
 
 	s.log.Printf("HandleOffer: signalingState=%s", s.pc.SignalingState())
-	s.log.Printf("Offer SDP (first 200 chars): %s...", truncate(sdpOffer, 200))
+	s.log.Printf("Offer SDP m=video section:\n%s", extractMediaSection(sdpOffer, "video"))
 
 	if err := s.pc.SetRemoteDescription(webrtc.SessionDescription{
 		Type: webrtc.SDPTypeOffer,
@@ -201,7 +264,7 @@ func (s *DesktopSession) HandleOffer(sdpOffer string) (string, error) {
 
 	answerSDP := s.pc.LocalDescription().SDP
 	s.log.Printf("Answer ready, signalingState=%s", s.pc.SignalingState())
-	s.log.Printf("Answer SDP (first 200 chars): %s...", truncate(answerSDP, 200))
+	s.log.Printf("Answer SDP m=video section:\n%s", extractMediaSection(answerSDP, "video"))
 
 	return answerSDP, nil
 }
@@ -266,9 +329,10 @@ func (s *DesktopSession) Close() error {
 
 func getCodecFmtpLine(mimeType string) string {
 	if mimeType == webrtc.MimeTypeH264 {
-		// H264 Constrained Baseline, Level 3.1
-		// profile-level-id=42e01f: 0x42=Baseline, 0x00=no constraints, 0x1f=Level 3.1
-		return "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01f"
+		// H264 Constrained Baseline, Level 4.2 — needed to support 1920×1080@30
+		// and typical 1280×800 / 1280×1024 desktops (Level 3.1 caps at 1280×720).
+		// profile-level-id=42e02a: 0x42=Baseline, 0xe0=constrained_baseline, 0x2a=Level 4.2
+		return "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e02a"
 	}
 	return "" // VP9 doesn't need special fmtp line
 }
@@ -278,6 +342,29 @@ func truncate(s string, maxLen int) string {
 		return s[:maxLen]
 	}
 	return s
+}
+
+// extractMediaSection returns just the m=<kind> ... block from an SDP for logging.
+func extractMediaSection(sdp, kind string) string {
+	prefix := "m=" + kind + " "
+	idx := -1
+	for i := 0; i+len(prefix) <= len(sdp); i++ {
+		if sdp[i:i+len(prefix)] == prefix && (i == 0 || sdp[i-1] == '\n') {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 {
+		return "(no m=" + kind + " section)"
+	}
+	end := len(sdp)
+	for i := idx + len(prefix); i+2 < len(sdp); i++ {
+		if sdp[i] == '\n' && i+2 < len(sdp) && sdp[i+1] == 'm' && sdp[i+2] == '=' {
+			end = i
+			break
+		}
+	}
+	return sdp[idx:end]
 }
 
 func generateTurnCredentials(sessionID, secret string) (username, credential string) {

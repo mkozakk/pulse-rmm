@@ -76,6 +76,67 @@ data_dir: /tmp/pulse
 	}
 }
 
+func TestDeriveGRPCAddr(t *testing.T) {
+	tests := []struct {
+		apiURL   string
+		expected string
+		wantErr  bool
+	}{
+		{"https://pulse.example.com", "pulse.example.com:9090", false},
+		{"https://pulse.example.com:8080", "pulse.example.com:9090", false},
+		{"http://localhost:8080", "localhost:9090", false},
+		{"https://192.168.1.100", "192.168.1.100:9090", false},
+		{"https://192.168.1.100:8080", "192.168.1.100:9090", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.apiURL, func(t *testing.T) {
+			got, err := deriveGRPCAddr(tt.apiURL)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("deriveGRPCAddr(%q) error = %v, wantErr %v", tt.apiURL, err, tt.wantErr)
+				return
+			}
+			if got != tt.expected {
+				t.Errorf("deriveGRPCAddr(%q) = %q, want %q", tt.apiURL, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestLoad_autoderive_grpc_addr(t *testing.T) {
+	// No explicit grpc_addr in config; should derive from api_url
+	f := writeTemp(t, `
+api_url: https://192.168.1.50:8080
+data_dir: /tmp/test
+`)
+	cfg, err := Load(f)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+
+	// Should derive: 192.168.1.50:9090
+	if cfg.GRPCAddr != "192.168.1.50:9090" {
+		t.Errorf("expected grpc_addr to be derived as 192.168.1.50:9090, got %s", cfg.GRPCAddr)
+	}
+}
+
+func TestLoad_explicit_grpc_addr_precedence(t *testing.T) {
+	// Explicit grpc_addr should override derivation
+	f := writeTemp(t, `
+api_url: https://pulse.example.com:8080
+grpc_addr: custom-host.local:9090
+data_dir: /tmp/test
+`)
+	cfg, err := Load(f)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+
+	if cfg.GRPCAddr != "custom-host.local:9090" {
+		t.Errorf("expected grpc_addr to be custom-host.local:9090, got %s", cfg.GRPCAddr)
+	}
+}
+
 func writeTemp(t *testing.T, content string) string {
 	t.Helper()
 	dir := t.TempDir()

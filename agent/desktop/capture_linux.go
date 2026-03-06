@@ -17,20 +17,28 @@ import (
 	"github.com/pion/webrtc/v4/pkg/media/h264reader"
 )
 
-func checkPlatform() error {
-	if os.Getenv("WAYLAND_DISPLAY") == "" && os.Getenv("DISPLAY") == "" {
-		return errors.New("no display available (DISPLAY and WAYLAND_DISPLAY both unset)")
+// startCapture dispatches to the right capture backend. isWaylandSession()
+// checks env + probes XDG_RUNTIME_DIR/wayland-* on disk, because xdg
+// autostart doesn't reliably export Wayland env vars across DEs. When the
+// probe finds a socket it backfills the env so ffmpeg/portal calls inherit
+// working values.
+//
+// Under Wayland DISPLAY is also set (XWayland), so a plain "$DISPLAY != ''"
+// check would incorrectly pick x11grab and capture the empty XWayland root.
+func startCapture(sess *DesktopSession, ctx context.Context) error {
+	sess.log.Printf("capture env: %s", describeSessionEnv())
+	if isWaylandSession() {
+		sess.log.Println("dispatching capture: pipewire (Wayland)")
+		return startPipeWireCapture(sess, ctx)
 	}
-	return nil
+	if os.Getenv("DISPLAY") == "" {
+		return errors.New("no Wayland session detected and DISPLAY not set — helper has no graphical session to capture")
+	}
+	sess.log.Println("dispatching capture: x11grab")
+	return startX11Capture(sess, ctx)
 }
 
-func startCapture(sess *DesktopSession, ctx context.Context) error {
-	if err := checkPlatform(); err != nil {
-		return err
-	}
-	if os.Getenv("WAYLAND_DISPLAY") != "" {
-		return startKmsCapture(sess, ctx)
-	}
+func startX11Capture(sess *DesktopSession, ctx context.Context) error {
 	display := os.Getenv("DISPLAY")
 	codec := selectBestH264Codec(sess.log, display)
 	if codec == "" {
@@ -42,10 +50,15 @@ func startCapture(sess *DesktopSession, ctx context.Context) error {
 // --- kmsgrab (Wayland) ---
 
 func startKmsCapture(sess *DesktopSession, ctx context.Context) error {
-	sess.log.Println("Wayland detected, starting kmsgrab capture")
+	sessionType := os.Getenv("XDG_SESSION_TYPE")
+	sess.log.Printf("starting kmsgrab capture (XDG_SESSION_TYPE=%q)", sessionType)
+
+	if sessionType == "wayland" {
+		return fmt.Errorf("wayland session detected — kmsgrab cannot capture under a Wayland compositor (it holds DRM master); PipeWire portal support is not yet implemented")
+	}
 
 	if _, err := exec.LookPath("ffmpeg"); err != nil {
-		return fmt.Errorf("ffmpeg not found — required for Wayland capture")
+		return fmt.Errorf("ffmpeg not found — required for kmsgrab capture")
 	}
 
 	codec := selectBestKmsCodec(sess.log)
@@ -56,7 +69,7 @@ func startKmsCapture(sess *DesktopSession, ctx context.Context) error {
 	track, err := webrtc.NewTrackLocalStaticSample(webrtc.RTPCodecCapability{
 		MimeType:    webrtc.MimeTypeH264,
 		ClockRate:   90000,
-		SDPFmtpLine: "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01f",
+		SDPFmtpLine: "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e02a",
 	}, "video", "desktop")
 	if err != nil {
 		return fmt.Errorf("creating H264 video track: %w", err)
@@ -91,15 +104,14 @@ func startKmsCapture(sess *DesktopSession, ctx context.Context) error {
 		args = append(args,
 			"-vf", "hwmap=derive_device=vaapi,scale_vaapi=format=nv12",
 			"-profile:v", "constrained_baseline",
-			"-level", "3.1",
+			"-level", "4.2",
 		)
 	case "libx264":
 		args = append(args,
-			"-vf", "hwdownload,format=bgr0,format=yuv420p",
 			"-preset", "veryfast",
 			"-tune", "zerolatency",
 			"-profile:v", "baseline",
-			"-level", "3.1",
+			"-level", "4.2",
 			"-pix_fmt", "yuv420p",
 			"-x264-params", "slices=1:sliced-threads=0",
 		)
@@ -216,7 +228,7 @@ func selectBestKmsCodec(logger *log.Logger) string {
 	}
 	logger.Println("kmsgrab: h264_vaapi unavailable")
 	if tryKmsCodec("libx264") {
-		logger.Println("kmsgrab: using libx264 (software, via VAAPI bridge)")
+		logger.Println("kmsgrab: using libx264 (software)")
 		return "libx264"
 	}
 	logger.Println("kmsgrab: libx264 unavailable")
@@ -224,7 +236,8 @@ func selectBestKmsCodec(logger *log.Logger) string {
 }
 
 func tryKmsCodec(codec string) bool {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	// 5s: VMs can be slow to initialise kmsgrab
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	args := []string{"-hide_banner", "-loglevel", "error"}
@@ -243,14 +256,15 @@ func tryKmsCodec(codec string) bool {
 		args = append(args,
 			"-vf", "hwmap=derive_device=vaapi,scale_vaapi=format=nv12",
 			"-profile:v", "constrained_baseline",
-			"-level", "3.1",
+			"-level", "4.2",
 		)
 	case "libx264":
+		// ffmpeg auto-converts drm_prime → yuv420p; hwdownload is not needed
+		// and breaks on VMs that lack a full DRM hardware context.
 		args = append(args,
-			"-vf", "hwdownload,format=bgr0,format=yuv420p",
 			"-preset", "veryfast",
 			"-profile:v", "baseline",
-			"-level", "3.1",
+			"-level", "4.2",
 			"-pix_fmt", "yuv420p",
 		)
 	}
@@ -309,20 +323,20 @@ func tryH264Codec(codec, display string) bool {
 		args = append(args,
 			"-vf", "format=nv12,hwupload",
 			"-profile:v", "constrained_baseline",
-			"-level", "3.1",
+			"-level", "4.2",
 		)
 	case "h264_nvenc":
 		args = append(args,
 			"-preset", "fast",
 			"-profile:v", "baseline",
-			"-level", "3.1",
+			"-level", "4.2",
 			"-pix_fmt", "yuv420p",
 		)
 	case "libx264":
 		args = append(args,
 			"-preset", "veryfast",
 			"-profile:v", "baseline",
-			"-level", "3.1",
+			"-level", "4.2",
 			"-pix_fmt", "yuv420p",
 		)
 	}
@@ -344,7 +358,7 @@ func startH264Capture(sess *DesktopSession, ctx context.Context, display, codec 
 	track, err := webrtc.NewTrackLocalStaticSample(webrtc.RTPCodecCapability{
 		MimeType:    webrtc.MimeTypeH264,
 		ClockRate:   90000,
-		SDPFmtpLine: "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01f",
+		SDPFmtpLine: "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e02a",
 	}, "video", "desktop")
 	if err != nil {
 		return fmt.Errorf("creating H264 video track: %w", err)
@@ -382,13 +396,13 @@ func startH264Capture(sess *DesktopSession, ctx context.Context, display, codec 
 		args = append(args,
 			"-vf", "format=nv12,hwupload",
 			"-profile:v", "constrained_baseline",
-			"-level", "3.1",
+			"-level", "4.2",
 		)
 	case "h264_nvenc":
 		args = append(args,
 			"-preset", "fast",
 			"-profile:v", "baseline",
-			"-level", "3.1",
+			"-level", "4.2",
 			"-pix_fmt", "yuv420p",
 		)
 	case "libx264":
@@ -396,7 +410,7 @@ func startH264Capture(sess *DesktopSession, ctx context.Context, display, codec 
 			"-preset", "veryfast",
 			"-tune", "zerolatency",
 			"-profile:v", "baseline",
-			"-level", "3.1",
+			"-level", "4.2",
 			"-pix_fmt", "yuv420p",
 			// Force single slice per frame — zerolatency tune enables sliced-threads
 			// which splits frames across multiple NALs; our AU emitter drops the extras.

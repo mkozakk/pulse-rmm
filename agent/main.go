@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
+	"path/filepath"
 	"time"
 
 	pb "github.com/pulsermm/pulse-rmm/agent/gen/pulse/v1"
@@ -29,6 +31,12 @@ func main() {
 	args := os.Args[1:]
 
 	switch {
+	case len(args) >= 1 && args[0] == "--desktop-helper":
+		addr := ""
+		if len(args) >= 2 {
+			addr = args[1]
+		}
+		desktop.RunHelper(addr)
 	case len(args) >= 2 && args[0] == "service":
 		runServiceCmd(args[1])
 	case len(args) == 1 && args[0] == "run":
@@ -70,6 +78,31 @@ func runViaServiceManager() {
 	}
 }
 
+// setupAgentLog redirects stdout/stderr and the stdlib logger to
+// <dataDir>/logs/agent.log so every fmt.Printf/log.Printf in the agent ends
+// up on disk. The original stdout is kept as a tee so interactive runs still
+// show output in the console.
+func setupAgentLog(dataDir string) {
+	logDir := filepath.Join(dataDir, "logs")
+	if err := os.MkdirAll(logDir, 0755); err != nil {
+		fmt.Fprintf(os.Stderr, "agent log: could not create %s: %v\n", logDir, err)
+		return
+	}
+	logPath := filepath.Join(logDir, "agent.log")
+	f, err := os.OpenFile(logPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "agent log: could not open %s: %v\n", logPath, err)
+		return
+	}
+	origStdout := os.Stdout
+	os.Stdout = f
+	os.Stderr = f
+	log.SetOutput(f)
+	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
+	fmt.Fprintf(origStdout, "agent logging to %s\n", logPath)
+	fmt.Fprintf(f, "\n=== agent started pid=%d version=%s ===\n", os.Getpid(), Version)
+}
+
 // runAgent is the main agent logic. ctx is cancelled when the service is
 // asked to stop (SIGTERM, systemd stop, SCM stop).
 func runAgent(ctx context.Context) {
@@ -82,6 +115,7 @@ func runAgent(ctx context.Context) {
 	}
 
 	store.Init(cfg.DataDir)
+	setupAgentLog(cfg.DataDir)
 
 	grpcAddr := cfg.GRPCAddr
 	if grpcAddr == "" {
@@ -100,7 +134,7 @@ func runAgent(ctx context.Context) {
 			fmt.Fprintf(os.Stderr, "Error: no endpoint identity found and no enrolment_token in config\n")
 			os.Exit(1)
 		}
-		endpointID, err = enrolment.Enrol(ctx, cfg.EnrolmentToken, grpcAddr, privKey)
+		endpointID, err = enrolment.Enrol(ctx, cfg.EnrolmentToken, grpcAddr, cfg.APIURL, privKey)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
@@ -121,14 +155,16 @@ func runAgent(ctx context.Context) {
 		fmt.Printf("Already enrolled: %s\n", endpointID)
 	}
 
-	metricClient, err := metrics.NewClient(grpcAddr, grpcAddr)
+	grpcCreds := insecure.NewCredentials()
+
+	metricClient, err := metrics.NewClient(grpcAddr, grpcAddr, grpc.WithTransportCredentials(grpcCreds))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
 	defer metricClient.Close()
 
-	gatewayConn, err := grpc.NewClient(grpcAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	gatewayConn, err := grpc.NewClient(grpcAddr, grpc.WithTransportCredentials(grpcCreds))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error dialing gateway: %v\n", err)
 		os.Exit(1)
@@ -158,14 +194,14 @@ func runAgent(ctx context.Context) {
 	go runHeartbeat(ctx, metricClient, endpointID, heartbeatOK)
 	go runMetrics(ctx, metricClient, endpointID)
 	go runSoftwareScan(ctx, endpointID, agentClient)
-	go runControlStream(ctx, endpointID, grpcAddr, agentClient)
+	go runControlStream(ctx, endpointID, grpcAddr, agentClient, grpc.WithTransportCredentials(grpcCreds))
 	go updater.Start(ctx)
 
 	<-ctx.Done()
 	fmt.Println("[agent] Shutting down")
 }
 
-func runControlStream(ctx context.Context, endpointID, gatewayAddr string, agentClient pb.AgentServiceClient) {
+func runControlStream(ctx context.Context, endpointID, gatewayAddr string, agentClient pb.AgentServiceClient, connOpt grpc.DialOption) {
 	inCh := make(chan *pb.GatewayCommand, 16)
 	outCh := make(chan *pb.AgentEvent, 16)
 
@@ -190,7 +226,7 @@ func runControlStream(ctx context.Context, endpointID, gatewayAddr string, agent
 
 	backoff := 250 * time.Millisecond
 	for ctx.Err() == nil {
-		err := control.Run(ctx, endpointID, gatewayAddr, "0.5.0", inCh, outCh)
+		err := control.Run(ctx, endpointID, gatewayAddr, "0.5.0", inCh, outCh, connOpt)
 		if ctx.Err() != nil {
 			return
 		}

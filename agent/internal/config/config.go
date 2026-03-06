@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"runtime"
 
@@ -48,6 +49,15 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("api_url is required in %s", path)
 	}
 
+	// If grpc_addr not explicitly set, derive from api_url
+	if cfg.GRPCAddr == "" {
+		derived, err := deriveGRPCAddr(cfg.APIURL)
+		if err != nil {
+			return nil, fmt.Errorf("deriving grpc_addr from api_url: %w", err)
+		}
+		cfg.GRPCAddr = derived
+	}
+
 	if cfg.DataDir == "" {
 		if runtime.GOOS == "windows" {
 			programData := os.Getenv("ProgramData")
@@ -66,6 +76,26 @@ func Load(path string) (*Config, error) {
 
 	cfg.path = path
 	return &cfg, nil
+}
+
+// deriveGRPCAddr extracts hostname from api_url and appends :9090
+// Examples:
+//   https://pulse.example.com → pulse.example.com:9090
+//   https://192.168.1.100:8080 → 192.168.1.100:9090
+//   http://localhost:8080 → localhost:9090
+func deriveGRPCAddr(apiURL string) (string, error) {
+	u, err := url.Parse(apiURL)
+	if err != nil {
+		return "", fmt.Errorf("invalid api_url: %w", err)
+	}
+
+	host := u.Hostname()
+	if host == "" {
+		return "", fmt.Errorf("api_url has no hostname: %s", apiURL)
+	}
+
+	// Always use port 9090 for gRPC, regardless of api_url port
+	return host + ":9090", nil
 }
 
 // RemoveToken rewrites the config file with the enrolment_token field omitted.

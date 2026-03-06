@@ -6,7 +6,6 @@ import (
 
 	pb "github.com/pulsermm/pulse-rmm/agent/gen/pulse/v1"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 // Run opens a long-lived bidirectional stream to the gateway. Commands from the
@@ -14,9 +13,8 @@ import (
 // Returns when ctx is cancelled or the stream breaks.
 func Run(ctx context.Context, endpointID, gatewayAddr, version string,
 	inCh chan<- *pb.GatewayCommand, outCh <-chan *pb.AgentEvent,
-	extraOpts ...grpc.DialOption,
+	opts ...grpc.DialOption,
 ) error {
-	opts := append([]grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}, extraOpts...)
 	conn, err := grpc.NewClient(gatewayAddr, opts...)
 	if err != nil {
 		return fmt.Errorf("dialing gateway: %w", err)
