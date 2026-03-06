@@ -22,14 +22,17 @@ agent/
 ## Features & Internal Documentation
 
 * **[Core Initialization (main.go)](docs/core.md)** - How the agent starts up and orchestrates its background jobs.
+* **[Configuration Management](docs/config.md)** - Loading and parsing YAML configuration (API URL, data directory, enrolment token).
 * **[Local Storage & Crypto](docs/store.md)** - How the agent persists its identity (Ed25519 Keys and UUID) across reboots.
 * **[Enrolment Flow](docs/enrolment.md)** - How the agent introduces itself to the server for the first time.
+* **[Service Lifecycle Management](docs/svc.md)** - OS-level service integration (systemd on Linux, Windows SCM).
 * **[gRPC Control Stream](docs/control.md)** - The 24/7 bidirectional phone-line used for remote command delivery.
 * **[Metrics & Heartbeat](docs/metrics.md)** - Hardware telemetry gathering (`gopsutil`).
 * **[Script Execution](docs/script.md)** - Running arbitrary `bash`/`powershell` blocks on the host.
 * **[Remote Terminal (Shell)](docs/shell.md)** - Proxied pseudo-terminal (PTY) for live browser-based CLI access.
 * **[Software Management](docs/software.md)** - Native software scanning and uninstallation (Windows Registry, APT, DNF, Flatpak).
-* **[Remote Desktop (WebRTC)](docs/desktop.md)** - Screen capture and mouse/keyboard injection powered by Pion WebRTC.
+* **[Remote Desktop (WebRTC)](docs/desktop.md)** - Screen capture, input injection, and file transfer powered by Pion WebRTC.
+* **[Auto-Update Mechanism](docs/update.md)** - Binary update checking, downloading, swapping, and rollback safety.
 
 ## Flow of Requests / Sessions
 
