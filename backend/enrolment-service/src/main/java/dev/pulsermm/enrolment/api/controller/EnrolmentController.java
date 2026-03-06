@@ -18,6 +18,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -32,6 +33,9 @@ import java.util.UUID;
 @SecurityRequirement(name = "bearerAuth")
 @RestController
 public class EnrolmentController {
+    @Value("${pulse.api.url:http://localhost:8080}")
+    private String apiUrl;
+
     private final TokenService tokenService;
     private final EndpointRepository endpointRepository;
     private final MoveEndpointService moveEndpointService;
@@ -64,8 +68,11 @@ public class EnrolmentController {
         }
 
         var token = tokenService.createToken(request.groupId(), request.ttlHours());
+        String id = token.getId().toString();
+        String installSh = "curl -fsSL " + apiUrl + "/install/" + id + ".sh | sudo bash";
+        String installPs1 = "Start-Process powershell -Verb RunAs -ArgumentList '-NoProfile -ExecutionPolicy Bypass -Command \"iex (iwr -Uri ''" + apiUrl + "/install/" + id + ".ps1'' -UseBasicParsing).Content\"'";
         return ResponseEntity.status(HttpStatus.CREATED)
-            .body(new TokenResponse(token.getId(), token.getExpiresAt()));
+            .body(new TokenResponse(token.getId(), token.getExpiresAt(), installSh, installPs1));
     }
 
     @Operation(summary = "List endpoints",

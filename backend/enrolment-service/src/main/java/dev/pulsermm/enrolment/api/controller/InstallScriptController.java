@@ -23,20 +23,32 @@ public class InstallScriptController {
     @Value("${pulse.api.url:http://localhost:8080}")
     private String apiUrl;
 
-    private String scriptTemplate;
+    private String shTemplate;
+    private String ps1Template;
 
     public InstallScriptController(EnrolmentTokenRepository tokenRepository) {
         this.tokenRepository = tokenRepository;
     }
 
     @PostConstruct
-    void loadTemplate() throws IOException {
-        var resource = new ClassPathResource("templates/install.sh.template");
-        scriptTemplate = resource.getContentAsString(StandardCharsets.UTF_8);
+    void loadTemplates() throws IOException {
+        shTemplate = new ClassPathResource("templates/install.sh.template")
+                .getContentAsString(StandardCharsets.UTF_8);
+        ps1Template = new ClassPathResource("templates/install.ps1.template")
+                .getContentAsString(StandardCharsets.UTF_8);
     }
 
     @GetMapping(value = "/install/{tokenId}.sh", produces = "text/x-shellscript")
-    public ResponseEntity<String> getInstallScript(@PathVariable String tokenId) {
+    public ResponseEntity<String> getShScript(@PathVariable String tokenId) {
+        return renderScript(tokenId, shTemplate, "text/x-shellscript");
+    }
+
+    @GetMapping(value = "/install/{tokenId}.ps1", produces = "text/plain")
+    public ResponseEntity<String> getPs1Script(@PathVariable String tokenId) {
+        return renderScript(tokenId, ps1Template, "text/plain");
+    }
+
+    private ResponseEntity<String> renderScript(String tokenId, String template, String contentType) {
         UUID id;
         try {
             id = UUID.fromString(tokenId);
@@ -49,12 +61,12 @@ public class InstallScriptController {
             return ResponseEntity.notFound().build();
         }
 
-        String script = scriptTemplate
+        String script = template
                 .replace("{{API_URL}}", apiUrl)
                 .replace("{{TOKEN}}", tokenId);
 
         return ResponseEntity.ok()
-                .contentType(MediaType.parseMediaType("text/x-shellscript"))
+                .contentType(MediaType.parseMediaType(contentType))
                 .body(script);
     }
 }

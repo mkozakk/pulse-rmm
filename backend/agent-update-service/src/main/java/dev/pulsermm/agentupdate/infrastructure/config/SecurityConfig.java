@@ -57,9 +57,9 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR).permitAll()
                         .requestMatchers("/actuator/health", "/actuator/info", "/v3/api-docs", "/swagger-ui/**").permitAll()
-                        // update check and report are called by agents; presigned URLs carry their own auth
+                        // called by agents and install scripts — no user auth context
                         .requestMatchers("/api/updates/**").permitAll()
-                        // package downloads redirect to presigned MinIO URLs (no auth needed)
+                        .requestMatchers(HttpMethod.GET, "/api/agent-versions/checksum").permitAll()
                         .requestMatchers("/install/**").permitAll()
                         .requestMatchers("/api/**").fullyAuthenticated()
                         .anyRequest().permitAll()

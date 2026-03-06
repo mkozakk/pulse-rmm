@@ -9,23 +9,6 @@ if [[ "$EUID" -ne 0 ]]; then
     exit 1
 fi
 
-if command -v dpkg >/dev/null 2>&1; then
-    PKG_URL="$PULSE_API_URL/install/pulse-agent.deb"
-    TMP=$(mktemp --suffix=.deb)
-    curl -fsSL "$PKG_URL" -o "$TMP"
-    dpkg -i "$TMP" || apt-get install -f -y
-    rm "$TMP"
-elif command -v rpm >/dev/null 2>&1; then
-    PKG_URL="$PULSE_API_URL/install/pulse-agent.rpm"
-    TMP=$(mktemp --suffix=.rpm)
-    curl -fsSL "$PKG_URL" -o "$TMP"
-    rpm -i "$TMP" || dnf install -y "$TMP"
-    rm "$TMP"
-else
-    echo "error: no supported package manager (dpkg or rpm) found" >&2
-    exit 1
-fi
-
 install -d -m 0755 /etc/pulse-agent
 cat > /etc/pulse-agent/config.yaml <<EOF
 api_url: $PULSE_API_URL
@@ -35,5 +18,168 @@ log_level: info
 EOF
 chmod 0600 /etc/pulse-agent/config.yaml
 
-systemctl enable --now pulse-agent.service
-echo "pulse-agent installed and started. Check: systemctl status pulse-agent"
+install -d -m 0700 /var/lib/pulse-agent
+
+verify_checksum() {
+    local file="$1" artifactType="$2"
+    local expected
+    expected=$(curl -fsSL "$PULSE_API_URL/api/agent-versions/checksum?os=linux&arch=amd64&artifactType=$artifactType")
+    if [[ -n "$expected" ]]; then
+        echo "$expected  $file" | sha256sum -c - || {
+            echo "error: checksum mismatch, aborting" >&2
+            exit 1
+        }
+    fi
+}
+
+if command -v apt-get >/dev/null 2>&1; then
+    PKG_MANAGER=apt
+elif command -v dnf >/dev/null 2>&1; then
+    PKG_MANAGER=dnf
+elif command -v rpm >/dev/null 2>&1; then
+    PKG_MANAGER=rpm-bare
+else
+    echo "error: no supported package manager (apt-get, dnf, or rpm) found" >&2
+    exit 1
+fi
+
+# Install runtime dependencies up front so dpkg/rpm doesn't fail with an
+# unresolved dependency error in the middle of the install. ffmpeg is the
+# capture pipeline; xdg-desktop-portal serves the ScreenCast interface on
+# Wayland. We install every common backend (gnome / gtk / kde) so the agent
+# works whether the user is on GNOME, KDE Plasma, XFCE, Cinnamon, etc —
+# xdg-desktop-portal picks the right one at runtime via XDG_CURRENT_DESKTOP.
+# The packages don't conflict.
+PORTAL_BACKENDS=(
+    xdg-desktop-portal           # core (frontend)
+    xdg-desktop-portal-gnome     # GNOME
+    xdg-desktop-portal-gtk       # XFCE, Cinnamon, MATE, fallback
+    xdg-desktop-portal-kde       # KDE Plasma
+)
+
+echo "pulse-agent: installing runtime dependencies (ffmpeg + xdg-desktop-portal backends)"
+case "$PKG_MANAGER" in
+    apt)
+        export DEBIAN_FRONTEND=noninteractive
+        apt-get update -qq
+        # --no-install-recommends keeps the dep tree tight; install each
+        # portal backend individually so a missing one (rare on Debian/Ubuntu
+        # but possible on derivatives) doesn't abort the whole step.
+        apt-get install -y --no-install-recommends ffmpeg || true
+        for pkg in "${PORTAL_BACKENDS[@]}"; do
+            apt-get install -y --no-install-recommends "$pkg" 2>/dev/null || \
+                echo "pulse-agent: $pkg unavailable in apt — skipping"
+        done
+        ;;
+    dnf)
+        # Fedora stock has ffmpeg-free; RPM Fusion (when enabled) provides
+        # ffmpeg. Try the stock name first.
+        dnf install -y ffmpeg-free 2>/dev/null || dnf install -y ffmpeg
+        for pkg in "${PORTAL_BACKENDS[@]}"; do
+            dnf install -y "$pkg" 2>/dev/null || \
+                echo "pulse-agent: $pkg unavailable in dnf — skipping"
+        done
+        ;;
+    rpm-bare)
+        echo "pulse-agent: rpm without dnf — install ffmpeg and xdg-desktop-portal{,-gnome,-gtk,-kde} manually" >&2
+        ;;
+esac
+
+if command -v dpkg >/dev/null 2>&1; then
+    TMP=$(mktemp --suffix=.deb)
+    curl -fsSL -L "$PULSE_API_URL/install/pulse-agent.deb" -o "$TMP"
+    verify_checksum "$TMP" "deb"
+    dpkg -i "$TMP" || apt-get install -f -y
+    rm "$TMP"
+elif command -v rpm >/dev/null 2>&1; then
+    TMP=$(mktemp --suffix=.rpm)
+    curl -fsSL -L "$PULSE_API_URL/install/pulse-agent.rpm" -o "$TMP"
+    verify_checksum "$TMP" "rpm"
+    rpm -i "$TMP" || dnf install -y "$TMP"
+    rm "$TMP"
+fi
+
+# Probe whether ffmpeg actually has pipewiregrab. Without it, Wayland desktop
+# sessions can't capture — the agent will surface wayland_ffmpeg_no_pipewire,
+# but it's nicer to tell the admin up front, with distro-specific guidance.
+if ! ffmpeg -hide_banner -sources 2>&1 | grep -qw pipewiregrab \
+   && ! ffmpeg -hide_banner -filters 2>&1 | grep -qw pipewiregrab; then
+    echo ""
+    echo "pulse-agent: WARNING — installed ffmpeg has no pipewiregrab support."
+    echo "  X11 remote desktop still works. Wayland desktop sessions will fail until you upgrade ffmpeg."
+    case "$PKG_MANAGER" in
+        apt)
+            if grep -rq '^deb .* bookworm' /etc/apt/sources.list /etc/apt/sources.list.d/ 2>/dev/null; then
+                echo "  Bookworm ships ffmpeg 5.x; enable backports for 7.x:"
+                echo "    echo 'deb http://deb.debian.org/debian bookworm-backports main' | sudo tee /etc/apt/sources.list.d/backports.list"
+                echo "    sudo apt-get update && sudo apt-get install -y -t bookworm-backports ffmpeg"
+            else
+                echo "  Upgrade ffmpeg to 7.1 or newer via your distro's backports/testing channel."
+            fi
+            ;;
+        dnf)
+            echo "  Fedora ships ffmpeg-free which omits pipewiregrab. Switch to RPM Fusion's ffmpeg:"
+            echo "    sudo dnf install -y https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-\$(rpm -E %fedora).noarch.rpm"
+            echo "    sudo dnf install -y --allowerasing ffmpeg"
+            ;;
+    esac
+    echo ""
+fi
+
+# The desktop helper autostarts via /etc/xdg/autostart/ on the next user login.
+# On a one-shot install we also start it now so remote desktop works without
+# forcing the user to log out. We need the user's real graphical-session env
+# (XDG_SESSION_TYPE, WAYLAND_DISPLAY, DBUS_SESSION_BUS_ADDRESS, …) — those are
+# not visible to a root one-liner, so copy them out of the user's gnome-shell
+# / kwin / sway / hyprland process.
+if [[ -n "${SUDO_USER:-}" ]] && [[ "$SUDO_USER" != "root" ]]; then
+    USER_UID=$(id -u "$SUDO_USER")
+    if [[ -d "/run/user/$USER_UID" ]]; then
+        # Kill any stale helper from a previous install attempt — it would be
+        # holding the socket with the wrong env.
+        pkill -u "$SUDO_USER" -f 'pulse-agent --desktop-helper' 2>/dev/null || true
+        rm -f "/run/user/$USER_UID/pulse-agent-desktop.sock"
+
+        # Find any process from the user's graphical session to copy env
+        # from. We try compositors first (most reliable env), then session
+        # managers, then panels — whichever is running tells us the user's
+        # DE and gives us XDG_CURRENT_DESKTOP for the portal.
+        SESSION_PID=""
+        for pat in \
+            gnome-shell \
+            kwin_wayland kwin_x11 plasmashell \
+            xfwm4 xfce4-session \
+            cinnamon mate-session \
+            sway Hyprland labwc \
+            i3 dwm bspwm; do
+            SESSION_PID=$(pgrep -u "$SUDO_USER" -nx "$pat" 2>/dev/null || true)
+            [[ -n "$SESSION_PID" ]] && break
+        done
+
+        if [[ -n "$SESSION_PID" ]] && [[ -r "/proc/$SESSION_PID/environ" ]]; then
+            ENV_ARGS=()
+            while IFS= read -r -d '' var; do
+                case "$var" in
+                    XDG_SESSION_TYPE=*|WAYLAND_DISPLAY=*|DISPLAY=*|\
+                    XAUTHORITY=*|XDG_RUNTIME_DIR=*|XDG_SESSION_CLASS=*|\
+                    XDG_CURRENT_DESKTOP=*|XDG_SESSION_DESKTOP=*|\
+                    DBUS_SESSION_BUS_ADDRESS=*)
+                        ENV_ARGS+=("$var")
+                        ;;
+                esac
+            done < "/proc/$SESSION_PID/environ"
+            runuser -u "$SUDO_USER" -- env -i HOME="/home/$SUDO_USER" PATH=/usr/local/bin:/usr/bin:/bin \
+                "${ENV_ARGS[@]}" \
+                nohup /usr/local/bin/pulse-agent --desktop-helper \
+                >/tmp/pulse-agent-helper.log 2>&1 &
+            disown 2>/dev/null || true
+            echo "pulse-agent: launched desktop helper for $SUDO_USER (env from $SESSION_PID)"
+        else
+            echo "pulse-agent: no graphical session for $SUDO_USER yet — helper will start on next login"
+        fi
+    fi
+fi
+
+echo ""
+echo "pulse-agent installed and started"
+echo "  Check: systemctl status pulse-agent"
