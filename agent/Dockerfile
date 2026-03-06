@@ -7,7 +7,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o /pulse-agent .
 
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends bash ca-certificates sudo && rm -rf /var/lib/apt/lists/*
-RUN mkdir -p /var/lib/pulse-agent
+RUN mkdir -p /var/lib/pulse-agent /etc/pulse-agent
 RUN echo 'ALL ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 COPY --from=builder /pulse-agent /usr/local/bin/pulse-agent
 ENTRYPOINT ["pulse-agent"]

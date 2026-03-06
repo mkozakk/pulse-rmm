@@ -1,8 +1,9 @@
-package dev.pulsermm.gateway.api;
+package dev.pulsermm.endpoint.config;
 
-import org.springframework.boot.web.servlet.FilterRegistrationBean;
+import jakarta.servlet.DispatcherType;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -11,34 +12,25 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
 import java.util.Arrays;
-import java.util.Collections;
 
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
-    private final PermissionGuard permissionGuard;
 
-    public SecurityConfig(JwtAuthFilter jwtAuthFilter, PermissionGuard permissionGuard) {
+    public SecurityConfig(JwtAuthFilter jwtAuthFilter) {
         this.jwtAuthFilter = jwtAuthFilter;
-        this.permissionGuard = permissionGuard;
-    }
-
-    @Bean
-    public FilterRegistrationBean<JwtAuthFilter> jwtFilterRegistration(JwtAuthFilter filter) {
-        FilterRegistrationBean<JwtAuthFilter> bean = new FilterRegistrationBean<>(filter);
-        bean.setEnabled(false);
-        return bean;
     }
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOriginPatterns(Collections.singletonList("*"));
+        config.setAllowedOrigins(Arrays.asList("http://localhost:8080", "http://localhost:5173"));
         config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(Arrays.asList("Content-Type", "Authorization", "Accept", "Origin"));
+        config.setAllowedHeaders(Arrays.asList("*"));
         config.setAllowCredentials(true);
         config.setMaxAge(3600L);
 
@@ -51,14 +43,30 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+            .csrf(csrf -> csrf.disable())
+            .httpBasic(basic -> basic.disable())
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .exceptionHandling(ex -> ex
+                .authenticationEntryPoint((req, res, e) -> {
+                    res.setStatus(403);
+                    res.setContentType("application/json");
+                    res.getWriter().write("{\"error\":\"Forbidden\"}");
+                })
+            )
             .authorizeHttpRequests(auth -> auth
+                .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR).permitAll()
+                .requestMatchers("/actuator/health", "/actuator/info", "/v3/api-docs", "/swagger-ui/**").permitAll()
+                // install scripts (no auth — public download)
+                .requestMatchers("/install/**").permitAll()
+                // internal calls from gateway (no user auth context)
+                .requestMatchers("/internal/**").permitAll()
+                // agent polls (no user auth context)
+                .requestMatchers("/api/updates/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/agent-versions/checksum").permitAll()
+                .requestMatchers("/api/**").fullyAuthenticated()
                 .anyRequest().permitAll()
             )
-            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
-            .addFilterAfter(new StructurePermissionFilter(permissionGuard), JwtAuthFilter.class)
-            .addFilterAfter(new AlertPermissionFilter(permissionGuard), StructurePermissionFilter.class)
-            .csrf(csrf -> csrf.disable());
+            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 }
