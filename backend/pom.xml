@@ -22,8 +22,7 @@
         <module>identity-service</module>
         <module>endpoint-service</module>
         <module>metric-service</module>
-        <module>script-service</module>
-        <module>software-service</module>
+        <module>commands-service</module>
         <module>alert-service</module>
         <module>audit-service</module>
         <module>integration-service</module>

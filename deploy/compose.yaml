@@ -18,8 +18,7 @@ services:
       IDENTITY_SERVICE_URL: http://identity-service:8083
       ENDPOINT_SERVICE_URL: http://endpoint-service:8081
       METRIC_SERVICE_URL: http://metric-service:8082
-      SCRIPT_SERVICE_URL: http://script-service:8084
-      SOFTWARE_SERVICE_URL: http://software-service:8085
+      COMMANDS_SERVICE_URL: http://commands-service:8084
       ALERT_SERVICE_URL: http://alert-service:8087
       AUDIT_SERVICE_URL: http://audit-service:8088
       INTEGRATION_SERVICE_URL: http://integration-service:8091
@@ -42,9 +41,7 @@ services:
         condition: service_healthy
       metric-service:
         condition: service_healthy
-      script-service:
-        condition: service_healthy
-      software-service:
+      commands-service:
         condition: service_healthy
       alert-service:
         condition: service_healthy
@@ -139,10 +136,10 @@ services:
     depends_on:
       <<: *app-deps
 
-  script-service:
+  commands-service:
     build:
       context: ..
-      dockerfile: backend/script-service/Dockerfile
+      dockerfile: backend/commands-service/Dockerfile
     environment:
       SERVICE_PORT: 8084
       POSTGRES_HOST: postgres
@@ -151,7 +148,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       JWT_SECRET: ${JWT_SECRET}
       GATEWAY_URL: http://api-gateway:8080
-      SCRIPT_SERVICE_BASE_URL: http://script-service:8084
+      SCRIPT_SERVICE_BASE_URL: http://commands-service:8084
       SCRIPT_SECRET_KEK: ${SCRIPT_SECRET_KEK}
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PORT: 5672
@@ -161,35 +158,6 @@ services:
       - "8084:8084"
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:8084/actuator/health"]
-      interval: 5s
-      timeout: 2s
-      retries: 5
-      start_period: 40s
-    depends_on:
-      postgres:
-        condition: service_healthy
-
-  software-service:
-    build:
-      context: ..
-      dockerfile: backend/software-service/Dockerfile
-    environment:
-      POSTGRES_HOST: postgres
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
-      JWT_SECRET: ${JWT_SECRET}
-      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
-      IDENTITY_SERVICE_URL: http://identity-service:8083
-      GATEWAY_SERVICE_URL: http://api-gateway:8080
-      RABBITMQ_HOST: rabbitmq
-      RABBITMQ_PORT: 5672
-      RABBITMQ_USER: ${RABBITMQ_USER}
-      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
-    ports:
-      - "8085:8085"
-    healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:8085/actuator/health"]
       interval: 5s
       timeout: 2s
       retries: 5

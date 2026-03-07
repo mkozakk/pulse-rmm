@@ -35,7 +35,7 @@ spring:
             predicates:
               - Path=/api/endpoints/*/metrics
           - id: software
-            uri: ${SOFTWARE_SERVICE_URL:http://localhost:8085}
+            uri: ${COMMANDS_SERVICE_URL:http://localhost:8084}
             predicates:
               - Path=/api/endpoints/*/software/**
           - id: groups
@@ -51,7 +51,7 @@ spring:
             predicates:
               - Path=/api/endpoints/**
           - id: scripts
-            uri: ${SCRIPT_SERVICE_URL:http://localhost:8084}
+            uri: ${COMMANDS_SERVICE_URL:http://localhost:8084}
             predicates:
               - Path=/api/scripts/**
           - id: sessions
@@ -117,10 +117,8 @@ springdoc:
         url: http://localhost:8081/v3/api-docs
       - name: Metrics
         url: http://localhost:8082/v3/api-docs
-      - name: Scripts
+      - name: Commands
         url: http://localhost:8084/v3/api-docs
-      - name: Software
-        url: http://localhost:8085/v3/api-docs
       - name: Alerts
         url: http://localhost:8087/v3/api-docs
       - name: Audit
