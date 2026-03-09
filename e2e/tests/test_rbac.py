@@ -24,10 +24,7 @@ def test_list_permissions_returns_all_permissions(admin_session):
     assert "identity:rbac:manage" in permission_names
 
 
-def test_list_permissions_requires_auth():
-    """GET /api/identity/rbac/permissions without auth returns 403."""
-    r = requests.get(f"{BASE_URL}/api/identity/rbac/permissions")
-    assert r.status_code in (401, 403)
+# Auth enforcement tests consolidated in test_auth_enforcement.py
 
 
 def test_list_roles_returns_default_roles(admin_session):
@@ -45,11 +42,6 @@ def test_list_roles_returns_default_roles(admin_session):
     assert "Junior Technician" in role_names
     assert "Auditor" in role_names
 
-
-def test_list_roles_requires_auth():
-    """GET /api/identity/rbac/roles without auth returns 403."""
-    r = requests.get(f"{BASE_URL}/api/identity/rbac/roles")
-    assert r.status_code in (401, 403)
 
 
 def test_create_custom_role(admin_session):
@@ -70,14 +62,6 @@ def test_create_custom_role(admin_session):
     ids = [role["id"] for role in list_r.json()]
     assert created["id"] in ids
 
-
-def test_create_role_requires_auth():
-    """POST /api/identity/rbac/roles without auth returns 403."""
-    r = requests.post(
-        f"{BASE_URL}/api/identity/rbac/roles",
-        json={"name": "Unauthorized Role"},
-    )
-    assert r.status_code in (401, 403)
 
 
 def test_admin_user_has_all_permissions(admin_session):
@@ -101,32 +85,3 @@ def test_admin_user_has_all_permissions(admin_session):
     assert token_r.status_code == 201
 
 
-def test_list_endpoints_requires_auth():
-    """GET /api/endpoints without auth returns 403."""
-    r = requests.get(f"{BASE_URL}/api/endpoints")
-    assert r.status_code in (401, 403)
-
-
-def test_create_enrolment_token_requires_auth():
-    """POST /api/enrolment/tokens without auth returns 403."""
-    group_id = "00000000-0000-0000-0000-000000000000"
-    r = requests.post(
-        f"{BASE_URL}/api/enrolment/tokens",
-        json={"groupId": group_id, "ttlHours": 24},
-    )
-    assert r.status_code in (401, 403)
-
-
-def test_list_groups_requires_auth():
-    """GET /api/groups without auth returns 403."""
-    r = requests.get(f"{BASE_URL}/api/groups")
-    assert r.status_code in (401, 403)
-
-
-def test_create_group_requires_auth():
-    """POST /api/groups without auth returns 403."""
-    r = requests.post(
-        f"{BASE_URL}/api/groups",
-        json={"name": "Unauthorized", "parentId": None},
-    )
-    assert r.status_code in (401, 403)

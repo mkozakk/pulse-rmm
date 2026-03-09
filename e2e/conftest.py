@@ -196,3 +196,77 @@ def enrolled_agent(admin_session):
         print(f"\n[teardown] keeping agent container {container_id[:12]} for inspection...")
         # Don't stop the container - keep it for debugging
         # subprocess.run(["podman", "stop", container_id], capture_output=True)
+
+
+# --- Auth enforcement tests (parameterized) ---
+
+@pytest.fixture(params=[
+    ("POST", "/api/scripts"),
+    ("GET", "/api/scripts/fake-id"),
+    ("POST", "/api/scripts/fake-id/approve"),
+    ("POST", "/api/scripts/fake-id/run"),
+    ("GET", "/api/scripts/runs/fake-id/results"),
+    ("POST", "/api/sessions"),
+    ("GET", "/api/sessions/fake-id"),
+    ("DELETE", "/api/sessions/fake-id"),
+    ("GET", "/api/identity/rbac/permissions"),
+    ("GET", "/api/identity/rbac/roles"),
+    ("POST", "/api/identity/rbac/roles"),
+    ("GET", "/api/endpoints"),
+    ("POST", "/api/enrolment/tokens"),
+    ("GET", "/api/groups"),
+    ("POST", "/api/groups"),
+    ("POST", "/api/shell/sessions"),
+    ("POST", "/api/tags"),
+])
+def protected_endpoint(request):
+    """Parameterized fixture for all protected endpoints."""
+    method, path = request.param
+    return method, path
+
+
+pytestmark_auth = pytest.mark.parametrize("protected_endpoint", [
+    ("POST", "/api/scripts"),
+    ("GET", "/api/scripts/fake-id"),
+    ("POST", "/api/scripts/fake-id/approve"),
+    ("POST", "/api/scripts/fake-id/run"),
+    ("GET", "/api/scripts/runs/fake-id/results"),
+    ("POST", "/api/sessions"),
+    ("GET", "/api/sessions/fake-id"),
+    ("DELETE", "/api/sessions/fake-id"),
+    ("GET", "/api/identity/rbac/permissions"),
+    ("GET", "/api/identity/rbac/roles"),
+    ("POST", "/api/identity/rbac/roles"),
+    ("GET", "/api/endpoints"),
+    ("POST", "/api/enrolment/tokens"),
+    ("GET", "/api/groups"),
+    ("POST", "/api/groups"),
+    ("POST", "/api/shell/sessions"),
+    ("POST", "/api/tags"),
+])
+
+
+def auth_test_endpoints():
+    """
+    List of (method, path) tuples for protected endpoints.
+    Used in test_auth.py as a parametrized test.
+    """
+    return [
+        ("POST", "/api/scripts"),
+        ("GET", "/api/scripts/fake-id"),
+        ("POST", "/api/scripts/fake-id/approve"),
+        ("POST", "/api/scripts/fake-id/run"),
+        ("GET", "/api/scripts/runs/fake-id/results"),
+        ("POST", "/api/sessions"),
+        ("GET", "/api/sessions/fake-id"),
+        ("DELETE", "/api/sessions/fake-id"),
+        ("GET", "/api/identity/rbac/permissions"),
+        ("GET", "/api/identity/rbac/roles"),
+        ("POST", "/api/identity/rbac/roles"),
+        ("GET", "/api/endpoints"),
+        ("POST", "/api/enrolment/tokens"),
+        ("GET", "/api/groups"),
+        ("POST", "/api/groups"),
+        ("POST", "/api/shell/sessions"),
+        ("PUT", "/api/endpoints/fake-id/tags"),
+    ]

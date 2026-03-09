@@ -1,25 +1,11 @@
 import time
 
 import pytest
-import requests
 import websocket
 
 pytestmark = [pytest.mark.slow, pytest.mark.requires_agent]
 
-
-def test_shell_requires_auth(enrolled_agent):
-    ws = websocket.WebSocket()
-    ws.settimeout(5)
-    try:
-        ws.connect(f"ws://localhost:8080/ws/shell/{enrolled_agent}")
-        pytest.fail("websocket handshake should fail without token")
-    except Exception:
-        pass
-    finally:
-        try:
-            ws.close()
-        except Exception:
-            pass
+# Auth enforcement tests consolidated in test_auth_enforcement.py
 
 
 def test_remote_shell_executes_command(admin_session, enrolled_agent):

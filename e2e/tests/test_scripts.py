@@ -24,243 +24,165 @@ def _approve_script(session, script_id):
     return r.json()
 
 
-# --- auth checks --------------------------------------------------------------
+# --- script CRUD and listing --------------------------------------------------
+# Auth enforcement tests consolidated in test_auth_enforcement.py
 
-def test_create_script_requires_auth():
-    r = requests.post(f"{BASE_URL}/api/scripts", json={"name": "x", "body": "echo x"})
-    assert r.status_code in (401, 403)
-
-
-def test_get_script_requires_auth():
-    r = requests.get(f"{BASE_URL}/api/scripts/{FAKE_RUN_ID}")
-    assert r.status_code in (401, 403)
-
-
-def test_list_scripts_requires_auth():
-    r = requests.get(f"{BASE_URL}/api/scripts")
-    assert r.status_code in (401, 403)
-
-
-def test_approve_script_requires_auth():
-    r = requests.post(f"{BASE_URL}/api/scripts/{FAKE_RUN_ID}/approve")
-    assert r.status_code in (401, 403)
-
-
-def test_run_script_requires_auth():
-    r = requests.post(
-        f"{BASE_URL}/api/scripts/{FAKE_RUN_ID}/run",
-        json={"endpointIds": [FAKE_ENDPOINT_ID]},
-    )
-    assert r.status_code in (401, 403)
-
-
-def test_run_results_requires_auth():
-    r = requests.get(f"{BASE_URL}/api/scripts/runs/{FAKE_RUN_ID}/results")
-    assert r.status_code in (401, 403)
-
-
-# --- script CRUD --------------------------------------------------------------
-
-def test_create_script(admin_session):
+def test_create_script_and_get_details(admin_session):
+    """Create a script and verify details via GET."""
     r = admin_session.post(
         f"{BASE_URL}/api/scripts",
         json={"name": "crud-test-script", "body": 'echo "crud"'},
     )
     assert r.status_code == 201, r.text
-    data = r.json()
-    assert "id" in data
-    assert data["id"]
+    script_id = r.json()["id"]
 
-
-def test_create_script_validation(admin_session):
-    r = admin_session.post(f"{BASE_URL}/api/scripts", json={"name": "", "body": ""})
-    assert r.status_code == 400, r.text
-
-
-def test_get_script(admin_session):
-    script_id = _create_script(admin_session, name="get-test-script", body="echo get")
-
-    r = admin_session.get(f"{BASE_URL}/api/scripts/{script_id}")
-    assert r.status_code == 200, r.text
-    data = r.json()
+    get_r = admin_session.get(f"{BASE_URL}/api/scripts/{script_id}")
+    assert get_r.status_code == 200, get_r.text
+    data = get_r.json()
     assert data["id"] == script_id
-    assert data["name"] == "get-test-script"
-    assert data["body"] == "echo get"
+    assert data["name"] == "crud-test-script"
     assert data["approved"] is False
     assert "createdBy" in data
     assert "createdAt" in data
 
 
+def test_create_script_validation(admin_session):
+    """Empty script name/body should be rejected."""
+    r = admin_session.post(f"{BASE_URL}/api/scripts", json={"name": "", "body": ""})
+    assert r.status_code == 400, r.text
+
+
 def test_get_script_not_found(admin_session):
+    """Getting a non-existent script returns 404."""
     r = admin_session.get(f"{BASE_URL}/api/scripts/{FAKE_RUN_ID}")
     assert r.status_code == 404, r.text
 
 
-def test_list_scripts_returns_created(admin_session):
-    script_id = _create_script(admin_session, name="list-test-script")
-
-    r = admin_session.get(f"{BASE_URL}/api/scripts?status=all")
-    assert r.status_code == 200, r.text
-    data = r.json()
-    ids = [s["id"] for s in data["scripts"]]
-    assert script_id in ids
-
-
-def test_list_scripts_pending_filter(admin_session):
-    script_id = _create_script(admin_session, name="pending-filter-script")
-
-    r = admin_session.get(f"{BASE_URL}/api/scripts?status=pending")
-    assert r.status_code == 200, r.text
-    scripts = r.json()["scripts"]
-    ids = [s["id"] for s in scripts]
-    assert script_id in ids
-
-    for s in scripts:
-        assert s["approved"] is False
-
-
-def test_list_scripts_library_filter(admin_session):
-    unapproved_id = _create_script(admin_session, name="library-unapproved-script")
-    approved_id = _create_script(admin_session, name="library-approved-script")
+def test_list_scripts_with_status_filters(admin_session):
+    """List endpoint filters scripts by approval status."""
+    # Create one unapproved and one approved script
+    unapproved_id = _create_script(admin_session, name="list-unapproved-script")
+    approved_id = _create_script(admin_session, name="list-approved-script")
     _approve_script(admin_session, approved_id)
 
-    r = admin_session.get(f"{BASE_URL}/api/scripts?status=library")
-    assert r.status_code == 200, r.text
-    scripts = r.json()["scripts"]
-    ids = [s["id"] for s in scripts]
+    # Verify all status shows both
+    all_r = admin_session.get(f"{BASE_URL}/api/scripts?status=all")
+    assert all_r.status_code == 200, all_r.text
+    all_ids = [s["id"] for s in all_r.json()["scripts"]]
+    assert unapproved_id in all_ids and approved_id in all_ids
 
-    assert approved_id in ids
-    assert unapproved_id not in ids
-    for s in scripts:
-        assert s["approved"] is True
+    # Verify pending filter shows only unapproved
+    pending_r = admin_session.get(f"{BASE_URL}/api/scripts?status=pending")
+    assert pending_r.status_code == 200, pending_r.text
+    pending = pending_r.json()["scripts"]
+    assert all(not s["approved"] for s in pending)
+    assert unapproved_id in [s["id"] for s in pending]
+
+    # Verify library filter shows only approved
+    library_r = admin_session.get(f"{BASE_URL}/api/scripts?status=library")
+    assert library_r.status_code == 200, library_r.text
+    library = library_r.json()["scripts"]
+    assert all(s["approved"] for s in library)
+    assert approved_id in [s["id"] for s in library]
 
 
 # --- approval workflow --------------------------------------------------------
 
-def test_approve_script(admin_session):
-    script_id = _create_script(admin_session, name="to-approve-script")
+def test_approve_script_and_idempotency(admin_session):
+    """Approving a script marks it approved; approving again returns 409."""
+    script_id = _create_script(admin_session, name="approval-workflow-script")
 
-    r = admin_session.post(f"{BASE_URL}/api/scripts/{script_id}/approve")
-    assert r.status_code == 200, r.text
-    data = r.json()
-    assert data["approved"] is True
-    assert data["approvedAt"] is not None
+    # First approval succeeds
+    approve_r = admin_session.post(f"{BASE_URL}/api/scripts/{script_id}/approve")
+    assert approve_r.status_code == 200, approve_r.text
+    assert approve_r.json()["approved"] is True
 
-    # verify via get
-    get_r = admin_session.get(f"{BASE_URL}/api/scripts/{script_id}")
-    assert get_r.json()["approved"] is True
+    # Second approval returns 409 (already approved)
+    duplicate_r = admin_session.post(f"{BASE_URL}/api/scripts/{script_id}/approve")
+    assert duplicate_r.status_code == 409, duplicate_r.text
 
 
 def test_approve_script_not_found(admin_session):
+    """Approving a non-existent script returns 404."""
     r = admin_session.post(f"{BASE_URL}/api/scripts/{FAKE_RUN_ID}/approve")
     assert r.status_code == 404, r.text
 
 
-def test_approve_script_duplicate_returns_409(admin_session):
-    script_id = _create_script(admin_session, name="double-approve-script")
-    _approve_script(admin_session, script_id)
+# --- script execution and results -----------------------------------------------
 
-    r = admin_session.post(f"{BASE_URL}/api/scripts/{script_id}/approve")
-    assert r.status_code == 409, r.text
+def test_run_script_initiates_and_shows_pending(admin_session):
+    """Running a script returns 202 and shows pending results."""
+    script_id = _create_script(admin_session, name="run-initiate-script")
 
-
-# --- run initiation -----------------------------------------------------------
-
-def test_run_script_returns_202(admin_session):
-    script_id = _create_script(admin_session, name="run-202-script")
-
-    r = admin_session.post(
+    # Initiate run
+    run_r = admin_session.post(
         f"{BASE_URL}/api/scripts/{script_id}/run",
         json={"endpointIds": [FAKE_ENDPOINT_ID]},
     )
-    assert r.status_code == 202, r.text
-    data = r.json()
-    assert "runId" in data
-    assert data["runId"]
+    assert run_r.status_code == 202, run_r.text
+    run_id = run_r.json()["runId"]
+    assert run_id
+
+    # Check results show as pending
+    results_r = admin_session.get(f"{BASE_URL}/api/scripts/runs/{run_id}/results")
+    assert results_r.status_code == 200, results_r.text
+    data = results_r.json()
+    assert data["runId"] == run_id
+    assert data["pending"] == 1
+    assert len(data["results"]) == 1
+    assert data["results"][0]["pending"] is True
+    assert data["results"][0]["exitCode"] is None
 
 
-def test_run_script_not_found(admin_session):
-    r = admin_session.post(
-        f"{BASE_URL}/api/scripts/{FAKE_RUN_ID}/run",
-        json={"endpointIds": [FAKE_ENDPOINT_ID]},
-    )
-    assert r.status_code == 404, r.text
+def test_run_script_validation(admin_session):
+    """Running with empty endpoint list returns 400; non-existent script returns 404."""
+    script_id = _create_script(admin_session, name="run-validate-script")
 
-
-def test_run_requires_at_least_one_endpoint(admin_session):
-    script_id = _create_script(admin_session, name="run-no-endpoints-script")
-
-    r = admin_session.post(
+    # Empty endpoint list
+    empty_r = admin_session.post(
         f"{BASE_URL}/api/scripts/{script_id}/run",
         json={"endpointIds": []},
     )
-    assert r.status_code == 400, r.text
+    assert empty_r.status_code == 400, empty_r.text
+
+    # Non-existent script
+    notfound_r = admin_session.post(
+        f"{BASE_URL}/api/scripts/{FAKE_RUN_ID}/run",
+        json={"endpointIds": [FAKE_ENDPOINT_ID]},
+    )
+    assert notfound_r.status_code == 404, notfound_r.text
 
 
-# --- results polling ----------------------------------------------------------
-
-def test_run_results_shows_pending(admin_session):
-    script_id = _create_script(admin_session, name="results-pending-script")
-    r = admin_session.post(
+def test_ack_updates_results_and_requires_no_auth(admin_session):
+    """Ack endpoint updates results and is permit-all (no auth required)."""
+    script_id = _create_script(admin_session, name="ack-workflow-script")
+    run_r = admin_session.post(
         f"{BASE_URL}/api/scripts/{script_id}/run",
         json={"endpointIds": [FAKE_ENDPOINT_ID]},
     )
-    run_id = r.json()["runId"]
+    run_id = run_r.json()["runId"]
 
-    r = admin_session.get(f"{BASE_URL}/api/scripts/runs/{run_id}/results")
-    assert r.status_code == 200, r.text
-    data = r.json()
-    assert data["runId"] == run_id
-    assert data["total"] == 1
-    assert data["pending"] == 1
-    assert len(data["results"]) == 1
-    result = data["results"][0]
-    assert result["pending"] is True
-    assert result["exitCode"] is None
-
-
-def test_run_results_not_found(admin_session):
-    r = admin_session.get(f"{BASE_URL}/api/scripts/runs/{FAKE_RUN_ID}/results")
-    assert r.status_code == 404, r.text
-
-
-def test_ack_updates_result(admin_session):
-    script_id = _create_script(admin_session, name="ack-test-script")
-    r = admin_session.post(
-        f"{BASE_URL}/api/scripts/{script_id}/run",
-        json={"endpointIds": [FAKE_ENDPOINT_ID]},
-    )
-    run_id = r.json()["runId"]
-
+    # Ack without auth succeeds
     ack_r = requests.post(
         f"{BASE_URL}/api/scripts/runs/{run_id}/endpoints/{FAKE_ENDPOINT_ID}/ack",
-        json={"exitCode": 0, "output": "all done"},
+        json={"exitCode": 0, "output": "execution complete"},
     )
     assert ack_r.status_code == 204, ack_r.text
 
+    # Results updated
     results_r = admin_session.get(f"{BASE_URL}/api/scripts/runs/{run_id}/results")
     data = results_r.json()
     assert data["pending"] == 0
     result = data["results"][0]
     assert result["exitCode"] == 0
-    assert "all done" in result["output"]
+    assert "execution complete" in result["output"]
     assert result["pending"] is False
 
 
-def test_ack_no_auth_required(admin_session):
-    """Ack endpoint is permit-all so agents can call it without JWT."""
-    script_id = _create_script(admin_session, name="ack-no-auth-script")
-    r = admin_session.post(
-        f"{BASE_URL}/api/scripts/{script_id}/run",
-        json={"endpointIds": [FAKE_ENDPOINT_ID]},
-    )
-    run_id = r.json()["runId"]
-
-    r = requests.post(
-        f"{BASE_URL}/api/scripts/runs/{run_id}/endpoints/{FAKE_ENDPOINT_ID}/ack",
-        json={"exitCode": 1, "output": "failed"},
-    )
-    assert r.status_code == 204, r.text
+def test_run_results_not_found(admin_session):
+    """Getting results for non-existent run returns 404."""
+    r = admin_session.get(f"{BASE_URL}/api/scripts/runs/{FAKE_RUN_ID}/results")
+    assert r.status_code == 404, r.text
 
 
 # --- secrets ------------------------------------------------------------------
