@@ -265,8 +265,3 @@ def test_script_execution_permission(admin_session, enrolled_agent):
         json={"endpointIds": [enrolled_agent]},
     )
     assert r.status_code in (401, 403)
-
-
-@pytest.mark.skip(reason="no Windows agent in CI stack")
-def test_windows_script_execution(admin_session, enrolled_agent):
-    """Agent executes PowerShell script on Windows and captures output."""

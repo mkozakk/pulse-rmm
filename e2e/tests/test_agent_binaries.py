@@ -16,6 +16,16 @@ def _publish(session, version="1.0.0", os_name="linux", arch="amd64", artifact_t
     return r
 
 
+def _create_group_and_token(admin_session):
+    group_r = admin_session.post(f"{BASE_URL}/api/groups", json={"name": "InstallScriptGroup", "parentId": None})
+    assert group_r.status_code == 201
+    group_id = group_r.json()["id"]
+
+    token_r = admin_session.post(f"{BASE_URL}/api/enrolment/tokens", json={"groupId": group_id, "ttlHours": 24})
+    assert token_r.status_code == 201
+    return token_r.json()["id"]
+
+
 def test_publish_version(admin_session):
     r = _publish(admin_session, version="2.0.0")
     assert r.status_code == 201
@@ -44,17 +54,14 @@ def test_list_versions(admin_session):
 
 
 def test_set_current_and_update_check(admin_session):
-    # publish two versions
     r1 = _publish(admin_session, version="3.0.0")
     assert r1.status_code == 201
     v_id = r1.json()["id"]
 
-    # set as current
     r = admin_session.put(f"{BASE_URL}/api/agent-versions/{v_id}/current")
     assert r.status_code == 200
     assert r.json()["current"] is True
 
-    # agent on older version should get an update
     r = admin_session.get(f"{BASE_URL}/api/updates/check",
                           params={"os": "linux", "arch": "amd64", "version": "2.9.9"})
     assert r.status_code == 200
@@ -64,7 +71,6 @@ def test_set_current_and_update_check(admin_session):
     assert body["downloadUrl"] is not None
     assert len(body["sha256"]) == 64
 
-    # agent already on current version
     r = admin_session.get(f"{BASE_URL}/api/updates/check",
                           params={"os": "linux", "arch": "amd64", "version": "3.0.0"})
     assert r.status_code == 200
@@ -122,3 +128,27 @@ def test_unauthenticated_returns_403(admin_session):
     r = requests.get(f"{BASE_URL}/api/updates/check",
                      params={"os": "linux", "arch": "amd64", "version": "1.0.0"})
     assert r.status_code == 200
+
+
+# --- install script ---
+
+def test_install_script_body(admin_session):
+    token_id = _create_group_and_token(admin_session)
+
+    r = requests.get(f"{BASE_URL}/install/{token_id}.sh")
+    assert r.status_code == 200
+    body = r.text
+    assert body.startswith("#!/usr/bin/env bash")
+    assert token_id in body
+    assert "localhost:8080" in body or "PULSE_API_URL" in body
+    assert "enrolment_token:" in body
+
+
+def test_install_script_invalid_token():
+    r = requests.get(f"{BASE_URL}/install/nonexistent.sh")
+    assert r.status_code == 404
+
+
+def test_install_script_random_uuid():
+    r = requests.get(f"{BASE_URL}/install/00000000-0000-0000-0000-000000000000.sh")
+    assert r.status_code == 404

@@ -129,7 +129,6 @@ def test_signaling_ws_invalid_session_rejected(admin_session):
             f"ws://localhost:8080/ws/sessions/00000000-0000-0000-0000-000000000000/signal"
             f"?token={admin_session.token}"
         )
-        # If the server accepts the upgrade, it should close the connection quickly
         ws.settimeout(3)
         try:
             ws.recv()
@@ -156,10 +155,9 @@ def test_signaling_ws_accepts_valid_session(admin_session, desktop_session):
             f"ws://localhost:8080/ws/sessions/{session_id}/signal"
             f"?token={admin_session.token}"
         )
-        # Connection accepted — server should not immediately close it
         ws.settimeout(1)
         try:
-            msg = ws.recv()
+            ws.recv()
             # If we receive a message, it might be a "session not ready" event — that's fine
         except websocket.WebSocketTimeoutException:
             pass  # timeout means connection is open and waiting — correct behaviour
