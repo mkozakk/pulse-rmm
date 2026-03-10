@@ -26,7 +26,7 @@ public class AgentServiceGrpcServer extends AgentServiceGrpc.AgentServiceImplBas
     public AgentServiceGrpcServer(
             @Value("${ENDPOINT_SERVICE_URL:http://localhost:8081}") String enrolmentUrl,
             @Value("${METRIC_SERVICE_URL:http://localhost:8082}") String metricUrl,
-            @Value("${SOFTWARE_SERVICE_URL:http://localhost:8085}") String softwareUrl) {
+            @Value("${COMMANDS_SERVICE_URL:http://localhost:8084}") String softwareUrl) {
         this.enrolmentClient = RestClient.builder().baseUrl(enrolmentUrl).build();
         this.metricClient = RestClient.builder().baseUrl(metricUrl).build();
         this.softwareClient = RestClient.builder().baseUrl(softwareUrl).build();

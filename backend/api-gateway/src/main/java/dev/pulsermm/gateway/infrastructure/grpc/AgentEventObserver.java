@@ -2,6 +2,7 @@ package dev.pulsermm.gateway.infrastructure.grpc;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.pulsermm.gateway.infrastructure.desktop.DesktopSignalingRouter;
+import dev.pulsermm.gateway.infrastructure.file.FileTransferRegistry;
 import dev.pulsermm.gateway.infrastructure.ws.ShellSessionRouter;
 import dev.pulsermm.proto.v1.AgentEvent;
 import dev.pulsermm.proto.v1.GatewayCommand;
@@ -23,17 +24,20 @@ class AgentEventObserver implements StreamObserver<AgentEvent> {
     private final ShellSessionRouter router;
     private final DesktopSignalingRouter signalingRouter;
     private final PendingCommandRegistry pendingCommandRegistry;
+    private final FileTransferRegistry fileRegistry;
     private final RestClient restClient;
     private final StreamObserver<GatewayCommand> outbound;
     private UUID endpointId;
 
     AgentEventObserver(AgentRegistry registry, ShellSessionRouter router, DesktopSignalingRouter signalingRouter,
                        PendingCommandRegistry pendingCommandRegistry,
+                       FileTransferRegistry fileRegistry,
                        StreamObserver<GatewayCommand> outbound) {
         this.registry = registry;
         this.router = router;
         this.signalingRouter = signalingRouter;
         this.pendingCommandRegistry = pendingCommandRegistry;
+        this.fileRegistry = fileRegistry;
         this.restClient = RestClient.create();
         this.outbound = outbound;
     }
@@ -92,6 +96,12 @@ class AgentEventObserver implements StreamObserver<AgentEvent> {
             } catch (Exception e) {
                 logger.warn("Failed to serialize desktop signal for session {}: {}", signal.getSessionId(), e.getMessage());
             }
+        } else if (event.hasListDirResult()) {
+            var r = event.getListDirResult();
+            fileRegistry.completeDir(r.getRequestId(), r.getPath(), r.getEntriesList(), r.getError());
+        } else if (event.hasFileTransferDone()) {
+            var d = event.getFileTransferDone();
+            fileRegistry.completeTransfer(d.getTransferId(), d.getBytes(), d.getError());
         } else {
             logger.debug("Agent event from {}: {}", endpointId, event.getPayloadCase());
         }

@@ -13,6 +13,7 @@ import (
 	"github.com/pulsermm/pulse-rmm/agent/internal/config"
 	"github.com/pulsermm/pulse-rmm/agent/internal/control"
 	"github.com/pulsermm/pulse-rmm/agent/internal/enrolment"
+	"github.com/pulsermm/pulse-rmm/agent/internal/files"
 	"github.com/pulsermm/pulse-rmm/agent/internal/metrics"
 	"github.com/pulsermm/pulse-rmm/agent/internal/script"
 	"github.com/pulsermm/pulse-rmm/agent/internal/shell"
@@ -171,6 +172,7 @@ func runAgent(ctx context.Context) {
 	}
 	defer gatewayConn.Close()
 	agentClient := pb.NewAgentServiceClient(gatewayConn)
+	fileClient := pb.NewFileServiceClient(gatewayConn)
 
 	// heartbeatOK is closed on the first successful heartbeat so the post-update
 	// verifier knows the new binary is healthy.
@@ -194,14 +196,14 @@ func runAgent(ctx context.Context) {
 	go runHeartbeat(ctx, metricClient, endpointID, heartbeatOK)
 	go runMetrics(ctx, metricClient, endpointID)
 	go runSoftwareScan(ctx, endpointID, agentClient)
-	go runControlStream(ctx, endpointID, grpcAddr, agentClient, grpc.WithTransportCredentials(grpcCreds))
+	go runControlStream(ctx, endpointID, grpcAddr, agentClient, fileClient, grpc.WithTransportCredentials(grpcCreds))
 	go updater.Start(ctx)
 
 	<-ctx.Done()
 	fmt.Println("[agent] Shutting down")
 }
 
-func runControlStream(ctx context.Context, endpointID, gatewayAddr string, agentClient pb.AgentServiceClient, connOpt grpc.DialOption) {
+func runControlStream(ctx context.Context, endpointID, gatewayAddr string, agentClient pb.AgentServiceClient, fileClient pb.FileServiceClient, connOpt grpc.DialOption) {
 	inCh := make(chan *pb.GatewayCommand, 16)
 	outCh := make(chan *pb.AgentEvent, 16)
 
@@ -217,7 +219,7 @@ func runControlStream(ctx context.Context, endpointID, gatewayAddr string, agent
 				if !ok {
 					return
 				}
-				dispatchCmd(shellMgr, desktopHandler, cmd, outCh, agentClient, endpointID)
+				dispatchCmd(ctx, shellMgr, desktopHandler, cmd, outCh, agentClient, fileClient, endpointID)
 			case <-ctx.Done():
 				return
 			}
@@ -242,7 +244,7 @@ func runControlStream(ctx context.Context, endpointID, gatewayAddr string, agent
 	}
 }
 
-func dispatchCmd(mgr *shell.Manager, deskHandler *desktop.Handler, cmd *pb.GatewayCommand, outCh chan<- *pb.AgentEvent, agentClient pb.AgentServiceClient, endpointID string) {
+func dispatchCmd(ctx context.Context, mgr *shell.Manager, deskHandler *desktop.Handler, cmd *pb.GatewayCommand, outCh chan<- *pb.AgentEvent, agentClient pb.AgentServiceClient, fileClient pb.FileServiceClient, endpointID string) {
 	send := func(e *pb.AgentEvent) { outCh <- e }
 	switch p := cmd.Payload.(type) {
 	case *pb.GatewayCommand_StartDesktopSession:
@@ -277,7 +279,40 @@ func dispatchCmd(mgr *shell.Manager, deskHandler *desktop.Handler, cmd *pb.Gatew
 		go executeSoftwareCommand(p.SoftwareCommand, outCh, agentClient, endpointID)
 	case *pb.GatewayCommand_ScriptCommand:
 		go executeScriptCommand(p.ScriptCommand, outCh)
+	case *pb.GatewayCommand_ListDir:
+		go handleListDir(p.ListDir, outCh)
+	case *pb.GatewayCommand_FileDownload:
+		go handleFileDownload(ctx, p.FileDownload, fileClient, outCh)
+	case *pb.GatewayCommand_FileUpload:
+		go handleFileUpload(ctx, p.FileUpload, fileClient, outCh)
 	}
+}
+
+func handleListDir(c *pb.ListDirCommand, outCh chan<- *pb.AgentEvent) {
+	entries, err := files.ListDir(c.Path)
+	res := &pb.ListDirResult{RequestId: c.RequestId, Path: c.Path, Entries: entries}
+	if err != nil {
+		res.Error = err.Error()
+	}
+	outCh <- &pb.AgentEvent{Payload: &pb.AgentEvent_ListDirResult{ListDirResult: res}}
+}
+
+func handleFileDownload(ctx context.Context, c *pb.FileDownloadCommand, fc pb.FileServiceClient, outCh chan<- *pb.AgentEvent) {
+	n, err := files.SendFile(ctx, fc, c.TransferId, c.Path)
+	done := &pb.FileTransferDone{TransferId: c.TransferId, Bytes: n}
+	if err != nil {
+		done.Error = err.Error()
+	}
+	outCh <- &pb.AgentEvent{Payload: &pb.AgentEvent_FileTransferDone{FileTransferDone: done}}
+}
+
+func handleFileUpload(ctx context.Context, c *pb.FileUploadCommand, fc pb.FileServiceClient, outCh chan<- *pb.AgentEvent) {
+	n, err := files.ReceiveFile(ctx, fc, c.TransferId, c.DestPath)
+	done := &pb.FileTransferDone{TransferId: c.TransferId, Bytes: n}
+	if err != nil {
+		done.Error = err.Error()
+	}
+	outCh <- &pb.AgentEvent{Payload: &pb.AgentEvent_FileTransferDone{FileTransferDone: done}}
 }
 
 func runHeartbeat(ctx context.Context, client *metrics.Client, endpointID string, okOnce chan struct{}) {

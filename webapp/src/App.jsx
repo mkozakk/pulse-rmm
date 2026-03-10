@@ -13,6 +13,7 @@ import EndpointsPage from './pages/EndpointsPage'
 import EndpointDetailPage from './pages/EndpointDetailPage'
 import TerminalPage from './pages/TerminalPage'
 import DesktopPage from './pages/DesktopPage'
+import FilesPage from './pages/FilesPage'
 import AlertsPage from './pages/AlertsPage'
 import AuditPage from './pages/AuditPage'
 import AgentVersionsPage from './pages/AgentVersionsPage'
@@ -49,6 +50,7 @@ export default function App() {
             <Route path="/endpoints/:id" element={<EndpointDetailPage />} />
             <Route path="/endpoints/:id/shell" element={<TerminalPage />} />
             <Route path="/endpoints/:id/desktop" element={<DesktopPage />} />
+            <Route path="/endpoints/:id/files" element={<FilesPage />} />
             <Route path="/alerts" element={<AlertsPage />} />
             <Route path="/audit" element={<AuditPage />} />
             <Route path="/agent-versions" element={<AgentVersionsPage />} />
