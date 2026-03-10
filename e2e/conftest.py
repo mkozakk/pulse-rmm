@@ -197,9 +197,6 @@ def enrolled_agent(admin_session):
         # Don't stop the container - keep it for debugging
         # subprocess.run(["podman", "stop", container_id], capture_output=True)
 
-
-# --- Auth enforcement tests (parameterized) ---
-
 @pytest.fixture(params=[
     ("POST", "/api/scripts"),
     ("GET", "/api/scripts/fake-id"),
