@@ -60,46 +60,48 @@ class GroupServiceEdgeCasesTest {
 
     @Test
     void createWithMaxDepthExceededThrows() {
-        UUID groupId = UUID.randomUUID();
-        UUID parentId = UUID.randomUUID();
+        UUID level5Id = UUID.randomUUID();
         UUID level4Id = UUID.randomUUID();
         UUID level3Id = UUID.randomUUID();
         UUID level2Id = UUID.randomUUID();
+        UUID level1Id = UUID.randomUUID();
 
-        Group level5 = new Group(level4Id, "level5", null);
-        Group level4 = new Group(level3Id, "level4", level4Id);
-        Group level3 = new Group(level2Id, "level3", level3Id);
-        Group level2 = new Group(parentId, "level2", level2Id);
-        Group level1 = new Group(parentId, "level1", parentId);
+        Group level5 = new Group(level5Id, "level5", level4Id);
+        Group level4 = new Group(level4Id, "level4", level3Id);
+        Group level3 = new Group(level3Id, "level3", level2Id);
+        Group level2 = new Group(level2Id, "level2", level1Id);
+        Group level1 = new Group(level1Id, "level1", null);
 
-        when(groupRepo.findById(parentId)).thenReturn(Optional.of(level1));
-        when(groupRepo.findById(level2Id)).thenReturn(Optional.of(level2));
-        when(groupRepo.findById(level3Id)).thenReturn(Optional.of(level3));
+        when(groupRepo.findById(level5Id)).thenReturn(Optional.of(level5));
         when(groupRepo.findById(level4Id)).thenReturn(Optional.of(level4));
+        when(groupRepo.findById(level3Id)).thenReturn(Optional.of(level3));
+        when(groupRepo.findById(level2Id)).thenReturn(Optional.of(level2));
+        when(groupRepo.findById(level1Id)).thenReturn(Optional.of(level1));
 
-        assertThatThrownBy(() -> service.create("level6", parentId))
+        assertThatThrownBy(() -> service.create("level6", level5Id))
             .isInstanceOf(IllegalStateException.class)
             .hasMessageContaining("cannot exceed depth");
     }
 
     @Test
     void createAtMaxDepthSucceeds() {
-        UUID groupId = UUID.randomUUID();
-        UUID parentId = UUID.randomUUID();
+        UUID level4Id = UUID.randomUUID();
         UUID level3Id = UUID.randomUUID();
         UUID level2Id = UUID.randomUUID();
+        UUID level1Id = UUID.randomUUID();
 
-        Group level4 = new Group(level3Id, "level4", null);
-        Group level3 = new Group(level2Id, "level3", level3Id);
-        Group level2 = new Group(parentId, "level2", level2Id);
-        Group level1 = new Group(parentId, "level1", parentId);
+        Group level4 = new Group(level4Id, "level4", level3Id);
+        Group level3 = new Group(level3Id, "level3", level2Id);
+        Group level2 = new Group(level2Id, "level2", level1Id);
+        Group level1 = new Group(level1Id, "level1", null);
 
-        when(groupRepo.findById(parentId)).thenReturn(Optional.of(level1));
-        when(groupRepo.findById(level2Id)).thenReturn(Optional.of(level2));
+        when(groupRepo.findById(level4Id)).thenReturn(Optional.of(level4));
         when(groupRepo.findById(level3Id)).thenReturn(Optional.of(level3));
+        when(groupRepo.findById(level2Id)).thenReturn(Optional.of(level2));
+        when(groupRepo.findById(level1Id)).thenReturn(Optional.of(level1));
         when(groupRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        var result = service.create("level5", parentId);
+        var result = service.create("level5", level4Id);
 
         assertThat(result.name()).isEqualTo("level5");
     }
