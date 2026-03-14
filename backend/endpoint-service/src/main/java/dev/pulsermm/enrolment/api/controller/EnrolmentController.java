@@ -9,7 +9,9 @@ import dev.pulsermm.enrolment.application.MoveEndpointService;
 import dev.pulsermm.enrolment.application.TagService;
 import dev.pulsermm.enrolment.application.TokenService;
 import dev.pulsermm.enrolment.domain.Endpoint;
+import dev.pulsermm.enrolment.domain.EndpointRevocation;
 import dev.pulsermm.enrolment.infrastructure.EndpointRepository;
+import dev.pulsermm.enrolment.infrastructure.EndpointRevocationRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -41,17 +43,42 @@ public class EnrolmentController {
     private final MoveEndpointService moveEndpointService;
     private final TagService tagService;
     private final JdbcTemplate jdbcTemplate;
+    private final EndpointRevocationRepository revocationRepository;
 
     public EnrolmentController(TokenService tokenService,
                                 EndpointRepository endpointRepository,
                                 MoveEndpointService moveEndpointService,
                                 TagService tagService,
-                                JdbcTemplate jdbcTemplate) {
+                                JdbcTemplate jdbcTemplate,
+                                EndpointRevocationRepository revocationRepository) {
         this.tokenService = tokenService;
         this.endpointRepository = endpointRepository;
         this.moveEndpointService = moveEndpointService;
         this.tagService = tagService;
         this.jdbcTemplate = jdbcTemplate;
+        this.revocationRepository = revocationRepository;
+    }
+
+    record RevokeRequest(String reason) {}
+
+    @Operation(summary = "Revoke endpoint", description = "Marks endpoint as revoked; further cert renewals will be denied.")
+    @ApiResponse(responseCode = "204", description = "Endpoint revoked")
+    @ApiResponse(responseCode = "401", description = "Unauthorized")
+    @ApiResponse(responseCode = "404", description = "Endpoint not found")
+    @PostMapping("/api/endpoints/{id}/revoke")
+    public ResponseEntity<Void> revokeEndpoint(
+            @PathVariable UUID id,
+            @RequestBody(required = false) RevokeRequest request,
+            Authentication auth) {
+        if (auth == null || !auth.isAuthenticated()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        if (endpointRepository.findById(id).isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        String reason = request != null ? request.reason() : null;
+        revocationRepository.save(new EndpointRevocation(id, java.time.Instant.now(), reason));
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(summary = "Create enrolment token")
