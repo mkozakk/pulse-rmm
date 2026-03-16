@@ -8,3 +8,7 @@ spring:
         auto-startup: false
       direct:
         auto-startup: false
+
+pulse:
+  jwt:
+    secret: test-secret-for-integration-tests-with-enough-length-for-hs256-256bits
