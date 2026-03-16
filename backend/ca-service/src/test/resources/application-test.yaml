@@ -1,0 +1,5 @@
+pulse:
+  ca:
+    root-key-encryption-secret: test-encryption-secret-for-integration-tests
+    root-cn: "Pulse RMM Test CA"
+    cert-ttl: PT24H
