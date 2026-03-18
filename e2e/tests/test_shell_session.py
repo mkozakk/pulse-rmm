@@ -3,6 +3,10 @@ import time
 import pytest
 import websocket
 
+from config import BASE_URL
+
+WS_URL = BASE_URL.replace("http://", "ws://").replace("https://", "wss://")
+
 pytestmark = [pytest.mark.slow, pytest.mark.requires_agent]
 
 # Auth enforcement tests consolidated in test_auth_enforcement.py
@@ -15,7 +19,7 @@ def test_remote_shell_executes_command(admin_session, enrolled_agent):
         ws = websocket.WebSocket()
         ws.settimeout(5)
         try:
-            ws.connect(f"ws://localhost:8080/ws/shell/{enrolled_agent}?token={admin_session.token}")
+            ws.connect(f"{WS_URL}/ws/shell/{enrolled_agent}?token={admin_session.token}")
             ws.send_binary(b"\x01" + b"echo e2ehello\n")
             inner = time.time() + 8
             while time.time() < inner:
@@ -45,7 +49,7 @@ def test_shell_invalid_token_rejected(enrolled_agent):
     ws.settimeout(5)
     rejected = False
     try:
-        ws.connect(f"ws://localhost:8080/ws/shell/{enrolled_agent}?token=invalid-token")
+        ws.connect(f"{WS_URL}/ws/shell/{enrolled_agent}?token=invalid-token")
         ws.settimeout(2)
         try:
             ws.recv()
