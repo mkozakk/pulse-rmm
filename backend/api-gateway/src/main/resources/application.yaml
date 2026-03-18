@@ -108,7 +108,10 @@ management:
   endpoints:
     web:
       exposure:
-        include: health
+        include: health,info,prometheus
+  metrics:
+    tags:
+      service: api-gateway
 
 springdoc:
   api-docs:
