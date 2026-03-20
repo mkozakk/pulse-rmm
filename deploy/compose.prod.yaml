@@ -1,0 +1,89 @@
+# Production overrides for compose.yaml.
+#
+# Usage:  podman compose -f deploy/compose.yaml -f deploy/compose.prod.yaml up -d
+#
+# What this changes vs. dev:
+#   - SPRING_PROFILES_ACTIVE=prod,loki  (no debug, no swagger, no SQL logging)
+#   - PULSE_COOKIE_SECURE=true          (cookies only over HTTPS)
+#   - PULSE_MTLS_ENABLED=true           (agent <-> gateway mTLS required)
+#   - SWAGGER_UI_ENABLED=false          (API docs disabled)
+#   - No host-exposed service ports     (nginx is the only entry point)
+#   - No host-exposed dependency ports  (postgres, redis, rabbit, minio internal only)
+#   - No Grafana / Prometheus / Loki / Tempo ports exposed
+#
+# Before deploying:
+#   - Replace every secret in .env (JWT_SECRET, INTERNAL_API_SECRET, SCRIPT_SECRET_KEK,
+#     WEBHOOK_SECRET_KEK, CA_ROOT_KEY_SECRET, TURN_SECRET, GRAFANA_ADMIN_PASSWORD,
+#     POSTGRES_PASSWORD, RABBITMQ_PASSWORD, MINIO_*) with real values.
+#   - Configure nginx with TLS certs (this file does not — terminate TLS at nginx or
+#     in front of it).
+
+x-prod-env: &prod-env
+  SPRING_PROFILES_ACTIVE: prod,loki
+
+services:
+  api-gateway:
+    environment:
+      <<: *prod-env
+      PULSE_COOKIE_SECURE: "true"
+      PULSE_MTLS_ENABLED: "true"
+      SWAGGER_UI_ENABLED: "false"
+
+  identity-service:
+    environment:
+      <<: *prod-env
+      PULSE_COOKIE_SECURE: "true"
+      SWAGGER_UI_ENABLED: "false"
+    ports: !override []
+
+  endpoint-service:
+    environment: { <<: *prod-env, SWAGGER_UI_ENABLED: "false" }
+    ports: !override []
+
+  metric-service:
+    environment: { <<: *prod-env, SWAGGER_UI_ENABLED: "false" }
+    ports: !override []
+
+  commands-service:
+    environment: *prod-env
+    ports: !override []
+
+  alert-service:
+    environment: *prod-env
+    ports: !override []
+
+  audit-service:
+    environment: *prod-env
+    ports: !override []
+
+  integration-service:
+    environment: *prod-env
+    ports: !override []
+
+  ca-service:
+    environment: *prod-env
+    ports: !override []
+
+  postgres:
+    ports: !override []
+
+  redis:
+    ports: !override []
+
+  rabbitmq:
+    ports: !override []
+
+  minio:
+    ports: !override []
+
+  loki:
+    ports: !override []
+
+  tempo:
+    ports: !override []
+
+  prometheus:
+    ports: !override []
+
+  grafana:
+    ports: !override []
