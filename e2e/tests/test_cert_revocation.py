@@ -15,8 +15,8 @@ pytestmark = [pytest.mark.slow, pytest.mark.requires_agent]
 
 def _start_agent(token):
     tls_enabled = os.environ.get("PULSE_MTLS_ENABLED", "false").lower() == "true"
-    api_url = os.environ.get("PULSE_API_URL", "http://localhost:8081")
-    grpc_addr = os.environ.get("PULSE_GRPC_ADDR", "127.0.0.1:9091")
+    api_url = os.environ.get("PULSE_API_URL", "http://localhost:9080")
+    grpc_addr = os.environ.get("PULSE_GRPC_ADDR", "127.0.0.1:10090")
     cfg = (
         f"api_url: {api_url}\n"
         f"grpc_addr: {grpc_addr}\n"
