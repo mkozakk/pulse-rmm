@@ -16,10 +16,12 @@ public class AuditPublisher {
     }
 
     public void publish(AuditEventMessage message) {
-        try {
-            rabbitTemplate.convertAndSend(EXCHANGE, "", message);
-        } catch (Exception e) {
-            log.warn("Failed to publish audit event for action {}: {}", message.action(), e.getMessage());
-        }
+        Thread.ofVirtual().start(() -> {
+            try {
+                rabbitTemplate.convertAndSend(EXCHANGE, "", message);
+            } catch (Exception e) {
+                log.warn("Failed to publish audit event for action {}: {}", message.action(), e.getMessage());
+            }
+        });
     }
 }
