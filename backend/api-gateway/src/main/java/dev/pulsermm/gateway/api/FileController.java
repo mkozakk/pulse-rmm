@@ -7,6 +7,11 @@ import dev.pulsermm.proto.v1.FileDownloadCommand;
 import dev.pulsermm.proto.v1.FileUploadCommand;
 import dev.pulsermm.proto.v1.GatewayCommand;
 import dev.pulsermm.proto.v1.ListDirCommand;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.io.InputStreamResource;
@@ -26,6 +31,8 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+@Tag(name = "File Browser", description = "Browse, download, and upload files on managed endpoints via the gateway")
+@SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequestMapping("/api/files/{endpointId}")
 public class FileController {
@@ -42,9 +49,13 @@ public class FileController {
         this.transfers = transfers;
     }
 
+    @Operation(summary = "List directory on endpoint", description = "Sends a directory listing command to the connected agent and returns the entries. Times out after 15 seconds if the agent does not respond.")
+    @ApiResponse(responseCode = "200", description = "Directory listing returned")
+    @ApiResponse(responseCode = "404", description = "Agent not connected")
+    @ApiResponse(responseCode = "504", description = "Agent did not respond within 15 seconds")
     @GetMapping
     public ResponseEntity<?> list(@PathVariable UUID endpointId,
-                                  @RequestParam(required = false, defaultValue = "") String path) throws Exception {
+                                  @Parameter(description = "Directory path on the endpoint, defaults to root") @RequestParam(required = false, defaultValue = "") String path) throws Exception {
         var sink = agents.get(endpointId).orElse(null);
         if (sink == null) return ResponseEntity.status(404).body(problem("agent not connected"));
 
@@ -64,9 +75,12 @@ public class FileController {
         }
     }
 
+    @Operation(summary = "Download a file from endpoint", description = "Streams a file from the endpoint as an octet-stream download.")
+    @ApiResponse(responseCode = "200", description = "File stream started")
+    @ApiResponse(responseCode = "404", description = "Agent not connected")
     @GetMapping("/download")
     public ResponseEntity<InputStreamResource> download(@PathVariable UUID endpointId,
-                                                        @RequestParam String path) {
+                                                        @Parameter(description = "Absolute path to the file on the endpoint") @RequestParam String path) {
         var sink = agents.get(endpointId).orElse(null);
         if (sink == null) return ResponseEntity.status(404).build();
 
@@ -84,9 +98,13 @@ public class FileController {
             .body(new InputStreamResource(body));
     }
 
+    @Operation(summary = "Upload a file to endpoint", description = "Uploads a file to the specified path on the endpoint. Times out after 10 minutes.")
+    @ApiResponse(responseCode = "200", description = "File uploaded, returns byte count")
+    @ApiResponse(responseCode = "404", description = "Agent not connected")
+    @ApiResponse(responseCode = "504", description = "Agent did not complete upload within 10 minutes")
     @PostMapping("/upload")
     public ResponseEntity<?> upload(@PathVariable UUID endpointId,
-                                    @RequestParam String path,
+                                    @Parameter(description = "Destination path on the endpoint") @RequestParam String path,
                                     @RequestParam("file") MultipartFile file) throws Exception {
         var sink = agents.get(endpointId).orElse(null);
         if (sink == null) return ResponseEntity.status(404).body(problem("agent not connected"));

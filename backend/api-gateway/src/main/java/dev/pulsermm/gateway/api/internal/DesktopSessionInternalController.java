@@ -2,6 +2,7 @@ package dev.pulsermm.gateway.api.internal;
 
 import dev.pulsermm.gateway.infrastructure.desktop.DesktopSessionDispatcher;
 import dev.pulsermm.gateway.infrastructure.desktop.DesktopSessionRegistry;
+import io.swagger.v3.oas.annotations.Hidden;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -11,6 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 import java.util.UUID;
 
+@Hidden
 @RestController
 @RequestMapping("/internal/desktop-sessions")
 public class DesktopSessionInternalController {
