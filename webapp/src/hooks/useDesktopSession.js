@@ -77,6 +77,7 @@ export function useDesktopSession(endpointId) {
         const msg = JSON.parse(e.data)
         if (msg.type === 'session_ready') {
           pc.addTransceiver('video', { direction: 'recvonly' })
+          pc.addTransceiver('audio', { direction: 'recvonly' })
           const offer = await pc.createOffer()
           await pc.setLocalDescription(offer)
           ws.send(JSON.stringify({ type: 'offer', payload: offer.sdp }))
