@@ -14,15 +14,13 @@ pytestmark = [pytest.mark.slow, pytest.mark.requires_agent]
 
 
 def _start_agent(token):
-    tls_enabled = os.environ.get("PULSE_MTLS_ENABLED", "false").lower() == "true"
-    api_url = os.environ.get("PULSE_API_URL", "http://localhost:9080")
-    grpc_addr = os.environ.get("PULSE_GRPC_ADDR", "127.0.0.1:10090")
+    api_url = os.environ.get("PULSE_API_URL", "http://localhost:8081")
+    grpc_addr = os.environ.get("PULSE_GRPC_ADDR", "127.0.0.1:9091")
     cfg = (
         f"api_url: {api_url}\n"
         f"grpc_addr: {grpc_addr}\n"
         f"enrolment_token: {token}\n"
         f"data_dir: /var/lib/pulse-agent\n"
-        f"tls_enabled: {str(tls_enabled).lower()}\n"
     )
     f = tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False)
     f.write(cfg)
@@ -46,11 +44,7 @@ def _agent_log(container_id):
 
 def test_revoked_endpoint_is_locked_out(admin_session):
     """After POST /api/endpoints/{id}/revoke, the agent's mTLS RPCs are denied
-    by the gateway (UNAUTHENTICATED). Only meaningful with PULSE_MTLS_ENABLED=true;
-    skipped otherwise because the revocation gate lives in the mTLS interceptor."""
-    if os.environ.get("PULSE_MTLS_ENABLED", "false").lower() != "true":
-        pytest.skip("revocation gate only runs when mTLS is enabled")
-
+    by the gateway (UNAUTHENTICATED)."""
     group_r = admin_session.post(
         f"{BASE_URL}/api/groups",
         json={"name": "RevokeGroup", "parentId": None},

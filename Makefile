@@ -41,7 +41,7 @@ e2e:
 	@echo "Starting stack..."
 	$(E2E_COMPOSE) up -d
 	@echo "Waiting for gateway..."
-	@timeout 60 bash -c 'until curl -sf http://localhost:9080/actuator/health >/dev/null 2>&1; do sleep 0.5; done'
+	@timeout 60 bash -c 'until curl -sf http://localhost:8081/actuator/health >/dev/null 2>&1; do sleep 0.5; done'
 	@echo "Running tests..."
 	@set -e; \
 	trap 'echo "Stopping containers..."; $(E2E_COMPOSE) down -v; podman image prune -f' EXIT; \

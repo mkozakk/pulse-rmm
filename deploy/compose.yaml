@@ -1,9 +1,3 @@
-x-obs-env: &obs-env
-  SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev,loki}
-  PULSE_LOKI_URL: http://loki:3100/loki/api/v1/push
-  MANAGEMENT_TRACING_SAMPLING_PROBABILITY: "1.0"
-  MANAGEMENT_OTLP_TRACING_ENDPOINT: http://tempo:4318/v1/traces
-
 x-app-deps: &app-deps
   postgres:
     condition: service_healthy
@@ -25,7 +19,6 @@ services:
       context: ..
       dockerfile: backend/api-gateway/Dockerfile
     environment:
-      <<: *obs-env
       PULSE_COOKIE_SECURE: "false"
       IDENTITY_SERVICE_URL: http://identity-service:8083
       ENDPOINT_SERVICE_URL: http://endpoint-service:8081
@@ -40,7 +33,6 @@ services:
       RABBITMQ_PORT: 5672
       RABBITMQ_USER: ${RABBITMQ_USER}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
-      PULSE_MTLS_ENABLED: ${PULSE_MTLS_ENABLED:-true}
       PULSE_CA_URL: http://ca-service:8089
     volumes:
       - api_gateway_tls:/var/lib/api-gateway/tls
@@ -77,21 +69,19 @@ services:
       context: ..
       dockerfile: backend/identity-service/Dockerfile
     environment:
-      <<: *obs-env
       POSTGRES_HOST: postgres
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
       JWT_SECRET: ${JWT_SECRET}
       INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
+      PULSE_COOKIE_SECURE: ${PULSE_COOKIE_SECURE:-false}
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PORT: 5672
       RABBITMQ_USER: ${RABBITMQ_USER}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
     networks:
       - private
-    ports:
-      - "8083:8083"
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:8083/actuator/health"]
       interval: 5s
@@ -106,7 +96,6 @@ services:
       context: ..
       dockerfile: backend/endpoint-service/Dockerfile
     environment:
-      <<: *obs-env
       POSTGRES_HOST: postgres
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -129,8 +118,6 @@ services:
       PULSE_API_URL: ${PULSE_API_URL}
     networks:
       - private
-    ports:
-      - "8081:8081"
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:8081/actuator/health"]
       interval: 5s
@@ -145,7 +132,6 @@ services:
       context: ..
       dockerfile: backend/metric-service/Dockerfile
     environment:
-      <<: *obs-env
       POSTGRES_HOST: postgres
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -157,8 +143,6 @@ services:
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
     networks:
       - private
-    ports:
-      - "8082:8082"
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:8082/actuator/health"]
       interval: 5s
@@ -173,7 +157,6 @@ services:
       context: ..
       dockerfile: backend/commands-service/Dockerfile
     environment:
-      <<: *obs-env
       SERVICE_PORT: 8084
       POSTGRES_HOST: postgres
       POSTGRES_USER: ${POSTGRES_USER}
@@ -189,8 +172,6 @@ services:
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
     networks:
       - private
-    ports:
-      - "8084:8084"
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:8084/actuator/health"]
       interval: 5s
@@ -205,7 +186,6 @@ services:
       context: ..
       dockerfile: backend/alert-service/Dockerfile
     environment:
-      <<: *obs-env
       SERVICE_PORT: 8087
       POSTGRES_HOST: postgres
       POSTGRES_USER: ${POSTGRES_USER}
@@ -218,8 +198,6 @@ services:
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
     networks:
       - private
-    ports:
-      - "8087:8087"
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:8087/actuator/health"]
       interval: 5s
@@ -235,7 +213,6 @@ services:
       context: ..
       dockerfile: backend/audit-service/Dockerfile
     environment:
-      <<: *obs-env
       SERVICE_PORT: 8088
       POSTGRES_HOST: postgres
       POSTGRES_USER: ${POSTGRES_USER}
@@ -248,8 +225,6 @@ services:
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
     networks:
       - private
-    ports:
-      - "8088:8088"
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:8088/actuator/health"]
       interval: 5s
@@ -264,7 +239,6 @@ services:
       context: ..
       dockerfile: backend/integration-service/Dockerfile
     environment:
-      <<: *obs-env
       SERVICE_PORT: 8091
       POSTGRES_HOST: postgres
       POSTGRES_USER: ${POSTGRES_USER}
@@ -278,8 +252,6 @@ services:
       WEBHOOK_SECRET_KEK: ${WEBHOOK_SECRET_KEK}
     networks:
       - private
-    ports:
-      - "8091:8091"
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:8091/actuator/health"]
       interval: 5s
@@ -294,7 +266,6 @@ services:
       context: ..
       dockerfile: backend/ca-service/Dockerfile
     environment:
-      <<: *obs-env
       POSTGRES_HOST: postgres
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -302,8 +273,6 @@ services:
       CA_ROOT_KEY_SECRET: ${CA_ROOT_KEY_SECRET}
     networks:
       - private
-    ports:
-      - "8089:8089"
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:8089/actuator/health"]
       interval: 5s
@@ -312,82 +281,6 @@ services:
       start_period: 40s
     depends_on:
       <<: *app-deps
-
-  prometheus:
-    image: docker.io/prom/prometheus:v2.55.0
-    command:
-      - --config.file=/etc/prometheus/prometheus.yml
-      - --storage.tsdb.path=/prometheus
-      - --storage.tsdb.retention.time=15d
-      - --web.enable-lifecycle
-    volumes:
-      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro,Z
-      - prometheus_data:/prometheus
-    networks:
-      - private
-    ports:
-      - "9095:9090"
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9090/-/ready"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-
-  tempo:
-    image: docker.io/grafana/tempo:2.6.0
-    command: ["-config.file=/etc/tempo/tempo-config.yml"]
-    volumes:
-      - ./observability/tempo/tempo-config.yml:/etc/tempo/tempo-config.yml:ro,Z
-      - tempo_data:/var/tempo
-    networks:
-      - private
-    ports:
-      - "3200:3200"
-      - "4318:4318"
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3200/ready"]
-      interval: 10s
-      timeout: 3s
-      retries: 10
-      start_period: 30s
-
-  loki:
-    image: docker.io/grafana/loki:3.2.0
-    command: -config.file=/etc/loki/loki-config.yml
-    volumes:
-      - ./observability/loki/loki-config.yml:/etc/loki/loki-config.yml:ro,Z
-      - loki_data:/loki
-    networks:
-      - private
-    ports:
-      - "3100:3100"
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3100/ready"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-
-  grafana:
-    image: docker.io/grafana/grafana:11.3.0
-    environment:
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
-      GF_USERS_ALLOW_SIGN_UP: "false"
-      GF_AUTH_ANONYMOUS_ENABLED: "false"
-    volumes:
-      - ./observability/grafana/datasources:/etc/grafana/provisioning/datasources:ro,Z
-      - ./observability/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro,Z
-      - grafana_data:/var/lib/grafana
-    networks:
-      - private
-    ports:
-      - "3000:3000"
-    depends_on:
-      prometheus:
-        condition: service_healthy
-      loki:
-        condition: service_healthy
-      tempo:
-        condition: service_healthy
 
   coturn:
     image: docker.io/coturn/coturn:4.6.2
@@ -433,8 +326,6 @@ services:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - private
-    ports:
-      - "5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
       interval: 5s
@@ -447,8 +338,6 @@ services:
       - redis_data:/data
     networks:
       - private
-    ports:
-      - "6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -465,9 +354,6 @@ services:
       HOME: /tmp
     networks:
       - private
-    ports:
-      - "5672:5672"
-      - "15672:15672"
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "check_running"]
       interval: 5s
@@ -487,9 +373,6 @@ services:
       - minio_data:/data
     networks:
       - private
-    ports:
-      - "9000:9000"
-      - "9001:9001"
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:9000/minio/health/live"]
       interval: 5s
@@ -521,7 +404,3 @@ volumes:
   minio_data:
   rabbitmq_data:
   api_gateway_tls:
-  prometheus_data:
-  loki_data:
-  grafana_data:
-  tempo_data:

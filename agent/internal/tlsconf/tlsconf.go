@@ -9,22 +9,16 @@ import (
 	"os"
 
 	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 // AgentClientCreds returns gRPC credentials suited to the agent's current state:
 //   - cert + CA on disk: mTLS, server cert validated against CA bundle
 //   - only CA on disk:   server-validated TLS, no client cert
-//   - neither:           insecure (first-boot TOFU enrol)
+//   - neither:           InsecureSkipVerify TLS (first-boot TOFU enrol)
 //
-// useTLS=false short-circuits to insecure regardless. The in-memory private
-// key is paired with the on-disk cert because the agent never persists the key
-// in plaintext (see internal/secrets).
-func AgentClientCreds(certPath, caPath string, priv crypto.PrivateKey, useTLS bool) (credentials.TransportCredentials, error) {
-	if !useTLS {
-		return insecure.NewCredentials(), nil
-	}
-
+// The in-memory private key is paired with the on-disk cert because the agent
+// never persists the key in plaintext (see internal/secrets).
+func AgentClientCreds(certPath, caPath string, priv crypto.PrivateKey) (credentials.TransportCredentials, error) {
 	caPEM, err := os.ReadFile(caPath)
 	if err != nil && !os.IsNotExist(err) {
 		return nil, fmt.Errorf("reading ca: %w", err)

@@ -137,7 +137,7 @@ func runAgent(ctx context.Context) {
 			fmt.Fprintf(os.Stderr, "Error: no endpoint identity found and no enrolment_token in config\n")
 			os.Exit(1)
 		}
-		enrolCreds, credsErr := tlsconf.AgentClientCreds(store.CertFile, store.CABundleFile, privKey, cfg.TLSEnabled)
+		enrolCreds, credsErr := tlsconf.AgentClientCreds(store.CertFile, store.CABundleFile, privKey)
 		if credsErr != nil {
 			fmt.Fprintf(os.Stderr, "Error: building enrol tls creds: %v\n", credsErr)
 			os.Exit(1)
@@ -190,7 +190,7 @@ func runAgent(ctx context.Context) {
 		fmt.Printf("Already enrolled: %s\n", endpointID)
 	}
 
-	grpcCreds, err := tlsconf.AgentClientCreds(store.CertFile, store.CABundleFile, privKey, cfg.TLSEnabled)
+	grpcCreds, err := tlsconf.AgentClientCreds(store.CertFile, store.CABundleFile, privKey)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: building tls creds: %v\n", err)
 		os.Exit(1)
