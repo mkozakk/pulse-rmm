@@ -11,7 +11,6 @@ import io.grpc.Status;
 import net.devh.boot.grpc.server.interceptor.GrpcGlobalServerInterceptor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 import javax.net.ssl.SSLPeerUnverifiedException;
 import javax.net.ssl.SSLSession;
@@ -23,7 +22,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 @GrpcGlobalServerInterceptor
-@ConditionalOnProperty(name = "pulse.mtls.enabled", havingValue = "true")
 public class MtlsAuthInterceptor implements ServerInterceptor {
 
     private static final Logger logger = LoggerFactory.getLogger(MtlsAuthInterceptor.class);

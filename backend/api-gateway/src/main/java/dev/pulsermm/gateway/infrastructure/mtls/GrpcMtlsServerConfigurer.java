@@ -7,12 +7,10 @@ import io.grpc.netty.shaded.io.netty.handler.ssl.SslProvider;
 import net.devh.boot.grpc.server.serverfactory.GrpcServerConfigurer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
-@ConditionalOnProperty(name = "pulse.mtls.enabled", havingValue = "true")
 public class GrpcMtlsServerConfigurer {
 
     private static final Logger logger = LoggerFactory.getLogger(GrpcMtlsServerConfigurer.class);

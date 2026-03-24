@@ -35,8 +35,6 @@ services:
       - minio_e2e_data:/data
 
   api-gateway:
-    environment:
-      PULSE_MTLS_ENABLED: "true"
     volumes:
       - api_gateway_tls_e2e:/var/lib/api-gateway/tls
 
