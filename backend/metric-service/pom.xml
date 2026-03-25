@@ -82,11 +82,11 @@
             <version>0.12.6</version>
             <scope>runtime</scope>
         </dependency>
-        <!-- force grpc-api 1.63.0 to match grpc-core from grpc-spring-boot-starter -->
+        <!-- force grpc-api to match grpc-core from grpc-spring-boot-starter -->
         <dependency>
             <groupId>io.grpc</groupId>
             <artifactId>grpc-api</artifactId>
-            <version>1.63.0</version>
+            <version>1.81.0</version>
         </dependency>
         <dependency>
             <groupId>org.springdoc</groupId>
