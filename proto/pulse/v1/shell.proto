@@ -42,6 +42,8 @@ message GatewayCommand {
     ListDirCommand             list_dir              = 10;
     FileDownloadCommand        file_download         = 11;
     FileUploadCommand          file_upload           = 12;
+    ListProcessesCommand       list_processes        = 13;
+    KillProcessCommand         kill_process          = 14;
   }
 }
 
@@ -69,4 +71,14 @@ message AckCommand {
   string command_id = 1;
   int32 exit_code   = 2;
   string output     = 3;
+}
+
+// Task manager: agent returns the result as an AckCommand with the JSON-
+// encoded process list in the `output` field on success, or a non-zero
+// exit_code + error in `output` on failure.
+message ListProcessesCommand { string command_id = 1; }
+
+message KillProcessCommand {
+  string command_id = 1;
+  int32  pid        = 2;
 }
