@@ -13,6 +13,9 @@ spring:
   threads:
     virtual:
       enabled: true
+  servlet:
+    multipart:
+      enabled: true
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost}
     port: ${RABBITMQ_PORT:5672}
@@ -20,8 +23,9 @@ spring:
     password: ${RABBITMQ_PASSWORD:guest}
   cloud:
     gateway:
-      mvc:
-        routes:
+      server:
+        webmvc:
+          routes:
           - id: identity
             uri: ${IDENTITY_SERVICE_URL:http://localhost:8083}
             predicates:
