@@ -249,6 +249,22 @@ export const pulseApi = createApi({
     listDeadLetter: builder.query({
       query: (limit = 100) => `/webhooks/deliveries/dead-letter?limit=${limit}`,
       keepUnusedDataFor: 0
+    }),
+    refreshProcesses: builder.mutation({
+      query: (endpointId) => ({
+        url: `/endpoints/${endpointId}/processes/refresh`,
+        method: 'POST'
+      })
+    }),
+    getLatestProcesses: builder.query({
+      query: (endpointId) => `/endpoints/${endpointId}/processes/latest`,
+      keepUnusedDataFor: 0
+    }),
+    killProcess: builder.mutation({
+      query: ({ endpointId, pid }) => ({
+        url: `/endpoints/${endpointId}/processes/${pid}/kill`,
+        method: 'POST'
+      })
     })
   })
 })
@@ -301,5 +317,8 @@ export const {
   useDeleteWebhookMutation,
   useListDeliveriesQuery,
   useGetDeliveryQuery,
-  useListDeadLetterQuery
+  useListDeadLetterQuery,
+  useRefreshProcessesMutation,
+  useGetLatestProcessesQuery,
+  useKillProcessMutation
 } = pulseApi
