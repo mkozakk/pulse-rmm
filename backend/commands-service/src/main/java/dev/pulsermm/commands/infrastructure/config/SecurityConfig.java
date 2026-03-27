@@ -54,6 +54,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/health", "/actuator/info", "/v3/api-docs", "/swagger-ui/**").permitAll()
                         .requestMatchers("/api/scripts/runs/*/endpoints/*/ack").permitAll()
+                        .requestMatchers("/api/processes/commands/*/ack").permitAll()
+                        .requestMatchers("/api/processes/kill-commands/*/ack").permitAll()
                         .requestMatchers("/api/**").fullyAuthenticated()
                         .anyRequest().permitAll()
                 )

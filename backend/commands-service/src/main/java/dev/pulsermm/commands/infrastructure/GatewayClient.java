@@ -54,7 +54,39 @@ public class GatewayClient {
         }
     }
 
+    public void dispatchListProcesses(UUID endpointId, String commandId, String callbackUrl) {
+        try {
+            var request = new ProcessDispatchRequest(endpointId, commandId, callbackUrl, 0);
+            logger.info("Dispatching list-processes command {} to endpoint {}", commandId, endpointId);
+            restClient.post()
+                .uri("/internal/process-commands/list/dispatch")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(request)
+                .retrieve()
+                .toBodilessEntity();
+        } catch (Exception e) {
+            logger.error("Failed to dispatch list-processes command to gateway: {}", e.getMessage(), e);
+        }
+    }
+
+    public void dispatchKillProcess(UUID endpointId, String commandId, int pid, String callbackUrl) {
+        try {
+            var request = new ProcessDispatchRequest(endpointId, commandId, callbackUrl, pid);
+            logger.info("Dispatching kill-process pid={} command {} to endpoint {}", pid, commandId, endpointId);
+            restClient.post()
+                .uri("/internal/process-commands/kill/dispatch")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(request)
+                .retrieve()
+                .toBodilessEntity();
+        } catch (Exception e) {
+            logger.error("Failed to dispatch kill-process command to gateway: {}", e.getMessage(), e);
+        }
+    }
+
     public record DispatchRequest(UUID endpointId, String commandId, String scriptBody, Map<String, String> envVars, String callbackUrl) {}
 
     public record SoftwareDispatchRequest(UUID endpointId, String commandId, String action, String packageName, String appId, String packageVersion) {}
+
+    public record ProcessDispatchRequest(UUID endpointId, String commandId, String callbackUrl, int pid) {}
 }
