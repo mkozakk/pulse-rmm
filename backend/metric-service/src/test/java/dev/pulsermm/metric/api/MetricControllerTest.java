@@ -56,7 +56,8 @@ class MetricControllerTest {
         }
         return new MetricController.MetricPointResponse(
             instant,
-            ((Number) row.get("value")).doubleValue()
+            ((Number) row.get("value")).doubleValue(),
+            java.util.Map.of()
         );
     }
 }
