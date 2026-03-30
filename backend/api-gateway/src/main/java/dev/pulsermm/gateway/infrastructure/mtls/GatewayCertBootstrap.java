@@ -1,7 +1,10 @@
 package dev.pulsermm.gateway.infrastructure.mtls;
 
 import org.bouncycastle.asn1.x500.X500Name;
+import org.bouncycastle.cert.X509CertificateHolder;
+import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.bouncycastle.openssl.PEMParser;
 import org.bouncycastle.openssl.jcajce.JcaPEMWriter;
 import org.bouncycastle.operator.ContentSigner;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
@@ -15,6 +18,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
 import java.io.File;
+import java.io.StringReader;
 import java.io.StringWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -22,7 +26,10 @@ import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.PrivateKey;
 import java.security.Security;
+import java.security.cert.X509Certificate;
 import java.security.spec.ECGenParameterSpec;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
@@ -58,11 +65,15 @@ public class GatewayCertBootstrap {
     public Bundle ensure() throws Exception {
         Files.createDirectories(certPath.getParent());
         if (Files.exists(certPath) && Files.exists(keyPath) && Files.exists(caPath)) {
-            logger.info("Reusing existing gateway server cert at {}", certPath);
-            return new Bundle(certPath.toFile(), keyPath.toFile(), caPath.toFile());
+            if (!shouldRenew(certPath, Instant.now())) {
+                logger.info("Reusing existing gateway server cert at {}", certPath);
+                return new Bundle(certPath.toFile(), keyPath.toFile(), caPath.toFile(), false);
+            }
+            logger.info("Existing gateway cert past 50% TTL; renewing");
+        } else {
+            logger.info("Bootstrapping gateway server cert via ca-service at {}", caBaseUrl);
         }
 
-        logger.info("Bootstrapping gateway server cert via ca-service at {}", caBaseUrl);
         KeyPairGenerator kpg = KeyPairGenerator.getInstance("EC");
         kpg.initialize(new ECGenParameterSpec("secp256r1"));
         KeyPair kp = kpg.generateKeyPair();
@@ -89,7 +100,31 @@ public class GatewayCertBootstrap {
         Files.writeString(keyPath, toPkcs8Pem(kp.getPrivate()));
 
         logger.info("Gateway server cert written to {}", certPath);
-        return new Bundle(certPath.toFile(), keyPath.toFile(), caPath.toFile());
+        return new Bundle(certPath.toFile(), keyPath.toFile(), caPath.toFile(), true);
+    }
+
+    static boolean shouldRenew(Path certPath, Instant now) {
+        try {
+            X509Certificate cert = parseCert(Files.readString(certPath));
+            Instant notBefore = cert.getNotBefore().toInstant();
+            Instant notAfter = cert.getNotAfter().toInstant();
+            Duration ttl = Duration.between(notBefore, notAfter);
+            Instant renewAt = notBefore.plus(ttl.dividedBy(2));
+            return !now.isBefore(renewAt);
+        } catch (Exception e) {
+            logger.warn("Could not parse existing gateway cert at {}; will reissue", certPath, e);
+            return true;
+        }
+    }
+
+    private static X509Certificate parseCert(String pem) throws Exception {
+        try (PEMParser parser = new PEMParser(new StringReader(pem))) {
+            Object obj = parser.readObject();
+            if (obj instanceof X509CertificateHolder holder) {
+                return new JcaX509CertificateConverter().setProvider("BC").getCertificate(holder);
+            }
+            throw new IllegalStateException("not a certificate: " + obj);
+        }
     }
 
     private String buildCsr(KeyPair kp) throws Exception {
@@ -110,5 +145,5 @@ public class GatewayCertBootstrap {
             + "\n-----END PRIVATE KEY-----\n";
     }
 
-    public record Bundle(File certFile, File keyFile, File caFile) {}
+    public record Bundle(File certFile, File keyFile, File caFile, boolean renewed) {}
 }
