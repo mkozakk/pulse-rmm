@@ -24,6 +24,7 @@ import (
 	"github.com/pulsermm/pulse-rmm/agent/internal/software"
 	"github.com/pulsermm/pulse-rmm/agent/internal/store"
 	"github.com/pulsermm/pulse-rmm/agent/internal/svc"
+	"github.com/pulsermm/pulse-rmm/agent/internal/sysinfo"
 	"github.com/pulsermm/pulse-rmm/agent/internal/tlsconf"
 	"github.com/pulsermm/pulse-rmm/agent/internal/update"
 	"google.golang.org/grpc"
@@ -235,6 +236,7 @@ func runAgent(ctx context.Context) {
 	fmt.Println("[agent] Starting goroutines")
 	go runHeartbeat(ctx, metricClient, endpointID, heartbeatOK)
 	go runMetrics(ctx, metricClient, endpointID)
+	go runSystemInfo(ctx, metricClient, endpointID)
 	go runSoftwareScan(ctx, endpointID, agentClient)
 	go runControlStream(ctx, endpointID, grpcAddr, agentClient, fileClient, grpc.WithTransportCredentials(grpcCreds))
 	go runCertRenewal(ctx, agentClient, privKey)
@@ -477,6 +479,35 @@ func runHeartbeat(ctx context.Context, client *metrics.Client, endpointID string
 				close(okOnce)
 				signalled = true
 			}
+		}
+	}
+}
+
+func runSystemInfo(ctx context.Context, client *metrics.Client, endpointID string) {
+	push := func() {
+		info, err := sysinfo.Collect()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "sysinfo collect error: %v\n", err)
+			return
+		}
+		if err := client.ReportSystemInfo(ctx, endpointID, info); err != nil {
+			fmt.Fprintf(os.Stderr, "sysinfo push error: %v\n", err)
+			return
+		}
+		fmt.Printf("[sysinfo] reported (cpu=%q, disks=%d, nics=%d)\n",
+			info.CPU.Model, len(info.Disks), len(info.Nics))
+	}
+
+	push()
+
+	ticker := time.NewTicker(time.Hour)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			push()
 		}
 	}
 }
