@@ -358,6 +358,54 @@ button {
   border-color: #2563eb;
 }
 
+/* section tabs (endpoint detail) */
+.section-tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin: 1rem 0 0.75rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.section-tabs button {
+  padding: 0.5rem 1rem;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 13px;
+  color: #555;
+  border-bottom: 2px solid transparent;
+}
+
+.section-tabs button.active {
+  color: #2563eb;
+  border-bottom-color: #2563eb;
+}
+
+/* system info panel */
+.system-info-panel {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.info-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.info-table th, .info-table td {
+  padding: 0.35rem 0.5rem;
+  text-align: left;
+  border-bottom: 1px solid #eee;
+}
+
+.info-table th {
+  font-weight: 600;
+  color: #555;
+}
+
 /* terminal */
 .terminal-page {
   display: flex;
