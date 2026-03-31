@@ -50,7 +50,9 @@ export function useDesktopSession(endpointId) {
       pcRef.current = pc
 
       pc.ontrack = (e) => {
-        if (videoRef.current) videoRef.current.srcObject = e.streams[0]
+        if (e.track.kind === 'video' && videoRef.current) {
+          videoRef.current.srcObject = e.streams[0]
+        }
         setStatus('connected')
       }
 
