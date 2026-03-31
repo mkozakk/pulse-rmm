@@ -40,6 +40,11 @@ func startPipeWireCapture(ctx context.Context, t Target) error {
 	nodeID := sc.nodeIDs[0]
 	t.Logger.Printf("pipewire: portal granted node id %d", nodeID)
 
+	if sc.streamW > 0 && sc.streamH > 0 && t.SetScreenSize != nil {
+		t.Logger.Printf("pipewire: stream size %dx%d", sc.streamW, sc.streamH)
+		t.SetScreenSize(int(sc.streamW), int(sc.streamH))
+	}
+
 	backend, cmd, err := selectPipeWireBackend(ctx, t, nodeID)
 	if err != nil {
 		sc.Close()

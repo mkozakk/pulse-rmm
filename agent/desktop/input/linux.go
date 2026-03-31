@@ -127,6 +127,8 @@ func (x *x11Injector) KeyEvent(keyCode int, pressed bool) error {
 	).Check()
 }
 
+func (x *x11Injector) SetScreenSize(_, _ int) {}
+
 func (x *x11Injector) Close() error {
 	x.conn.Close()
 	return nil
@@ -254,6 +256,21 @@ func (u *uinputInjector) KeyEvent(keyCode int, pressed bool) error {
 		return u.kb.KeyDown(evdev)
 	}
 	return u.kb.KeyUp(evdev)
+}
+
+func (u *uinputInjector) SetScreenSize(w, h int) {
+	nw, nh := int32(w), int32(h)
+	if nw == u.screenW && nh == u.screenH {
+		return
+	}
+	tp, err := uinput.CreateTouchPad("/dev/uinput", []byte("Pulse RMM Pointer"), 0, nw-1, 0, nh-1)
+	if err != nil {
+		return
+	}
+	_ = u.touchpad.Close()
+	u.touchpad = tp
+	u.screenW = nw
+	u.screenH = nh
 }
 
 func (u *uinputInjector) Close() error {

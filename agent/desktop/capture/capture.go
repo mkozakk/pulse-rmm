@@ -16,6 +16,10 @@ type Target struct {
 	LogFile       *os.File
 	AddTrack      func(webrtc.TrackLocal) error
 	AddAudioTrack func(webrtc.TrackLocal) error
+	// SetScreenSize is called once the capture dimensions are known (Wayland
+	// portal path). The input injector uses this to align absolute cursor
+	// coordinates with the captured video resolution.
+	SetScreenSize func(w, h int)
 }
 
 // Error sentinels for portal/capture failures. The strings are stable codes
