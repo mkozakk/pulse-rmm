@@ -2,8 +2,12 @@ import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { Provider } from 'react-redux'
 import { configureStore } from '@reduxjs/toolkit'
+import { vi } from 'vitest'
 import authReducer from '../store/authSlice'
 import ProtectedRoute from './ProtectedRoute'
+import keycloak from '../keycloak'
+
+vi.mock('../keycloak', () => ({ default: { login: vi.fn() } }))
 
 function makeStore(token) {
   return configureStore({
@@ -27,12 +31,11 @@ it('renders children when authenticated', () => {
   expect(screen.getByText('protected content')).toBeInTheDocument()
 })
 
-it('redirects to /login when not authenticated', () => {
+it('triggers Keycloak login when not authenticated', () => {
   render(
     <Provider store={makeStore(null)}>
       <MemoryRouter initialEntries={['/']}>
         <Routes>
-          <Route path="/login" element={<div>login page</div>} />
           <Route element={<ProtectedRoute />}>
             <Route path="/" element={<div>protected content</div>} />
           </Route>
@@ -40,5 +43,6 @@ it('redirects to /login when not authenticated', () => {
       </MemoryRouter>
     </Provider>
   )
-  expect(screen.getByText('login page')).toBeInTheDocument()
+  expect(keycloak.login).toHaveBeenCalled()
+  expect(screen.queryByText('protected content')).not.toBeInTheDocument()
 })
