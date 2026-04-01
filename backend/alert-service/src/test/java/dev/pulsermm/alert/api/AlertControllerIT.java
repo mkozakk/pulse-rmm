@@ -3,8 +3,6 @@ package dev.pulsermm.alert.api;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.pulsermm.alert.api.dto.CreateAlertRuleRequest;
 import dev.pulsermm.alert.api.dto.AlertRuleResponse;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.security.Keys;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -24,6 +22,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 
 @Testcontainers
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -58,7 +57,7 @@ class AlertControllerIT {
 
         var result = mvc.perform(post("/api/alert-rules")
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("Authorization", "Bearer " + mintJwt(UUID.randomUUID()))
+                .with(jwt().jwt(j -> j.subject(UUID.randomUUID().toString())))
                 .content(asJson(request)))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.id").exists())
@@ -88,7 +87,7 @@ class AlertControllerIT {
 
         mvc.perform(post("/api/alert-rules")
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("Authorization", "Bearer " + mintJwt(UUID.randomUUID()))
+                .with(jwt().jwt(j -> j.subject(UUID.randomUUID().toString())))
                 .content(asJson(request)))
             .andExpect(status().isBadRequest());
     }
@@ -100,7 +99,7 @@ class AlertControllerIT {
 
         mvc.perform(post("/api/alert-rules")
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("Authorization", "Bearer " + mintJwt(UUID.randomUUID()))
+                .with(jwt().jwt(j -> j.subject(UUID.randomUUID().toString())))
                 .content(asJson(request)))
             .andExpect(status().isBadRequest());
     }
@@ -112,7 +111,7 @@ class AlertControllerIT {
 
         mvc.perform(post("/api/alert-rules")
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("Authorization", "Bearer " + mintJwt(UUID.randomUUID()))
+                .with(jwt().jwt(j -> j.subject(UUID.randomUUID().toString())))
                 .content(asJson(request)))
             .andExpect(status().isBadRequest());
     }
@@ -124,7 +123,7 @@ class AlertControllerIT {
 
         mvc.perform(post("/api/alert-rules")
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("Authorization", "Bearer " + mintJwt(UUID.randomUUID()))
+                .with(jwt().jwt(j -> j.subject(UUID.randomUUID().toString())))
                 .content(asJson(request)))
             .andExpect(status().isBadRequest());
     }
@@ -136,7 +135,7 @@ class AlertControllerIT {
 
         mvc.perform(post("/api/alert-rules")
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("Authorization", "Bearer " + mintJwt(UUID.randomUUID()))
+                .with(jwt().jwt(j -> j.subject(UUID.randomUUID().toString())))
                 .content(asJson(request)))
             .andExpect(status().isBadRequest());
     }
@@ -157,7 +156,7 @@ class AlertControllerIT {
 
         mvc.perform(post("/api/alert-rules")
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("Authorization", "Bearer " + mintJwt(UUID.randomUUID()))
+                .with(jwt().jwt(j -> j.subject(UUID.randomUUID().toString())))
                 .content(asJson(request)))
             .andExpect(status().isCreated());
 
@@ -176,7 +175,7 @@ class AlertControllerIT {
 
         var createResult = mvc.perform(post("/api/alert-rules")
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("Authorization", "Bearer " + mintJwt(UUID.randomUUID()))
+                .with(jwt().jwt(j -> j.subject(UUID.randomUUID().toString())))
                 .content(asJson(createReq)))
             .andExpect(status().isCreated())
             .andReturn();
@@ -219,17 +218,8 @@ class AlertControllerIT {
     @Test
     void testAckAlertNotFound() throws Exception {
         mvc.perform(post("/api/alerts/" + UUID.randomUUID() + "/ack")
-                .header("Authorization", "Bearer " + mintJwt(UUID.randomUUID())))
+                .with(jwt().jwt(j -> j.subject(UUID.randomUUID().toString()))))
             .andExpect(status().isNotFound());
-    }
-
-    private String mintJwt(UUID userId) {
-        return Jwts.builder()
-            .subject(userId.toString())
-            .issuedAt(new Date())
-            .expiration(new Date(System.currentTimeMillis() + 3_600_000))
-            .signWith(Keys.hmacShaKeyFor(JWT_SECRET.getBytes(StandardCharsets.UTF_8)))
-            .compact();
     }
 
     private final ObjectMapper objectMapper = new ObjectMapper();

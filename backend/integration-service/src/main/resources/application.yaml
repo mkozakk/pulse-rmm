@@ -1,4 +1,10 @@
 spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${KEYCLOAK_URL:http://localhost:8180}/realms/pulse-rmm/protocol/openid-connect/certs
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8180/realms/pulse-rmm}
   application:
     name: integration-service
   threads:
@@ -31,8 +37,6 @@ spring:
     password: ${RABBITMQ_PASSWORD:guest}
 
 pulse:
-  jwt:
-    secret: ${JWT_SECRET:change-me-in-production-set-JWT_SECRET-env-var}
   webhooks:
     kek: ${WEBHOOK_SECRET_KEK}
     allow-http: ${WEBHOOKS_ALLOW_HTTP:false}

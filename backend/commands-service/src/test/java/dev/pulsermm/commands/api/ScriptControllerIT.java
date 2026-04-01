@@ -4,8 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.pulsermm.commands.api.dto.CreateScriptRequest;
 import dev.pulsermm.commands.api.dto.RunScriptRequest;
 import dev.pulsermm.commands.infrastructure.persistence.ScriptRepository;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.security.Keys;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,6 +24,7 @@ import java.util.UUID;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 
 @Testcontainers
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -67,7 +66,7 @@ class ScriptControllerIT {
         var request = new CreateScriptRequest("test-script", "echo hello");
         mvc.perform(post("/api/scripts")
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("Authorization", "Bearer " + mintJwt(UUID.randomUUID()))
+                .with(jwt().jwt(j -> j.subject(UUID.randomUUID().toString())))
                 .content(asJson(request)))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.id").exists());
@@ -78,7 +77,7 @@ class ScriptControllerIT {
         var request = new CreateScriptRequest("", "echo hello");
         mvc.perform(post("/api/scripts")
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("Authorization", "Bearer " + mintJwt(UUID.randomUUID()))
+                .with(jwt().jwt(j -> j.subject(UUID.randomUUID().toString())))
                 .content(asJson(request)))
             .andExpect(status().isBadRequest());
     }
@@ -88,7 +87,7 @@ class ScriptControllerIT {
         var request = new CreateScriptRequest("script1", "");
         mvc.perform(post("/api/scripts")
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("Authorization", "Bearer " + mintJwt(UUID.randomUUID()))
+                .with(jwt().jwt(j -> j.subject(UUID.randomUUID().toString())))
                 .content(asJson(request)))
             .andExpect(status().isBadRequest());
     }
@@ -105,14 +104,14 @@ class ScriptControllerIT {
     @Test
     void testGetScriptNotFound() throws Exception {
         mvc.perform(get("/api/scripts/" + UUID.randomUUID())
-                .header("Authorization", "Bearer " + mintJwt(UUID.randomUUID())))
+                .with(jwt().jwt(j -> j.subject(UUID.randomUUID().toString()))))
             .andExpect(status().isNotFound());
     }
 
     @Test
     void testListScriptsEmpty() throws Exception {
         mvc.perform(get("/api/scripts")
-                .header("Authorization", "Bearer " + mintJwt(UUID.randomUUID())))
+                .with(jwt().jwt(j -> j.subject(UUID.randomUUID().toString()))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.scripts").isArray())
             .andExpect(jsonPath("$.scripts.length()").value(0));
@@ -123,7 +122,7 @@ class ScriptControllerIT {
         var req = new CreateScriptRequest("test", "echo test");
         var createResp = mvc.perform(post("/api/scripts")
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("Authorization", "Bearer " + mintJwt(UUID.randomUUID()))
+                .with(jwt().jwt(j -> j.subject(UUID.randomUUID().toString())))
                 .content(asJson(req)))
             .andExpect(status().isCreated())
             .andReturn();
@@ -134,12 +133,12 @@ class ScriptControllerIT {
 
         // Approve once
         mvc.perform(post("/api/scripts/" + scriptUUID + "/approve")
-                .header("Authorization", "Bearer " + mintJwt(UUID.randomUUID())))
+                .with(jwt().jwt(j -> j.subject(UUID.randomUUID().toString()))))
             .andExpect(status().isOk());
 
         // Try to approve again
         mvc.perform(post("/api/scripts/" + scriptUUID + "/approve")
-                .header("Authorization", "Bearer " + mintJwt(UUID.randomUUID())))
+                .with(jwt().jwt(j -> j.subject(UUID.randomUUID().toString()))))
             .andExpect(status().isConflict());
     }
 
@@ -148,14 +147,14 @@ class ScriptControllerIT {
         var createReq = new CreateScriptRequest("test", "echo");
         mvc.perform(post("/api/scripts")
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("Authorization", "Bearer " + mintJwt(UUID.randomUUID()))
+                .with(jwt().jwt(j -> j.subject(UUID.randomUUID().toString())))
                 .content(asJson(createReq)))
             .andExpect(status().isCreated());
 
         var runReq = new RunScriptRequest(List.of(), null);
         mvc.perform(post("/api/scripts/" + UUID.randomUUID() + "/run")
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("Authorization", "Bearer " + mintJwt(UUID.randomUUID()))
+                .with(jwt().jwt(j -> j.subject(UUID.randomUUID().toString())))
                 .content(asJson(runReq)))
             .andExpect(status().isBadRequest());
     }
@@ -163,17 +162,8 @@ class ScriptControllerIT {
     @Test
     void testRunResultsNotFound() throws Exception {
         mvc.perform(get("/api/scripts/runs/" + UUID.randomUUID() + "/results")
-                .header("Authorization", "Bearer " + mintJwt(UUID.randomUUID())))
+                .with(jwt().jwt(j -> j.subject(UUID.randomUUID().toString()))))
             .andExpect(status().isNotFound());
-    }
-
-    private String mintJwt(UUID userId) {
-        return Jwts.builder()
-            .subject(userId.toString())
-            .issuedAt(new Date())
-            .expiration(new Date(System.currentTimeMillis() + 3_600_000))
-            .signWith(Keys.hmacShaKeyFor(JWT_SECRET.getBytes(StandardCharsets.UTF_8)))
-            .compact();
     }
 
     private String asJson(Object obj) throws Exception {

@@ -8,6 +8,12 @@ grpc:
     port: -1
 
 spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${KEYCLOAK_URL:http://localhost:8180}/realms/pulse-rmm/protocol/openid-connect/certs
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8180/realms/pulse-rmm}
   application:
     name: endpoint-service
   servlet:
@@ -41,10 +47,8 @@ spring:
     password: ${RABBITMQ_PASSWORD:guest}
 
 pulse:
-  jwt:
-    secret: ${JWT_SECRET:change-me-in-production}
   identity:
-    url: ${IDENTITY_SERVICE_URL:http://localhost:8083}
+    url: ${RBAC_SERVICE_URL:http://rbac-service:8083}
     internal-secret: ${INTERNAL_API_SECRET:change-me-in-production}
   api:
     url: ${PULSE_API_URL:http://localhost:8080}

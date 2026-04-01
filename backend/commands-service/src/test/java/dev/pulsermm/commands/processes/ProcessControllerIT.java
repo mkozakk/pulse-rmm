@@ -2,8 +2,6 @@ package dev.pulsermm.commands.processes;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.pulsermm.commands.processes.infrastructure.ProcessSnapshotRepository;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.security.Keys;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,6 +21,7 @@ import java.util.UUID;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 
 @Testcontainers
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -63,7 +62,7 @@ class ProcessControllerIT {
     void refreshReturns201AndInsertsPendingSnapshot() throws Exception {
         UUID endpointId = UUID.randomUUID();
         mvc.perform(post("/api/endpoints/" + endpointId + "/processes/refresh")
-                .header("Authorization", "Bearer " + mintJwt(UUID.randomUUID())))
+                .with(jwt().jwt(j -> j.subject(UUID.randomUUID().toString()))))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.commandId").exists());
 
@@ -83,7 +82,7 @@ class ProcessControllerIT {
     void latestReturnsCompletedSnapshotAfterAck() throws Exception {
         UUID endpointId = UUID.randomUUID();
         var resp = mvc.perform(post("/api/endpoints/" + endpointId + "/processes/refresh")
-                .header("Authorization", "Bearer " + mintJwt(UUID.randomUUID())))
+                .with(jwt().jwt(j -> j.subject(UUID.randomUUID().toString()))))
             .andExpect(status().isCreated())
             .andReturn();
         var commandId = new ObjectMapper().readTree(resp.getResponse().getContentAsString())
@@ -99,7 +98,7 @@ class ProcessControllerIT {
             .andExpect(status().isNoContent());
 
         mvc.perform(get("/api/endpoints/" + endpointId + "/processes/latest")
-                .header("Authorization", "Bearer " + mintJwt(UUID.randomUUID())))
+                .with(jwt().jwt(j -> j.subject(UUID.randomUUID().toString()))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.status").value("COMPLETED"))
             .andExpect(jsonPath("$.processes[0].pid").value(42))
@@ -109,7 +108,7 @@ class ProcessControllerIT {
     @Test
     void latestReturns404WhenNoSnapshot() throws Exception {
         mvc.perform(get("/api/endpoints/" + UUID.randomUUID() + "/processes/latest")
-                .header("Authorization", "Bearer " + mintJwt(UUID.randomUUID())))
+                .with(jwt().jwt(j -> j.subject(UUID.randomUUID().toString()))))
             .andExpect(status().isNotFound());
     }
 
@@ -117,17 +116,8 @@ class ProcessControllerIT {
     void killReturns202() throws Exception {
         UUID endpointId = UUID.randomUUID();
         mvc.perform(post("/api/endpoints/" + endpointId + "/processes/1234/kill")
-                .header("Authorization", "Bearer " + mintJwt(UUID.randomUUID())))
+                .with(jwt().jwt(j -> j.subject(UUID.randomUUID().toString()))))
             .andExpect(status().isAccepted())
             .andExpect(jsonPath("$.commandId").exists());
-    }
-
-    private String mintJwt(UUID userId) {
-        return Jwts.builder()
-            .subject(userId.toString())
-            .issuedAt(new Date())
-            .expiration(new Date(System.currentTimeMillis() + 3_600_000))
-            .signWith(Keys.hmacShaKeyFor(JWT_SECRET.getBytes(StandardCharsets.UTF_8)))
-            .compact();
     }
 }

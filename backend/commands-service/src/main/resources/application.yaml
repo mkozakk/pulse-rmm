@@ -1,4 +1,10 @@
 spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${KEYCLOAK_URL:http://localhost:8180}/realms/pulse-rmm/protocol/openid-connect/certs
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8180/realms/pulse-rmm}
   application:
     name: commands-service
   jpa:
@@ -27,8 +33,6 @@ spring:
     password: ${RABBITMQ_PASSWORD:guest}
 
 pulse:
-  jwt:
-    secret: ${JWT_SECRET:change-me-in-production-set-JWT_SECRET-env-var}
   gateway:
     url: ${GATEWAY_URL:http://localhost:8080}
   script:

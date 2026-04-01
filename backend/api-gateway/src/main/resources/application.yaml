@@ -8,6 +8,12 @@ grpc:
     port: 9090
 
 spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${KEYCLOAK_URL:http://localhost:8180}/realms/pulse-rmm/protocol/openid-connect/certs
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8180/realms/pulse-rmm}
   application:
     name: api-gateway
   threads:
@@ -26,10 +32,10 @@ spring:
       server:
         webmvc:
           routes:
-          - id: identity
-            uri: ${IDENTITY_SERVICE_URL:http://localhost:8083}
+          - id: rbac
+            uri: ${RBAC_SERVICE_URL:http://localhost:8083}
             predicates:
-              - Path=/api/auth/**,/api/identity/**
+              - Path=/api/identity/**
           - id: enrolment
             uri: ${ENDPOINT_SERVICE_URL:http://localhost:8081}
             predicates:
@@ -100,10 +106,8 @@ spring:
               - Path=/api/webhooks/**
 
 pulse:
-  jwt:
-    secret: ${JWT_SECRET:change-me-in-production-set-JWT_SECRET-env-var}
   identity:
-    url: ${IDENTITY_SERVICE_URL:http://identity-service:8083}
+    url: ${RBAC_SERVICE_URL:http://rbac-service:8083}
     internal-secret: ${INTERNAL_API_SECRET:change-me-in-production-set-INTERNAL_API_SECRET-env-var}
   mtls:
     cert-dir: ${PULSE_MTLS_CERT_DIR:/var/lib/api-gateway/tls}
