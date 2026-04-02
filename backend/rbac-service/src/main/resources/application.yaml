@@ -43,6 +43,12 @@ spring:
           jwk-set-uri: ${KEYCLOAK_URL:http://localhost:8180}/realms/pulse-rmm/protocol/openid-connect/certs
           issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8180/realms/pulse-rmm}
 
+keycloak:
+  url: ${KEYCLOAK_URL:http://keycloak:8080}
+  admin:
+    username: ${KEYCLOAK_ADMIN}
+    password: ${KEYCLOAK_ADMIN_PASSWORD}
+
 pulse:
   internal:
     secret: ${INTERNAL_API_SECRET}
