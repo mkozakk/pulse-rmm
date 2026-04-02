@@ -49,7 +49,7 @@ services:
     depends_on:
       <<: *app-deps
       keycloak:
-        condition: service_started
+        condition: service_healthy
       ca-service:
         condition: service_healthy
       rbac-service:
@@ -84,6 +84,8 @@ services:
       RABBITMQ_PORT: 5672
       RABBITMQ_USER: ${RABBITMQ_USER}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
     networks:
       - private
     healthcheck:
@@ -363,9 +365,37 @@ services:
       - private
     ports:
       - "8180:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/9000 && printf \"GET /health/ready HTTP/1.0\\r\\nHost: 127.0.0.1\\r\\n\\r\\n\" >&3 && timeout 2 cat <&3 | grep -q UP'"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 60s
     depends_on:
       keycloak-schema-init:
         condition: service_completed_successfully
+
+  keycloak-user-init:
+    image: docker.io/library/alpine:3.20
+    command: ["sh", "-c", "apk add --no-cache curl jq >/dev/null && sh /init.sh"]
+    environment:
+      KEYCLOAK_URL: ${KEYCLOAK_URL}
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      ADMIN_USERNAME: ${ADMIN_USERNAME}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
+      RBAC_SERVICE_URL: http://rbac-service:8083
+    volumes:
+      - ./keycloak-user-init.sh:/init.sh:ro,Z
+    networks:
+      - private
+    restart: "no"
+    depends_on:
+      keycloak:
+        condition: service_healthy
+      rbac-service:
+        condition: service_healthy
 
   keycloak-schema-init:
     image: docker.io/timescale/timescaledb:2.14.1-pg16
