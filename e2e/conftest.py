@@ -6,7 +6,10 @@ import time
 import pytest
 import requests
 
-from config import BASE_URL, ADMIN_USERNAME, ADMIN_PASSWORD, AGENT_IMAGE, E2E_NETWORK
+from config import (
+    BASE_URL, ADMIN_USERNAME, ADMIN_PASSWORD, ADMIN_ID, AGENT_IMAGE, E2E_NETWORK,
+    KEYCLOAK_URL, KEYCLOAK_REALM, KEYCLOAK_E2E_CLIENT,
+)
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -22,6 +25,19 @@ def _wait_for_gateway(timeout=90):
             pass
         time.sleep(2)
     raise RuntimeError(f"Gateway not healthy after {timeout}s")
+
+
+def _wait_for_keycloak(timeout=120):
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            r = requests.get(f"{KEYCLOAK_URL}/realms/{KEYCLOAK_REALM}", timeout=3)
+            if r.status_code == 200:
+                return
+        except requests.ConnectionError:
+            pass
+        time.sleep(2)
+    raise RuntimeError(f"Keycloak realm not ready after {timeout}s")
 
 
 def _wait_for_enrolment(container_id, timeout=20):
@@ -98,8 +114,8 @@ def pytest_runtest_makereport(item, call):
         print(f"LOGS FOR FAILED TEST: {item.nodeid}")
         print("="*80)
 
-        services = ["api-gateway", "identity-service", "enrolment-service",
-                   "metric-service", "script-service"]
+        services = ["api-gateway", "rbac-service", "keycloak", "endpoint-service",
+                   "metric-service", "commands-service"]
         for service in services:
             logs = _get_container_logs(service)
             if logs:
@@ -110,39 +126,33 @@ def pytest_runtest_makereport(item, call):
 
 @pytest.fixture(scope="session")
 def registered_user():
-    """Register a new admin user; assumes clean database."""
+    """The admin user is provisioned by the Keycloak realm import, not registered."""
     print(f"\n[setup] waiting for gateway at {BASE_URL}...")
     _wait_for_gateway()
-    print(f"[setup] registering user '{ADMIN_USERNAME}'...")
-    r = requests.post(
-        f"{BASE_URL}/api/auth/register",
-        json={"username": ADMIN_USERNAME, "password": ADMIN_PASSWORD},
-    )
-    if r.status_code == 409:
-        raise RuntimeError(
-            "Registration returned 409 — database not clean.\n"
-            "Run: make e2e-down"
-        )
-    assert r.status_code == 201, f"Registration failed: {r.status_code} {r.text}"
-    user_id = r.json()["id"]
-    print(f"[setup] registered: {user_id}")
-    return {"id": user_id, "username": ADMIN_USERNAME}
+    print(f"[setup] waiting for Keycloak at {KEYCLOAK_URL}...")
+    _wait_for_keycloak()
+    return {"id": ADMIN_ID, "username": ADMIN_USERNAME}
 
 
 @pytest.fixture(scope="session")
 def admin_session(registered_user):
-    """Log in and return authenticated session."""
-    print(f"[setup] logging in as '{ADMIN_USERNAME}'...")
-    session = requests.Session()
-    r = session.post(
-        f"{BASE_URL}/api/auth/login",
-        json={"username": ADMIN_USERNAME, "password": ADMIN_PASSWORD},
+    """Obtain a token via Keycloak direct grant and return an authenticated session."""
+    print(f"[setup] requesting token for '{ADMIN_USERNAME}' from Keycloak...")
+    r = requests.post(
+        f"{KEYCLOAK_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/token",
+        data={
+            "grant_type": "password",
+            "client_id": KEYCLOAK_E2E_CLIENT,
+            "username": ADMIN_USERNAME,
+            "password": ADMIN_PASSWORD,
+        },
     )
-    assert r.status_code == 200, r.text
-    token = r.json()["accessToken"]
+    assert r.status_code == 200, f"Keycloak token request failed: {r.status_code} {r.text}"
+    token = r.json()["access_token"]
+    session = requests.Session()
     session.headers.update({"Authorization": f"Bearer {token}"})
     session.token = token
-    print(f"[setup] logged in, token: {token[:20]}...")
+    print(f"[setup] got token: {token[:20]}...")
     return session
 
 
