@@ -30,17 +30,24 @@ public class SseBroadcaster {
 
     @EventListener
     public void onAlertFired(AlertFiredEvent event) {
-        AlertEventResponse payload = AlertEventResponse.from(event.getAlertEvent());
+        broadcast("alert", AlertEventResponse.from(event.getAlertEvent()));
+    }
+
+    public void broadcastNotification(NotificationPayload payload) {
+        broadcast("notification", payload);
+    }
+
+    private void broadcast(String eventName, Object data) {
         List<SseEmitter> dead = new ArrayList<>();
         for (SseEmitter emitter : emitters) {
             try {
-                emitter.send(SseEmitter.event().name("alert").data(payload));
+                emitter.send(SseEmitter.event().name(eventName).data(data));
             } catch (Exception e) {
                 dead.add(emitter);
             }
         }
         emitters.removeAll(dead);
-        log.debug("SSE: broadcast alert to {} clients", emitters.size());
+        log.debug("SSE: broadcast {} to {} clients", eventName, emitters.size());
     }
 
     @Scheduled(fixedDelay = 15_000)
