@@ -99,10 +99,6 @@ public class ScriptService {
                                    java.util.Map<String, String> secrets, UUID initiatedBy) {
         var script = getScriptById(scriptId);
 
-        if (!script.isApproved()) {
-            throw new ScriptNotApprovedException("Script is not approved: " + scriptId);
-        }
-
         var run = new ScriptRun(scriptId, initiatedBy);
         var savedRun = scriptRunRepository.save(run);
 

@@ -31,6 +31,17 @@ public class DomainEventConsumer {
             case "endpoint.enrolled" -> "Endpoint enrolled: " + event.data().getOrDefault("hostname", "unknown");
             case "endpoint.online" -> "Endpoint came online: " + event.data().getOrDefault("endpointId", "unknown");
             case "endpoint.offline" -> "Endpoint went offline: " + event.data().getOrDefault("endpointId", "unknown");
+            case "script.result" -> {
+                var exitCode = event.data().getOrDefault("exitCode", "?");
+                var endpointId = event.data().getOrDefault("endpointId", "unknown");
+                yield "Script result on " + endpointId + ": exit code " + exitCode;
+            }
+            case "software.command.completed" -> {
+                var action = event.data().getOrDefault("action", "command");
+                var exitCode = event.data().getOrDefault("exitCode", "?");
+                var endpointId = event.data().getOrDefault("endpointId", "unknown");
+                yield "Software " + action + " on " + endpointId + ": exit code " + exitCode;
+            }
             default -> {
                 // audit.* events: action is the suffix
                 String action = event.data().getOrDefault("action", event.type()).toString();
