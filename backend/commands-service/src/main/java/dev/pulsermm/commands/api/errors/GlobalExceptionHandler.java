@@ -1,6 +1,7 @@
 package dev.pulsermm.commands.api.errors;
 
 import dev.pulsermm.commands.application.ScriptAlreadyApprovedException;
+import dev.pulsermm.commands.application.ScriptNotApprovedException;
 import dev.pulsermm.commands.application.ScriptNotFoundException;
 import dev.pulsermm.commands.application.ScriptRunNotFoundException;
 import dev.pulsermm.commands.application.ScriptRunResultNotFoundException;
@@ -25,6 +26,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleScriptAlreadyApproved(ScriptAlreadyApprovedException ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(new ErrorResponse("SCRIPT_ALREADY_APPROVED", ex.getMessage()));
+    }
+
+    @ExceptionHandler(ScriptNotApprovedException.class)
+    public ResponseEntity<ErrorResponse> handleScriptNotApproved(ScriptNotApprovedException ex) {
+        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
+                .body(new ErrorResponse("SCRIPT_NOT_APPROVED", ex.getMessage()));
     }
 
     @ExceptionHandler(ScriptRunNotFoundException.class)

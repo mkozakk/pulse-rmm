@@ -2,6 +2,8 @@ package dev.pulsermm.commands.software.application;
 
 import dev.pulsermm.common.audit.Auditable;
 import dev.pulsermm.common.audit.EndpointId;
+import dev.pulsermm.common.events.DomainEvent;
+import dev.pulsermm.common.events.DomainEventPublisher;
 import dev.pulsermm.commands.software.domain.SoftwareCommand;
 import dev.pulsermm.commands.software.domain.SoftwareItem;
 import dev.pulsermm.commands.infrastructure.GatewayClient;
@@ -13,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -21,12 +24,14 @@ public class SoftwareService {
     private final SoftwareCommandRepository softwareCommandRepository;
     private final GatewayClient gatewayClient;
     private final EntityManager entityManager;
+    private final DomainEventPublisher domainEventPublisher;
 
-    public SoftwareService(SoftwareItemRepository softwareItemRepository, SoftwareCommandRepository softwareCommandRepository, GatewayClient gatewayClient, EntityManager entityManager) {
+    public SoftwareService(SoftwareItemRepository softwareItemRepository, SoftwareCommandRepository softwareCommandRepository, GatewayClient gatewayClient, EntityManager entityManager, DomainEventPublisher domainEventPublisher) {
         this.softwareItemRepository = softwareItemRepository;
         this.softwareCommandRepository = softwareCommandRepository;
         this.gatewayClient = gatewayClient;
         this.entityManager = entityManager;
+        this.domainEventPublisher = domainEventPublisher;
     }
 
     @Transactional
@@ -84,6 +89,13 @@ public class SoftwareService {
         var cmd = softwareCommandRepository.findById(commandId).orElseThrow();
         cmd.complete(exitCode, output);
         softwareCommandRepository.save(cmd);
+
+        domainEventPublisher.publish(DomainEvent.of("software.command.completed", Map.of(
+                "commandId", commandId.toString(),
+                "endpointId", cmd.endpointId().toString(),
+                "action", cmd.action(),
+                "exitCode", exitCode
+        )));
     }
 
     @Transactional(readOnly = true)

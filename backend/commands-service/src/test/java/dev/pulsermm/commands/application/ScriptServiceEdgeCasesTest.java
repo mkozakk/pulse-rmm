@@ -4,14 +4,15 @@ import dev.pulsermm.commands.api.dto.CreateScriptRequest;
 import dev.pulsermm.commands.domain.Script;
 import dev.pulsermm.commands.domain.ScriptRun;
 import dev.pulsermm.commands.domain.ScriptRunResult;
-import dev.pulsermm.commands.infrastructure.GatewayClient;
 import dev.pulsermm.commands.infrastructure.persistence.ScriptRepository;
 import dev.pulsermm.commands.infrastructure.persistence.ScriptRunRepository;
 import dev.pulsermm.commands.infrastructure.persistence.ScriptRunResultRepository;
 import dev.pulsermm.commands.infrastructure.persistence.ScriptSecretRepository;
 import dev.pulsermm.commands.infrastructure.security.ScriptSecretEncryptor;
+import dev.pulsermm.common.events.DomainEventPublisher;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 
@@ -30,7 +31,8 @@ class ScriptServiceEdgeCasesTest {
     private ScriptRunResultRepository resultRepo;
     private ScriptSecretRepository secretRepo;
     private ScriptSecretEncryptor encryptor;
-    private GatewayClient gatewayClient;
+    private RabbitTemplate rabbitTemplate;
+    private DomainEventPublisher domainEventPublisher;
     private ScriptService service;
 
     @BeforeEach
@@ -39,11 +41,12 @@ class ScriptServiceEdgeCasesTest {
         runRepo = mock(ScriptRunRepository.class);
         resultRepo = mock(ScriptRunResultRepository.class);
         secretRepo = mock(ScriptSecretRepository.class);
-        gatewayClient = mock(GatewayClient.class);
+        rabbitTemplate = mock(RabbitTemplate.class);
+        domainEventPublisher = mock(DomainEventPublisher.class);
 
         encryptor = new ScriptSecretEncryptor();
 
-        service = new ScriptService(scriptRepo, runRepo, resultRepo, secretRepo, encryptor, "test-secret-key-1234567", gatewayClient, "http://localhost:8084");
+        service = new ScriptService(scriptRepo, runRepo, resultRepo, secretRepo, encryptor, "test-secret-key-1234567", rabbitTemplate, domainEventPublisher, "http://localhost:8084");
     }
 
     @Test
