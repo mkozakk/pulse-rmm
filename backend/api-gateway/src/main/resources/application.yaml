@@ -104,6 +104,10 @@ spring:
             uri: ${INTEGRATION_SERVICE_URL:http://localhost:8091}
             predicates:
               - Path=/api/webhooks/**
+          - id: deliveries
+            uri: ${INTEGRATION_SERVICE_URL:http://localhost:8091}
+            predicates:
+              - Path=/api/deliveries/**
 
 pulse:
   identity:

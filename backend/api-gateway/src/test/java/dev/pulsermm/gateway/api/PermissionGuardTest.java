@@ -109,6 +109,46 @@ class PermissionGuardTest {
         assertThat(guard.canManageStructure(authWith(userId))).isFalse();
     }
 
+    @Test
+    void canViewEndpointWithCorrectGroupScope() {
+        UUID userId = UUID.randomUUID();
+        UUID endpointId = UUID.randomUUID();
+        UUID groupId = UUID.randomUUID();
+        PermissionGuard guard = new PermissionGuard(identityClient);
+
+        when(identityClient.getPermissions(userId.toString()))
+            .thenReturn(List.of(new ResolvedPermission("endpoint:view", groupId)));
+        when(identityClient.getEndpointGroup(endpointId.toString()))
+            .thenReturn(Optional.of(groupId));
+
+        assertThat(guard.canViewEndpoint(authWith(userId), endpointId.toString())).isTrue();
+    }
+
+    @Test
+    void cannotViewEndpointInDifferentGroup() {
+        UUID userId = UUID.randomUUID();
+        UUID endpointId = UUID.randomUUID();
+        PermissionGuard guard = new PermissionGuard(identityClient);
+
+        when(identityClient.getPermissions(userId.toString()))
+            .thenReturn(List.of(new ResolvedPermission("endpoint:view", UUID.randomUUID())));
+        when(identityClient.getEndpointGroup(endpointId.toString()))
+            .thenReturn(Optional.of(UUID.randomUUID()));
+
+        assertThat(guard.canViewEndpoint(authWith(userId), endpointId.toString())).isFalse();
+    }
+
+    @Test
+    void canManageIntegrationsWithPermission() {
+        UUID userId = UUID.randomUUID();
+        PermissionGuard guard = new PermissionGuard(identityClient);
+
+        when(identityClient.getPermissions(userId.toString()))
+            .thenReturn(List.of(new ResolvedPermission("integration:manage", null)));
+
+        assertThat(guard.canManageIntegrations(authWith(userId))).isTrue();
+    }
+
     private Authentication authWith(UUID userId) {
         Jwt jwt = Jwt.withTokenValue("token")
             .header("alg", "none")
