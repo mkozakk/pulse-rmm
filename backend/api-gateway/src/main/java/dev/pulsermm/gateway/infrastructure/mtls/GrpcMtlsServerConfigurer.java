@@ -40,6 +40,9 @@ public class GrpcMtlsServerConfigurer {
                 ReloadableKeyManagerFactory kmf = new ReloadableKeyManagerFactory(keyManager);
                 SslContextBuilder builder = SslContextBuilder.forServer(kmf)
                     .trustManager(b.caFile())
+                    // OPTIONAL so the TLS handshake succeeds for first-boot Enrol RPCs
+                    // (agent has no cert yet). MtlsAuthInterceptor rejects non-Enrol RPCs
+                    // that arrive without a valid cert.
                     .clientAuth(ClientAuth.OPTIONAL)
                     .sslProvider(SslProvider.JDK);
                 netty.sslContext(GrpcSslContexts.configure(builder, SslProvider.JDK).build());
