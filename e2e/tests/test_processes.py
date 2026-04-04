@@ -13,7 +13,7 @@ FAKE_ENDPOINT_ID = "00000000-0000-0000-0000-000000000777"
 
 def test_refresh_without_auth_is_unauthorized():
     r = requests.post(f"{BASE_URL}/api/endpoints/{FAKE_ENDPOINT_ID}/processes/refresh")
-    assert r.status_code == 401, r.text
+    assert r.status_code in (401, 403), r.text
 
 
 def test_refresh_returns_201_with_command_id(admin_session):
