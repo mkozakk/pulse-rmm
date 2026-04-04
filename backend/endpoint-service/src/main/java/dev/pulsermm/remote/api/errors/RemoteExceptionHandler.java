@@ -1,5 +1,6 @@
 package dev.pulsermm.remote.api.errors;
 
+import dev.pulsermm.remote.application.ForbiddenException;
 import dev.pulsermm.remote.application.SessionNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -9,6 +10,12 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice
 public class RemoteExceptionHandler {
+
+    @ExceptionHandler(ForbiddenException.class)
+    public ResponseEntity<ErrorResponse> handleForbidden(ForbiddenException ex) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+            .body(new ErrorResponse("FORBIDDEN", ex.getMessage()));
+    }
 
     @ExceptionHandler(SessionNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleNotFound(SessionNotFoundException ex) {
