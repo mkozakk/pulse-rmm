@@ -35,6 +35,11 @@ services:
       RABBITMQ_USER: ${RABBITMQ_USER}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
       PULSE_CA_URL: http://ca-service:8089
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      RATE_LIMIT_CAPACITY: ${RATE_LIMIT_CAPACITY}
+      RATE_LIMIT_REFILL_TOKENS: ${RATE_LIMIT_REFILL_TOKENS}
+      RATE_LIMIT_REFILL_SECONDS: ${RATE_LIMIT_REFILL_SECONDS}
     volumes:
       - api_gateway_tls:/var/lib/api-gateway/tls
     networks:
@@ -339,10 +344,10 @@ services:
     networks:
       - private
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      test: ["CMD-SHELL", "PGPASSWORD=$POSTGRES_PASSWORD psql -U $POSTGRES_USER -d $POSTGRES_DB -c 'SELECT 1' > /dev/null 2>&1"]
       interval: 5s
       timeout: 2s
-      retries: 3
+      retries: 5
 
   keycloak:
     image: quay.io/keycloak/keycloak:25.0
@@ -438,6 +443,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 3
+      start_period: 60s
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
 
