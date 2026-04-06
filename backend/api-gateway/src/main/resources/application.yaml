@@ -40,6 +40,10 @@ spring:
             uri: ${RBAC_SERVICE_URL:http://localhost:8083}
             predicates:
               - Path=/api/identity/**
+          - id: organizations
+            uri: ${RBAC_SERVICE_URL:http://localhost:8083}
+            predicates:
+              - Path=/api/organizations/**
           - id: enrolment
             uri: ${ENDPOINT_SERVICE_URL:http://localhost:8081}
             predicates:
@@ -121,6 +125,8 @@ pulse:
   identity:
     url: ${RBAC_SERVICE_URL:http://rbac-service:8083}
     internal-secret: ${INTERNAL_API_SECRET:change-me-in-production-set-INTERNAL_API_SECRET-env-var}
+  endpoint:
+    url: ${ENDPOINT_SERVICE_URL:http://endpoint-service:8081}
   mtls:
     cert-dir: ${PULSE_MTLS_CERT_DIR:/var/lib/api-gateway/tls}
     gateway-cn: ${PULSE_MTLS_GATEWAY_CN:api-gateway}
