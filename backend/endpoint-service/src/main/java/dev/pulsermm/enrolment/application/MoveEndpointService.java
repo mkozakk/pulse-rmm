@@ -28,8 +28,12 @@ public class MoveEndpointService {
     public void move(UUID endpointId, UUID newGroupId) {
         Endpoint endpoint = endpointRepository.findById(endpointId)
             .orElseThrow(() -> new IllegalArgumentException("Endpoint not found: " + endpointId));
-        if (!groupRepository.existsById(newGroupId)) {
-            throw new IllegalArgumentException("Group not found: " + newGroupId);
+        var target = groupRepository.findById(newGroupId)
+            .orElseThrow(() -> new IllegalArgumentException("Group not found: " + newGroupId));
+        var current = groupRepository.findById(endpoint.getGroupId()).orElse(null);
+        UUID currentOrg = current != null ? current.getOrgId() : null;
+        if (!java.util.Objects.equals(currentOrg, target.getOrgId())) {
+            throw new CrossOrgMoveException("Cannot move endpoint across organizations");
         }
         endpoint.setGroupId(newGroupId);
         endpointRepository.save(endpoint);

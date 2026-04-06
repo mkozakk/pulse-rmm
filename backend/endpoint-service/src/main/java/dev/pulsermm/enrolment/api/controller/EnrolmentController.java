@@ -5,6 +5,7 @@ import dev.pulsermm.enrolment.api.dto.EndpointResponse;
 import dev.pulsermm.enrolment.api.dto.MoveEndpointRequest;
 import dev.pulsermm.enrolment.api.dto.SetTagsRequest;
 import dev.pulsermm.enrolment.api.dto.TokenResponse;
+import dev.pulsermm.enrolment.application.GroupService;
 import dev.pulsermm.enrolment.application.MoveEndpointService;
 import dev.pulsermm.enrolment.application.TagService;
 import dev.pulsermm.enrolment.application.TokenService;
@@ -44,19 +45,28 @@ public class EnrolmentController {
     private final TagService tagService;
     private final JdbcTemplate jdbcTemplate;
     private final EndpointRevocationRepository revocationRepository;
+    private final GroupService groupService;
 
     public EnrolmentController(TokenService tokenService,
                                 EndpointRepository endpointRepository,
                                 MoveEndpointService moveEndpointService,
                                 TagService tagService,
                                 JdbcTemplate jdbcTemplate,
-                                EndpointRevocationRepository revocationRepository) {
+                                EndpointRevocationRepository revocationRepository,
+                                GroupService groupService) {
         this.tokenService = tokenService;
         this.endpointRepository = endpointRepository;
         this.moveEndpointService = moveEndpointService;
         this.tagService = tagService;
         this.jdbcTemplate = jdbcTemplate;
         this.revocationRepository = revocationRepository;
+        this.groupService = groupService;
+    }
+
+    // Org-scoped callers (header present) only see endpoints whose group belongs to their org.
+    // Global admin (header absent → orgId null) sees everything.
+    private boolean visible(UUID orgId, Endpoint endpoint) {
+        return orgId == null || orgId.equals(groupService.orgOf(endpoint.getGroupId()));
     }
 
     record RevokeRequest(String reason) {}
@@ -69,11 +79,13 @@ public class EnrolmentController {
     public ResponseEntity<Void> revokeEndpoint(
             @PathVariable UUID id,
             @RequestBody(required = false) RevokeRequest request,
+            @RequestHeader(value = "X-User-Org-Id", required = false) UUID orgId,
             Authentication auth) {
         if (auth == null || !auth.isAuthenticated()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        if (endpointRepository.findById(id).isEmpty()) {
+        var endpoint = endpointRepository.findById(id);
+        if (endpoint.isEmpty() || !visible(orgId, endpoint.get())) {
             return ResponseEntity.notFound().build();
         }
         String reason = request != null ? request.reason() : null;
@@ -89,9 +101,15 @@ public class EnrolmentController {
     @PostMapping("/api/enrolment/tokens")
     public ResponseEntity<TokenResponse> createToken(
             @Valid @RequestBody CreateTokenRequest request,
+            @RequestHeader(value = "X-User-Org-Id", required = false) UUID orgId,
             Authentication auth) {
         if (auth == null || !auth.isAuthenticated()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        // An org-scoped caller may only mint tokens for groups in their own org.
+        if (orgId != null && !orgId.equals(groupService.orgOf(request.groupId()))) {
+            return ResponseEntity.notFound().build();
         }
 
         var token = tokenService.createToken(request.groupId(), request.ttlHours());
@@ -110,14 +128,21 @@ public class EnrolmentController {
     @GetMapping("/api/endpoints")
     public ResponseEntity<List<EndpointResponse>> listEndpoints(
             @RequestParam(required = false) List<String> tag,
+            @RequestHeader(value = "X-User-Org-Id", required = false) UUID orgId,
             Authentication auth) {
         if (auth == null || !auth.isAuthenticated()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
 
-        List<Endpoint> endpoints = (tag == null || tag.isEmpty())
-            ? endpointRepository.findAll()
-            : filterByTags(tag);
+        List<Endpoint> endpoints;
+        if (tag == null || tag.isEmpty()) {
+            endpoints = orgId == null ? endpointRepository.findAll() : endpointRepository.findAllByOrg(orgId);
+        } else {
+            endpoints = filterByTags(tag);
+            if (orgId != null) {
+                endpoints = endpoints.stream().filter(e -> visible(orgId, e)).toList();
+            }
+        }
 
         return ResponseEntity.ok(endpoints.stream().map(EndpointResponse::from).toList());
     }
@@ -130,12 +155,14 @@ public class EnrolmentController {
     @GetMapping("/api/endpoints/{id}")
     public ResponseEntity<EndpointResponse> getEndpoint(
             @PathVariable UUID id,
+            @RequestHeader(value = "X-User-Org-Id", required = false) UUID orgId,
             Authentication auth) {
         if (auth == null || !auth.isAuthenticated()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
 
         return endpointRepository.findById(id)
+            .filter(e -> visible(orgId, e))
             .map(EndpointResponse::from)
             .map(ResponseEntity::ok)
             .orElse(ResponseEntity.notFound().build());
@@ -172,9 +199,14 @@ public class EnrolmentController {
     public ResponseEntity<Void> setTags(
             @PathVariable UUID id,
             @RequestBody SetTagsRequest request,
+            @RequestHeader(value = "X-User-Org-Id", required = false) UUID orgId,
             Authentication auth) {
         if (auth == null || !auth.isAuthenticated()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        var endpoint = endpointRepository.findById(id);
+        if (endpoint.isEmpty() || !visible(orgId, endpoint.get())) {
+            return ResponseEntity.notFound().build();
         }
         tagService.setTags(id, request.tags());
         return ResponseEntity.ok().build();
@@ -187,9 +219,14 @@ public class EnrolmentController {
     public ResponseEntity<Void> moveEndpoint(
             @PathVariable UUID id,
             @RequestBody MoveEndpointRequest request,
+            @RequestHeader(value = "X-User-Org-Id", required = false) UUID orgId,
             Authentication auth) {
         if (auth == null || !auth.isAuthenticated()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        var endpoint = endpointRepository.findById(id);
+        if (endpoint.isEmpty() || !visible(orgId, endpoint.get())) {
+            return ResponseEntity.notFound().build();
         }
         moveEndpointService.move(id, request.groupId());
         return ResponseEntity.ok().build();

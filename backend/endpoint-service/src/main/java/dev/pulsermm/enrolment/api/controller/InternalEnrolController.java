@@ -3,12 +3,17 @@ package dev.pulsermm.enrolment.api.controller;
 import dev.pulsermm.enrolment.api.errors.InvalidTokenException;
 import dev.pulsermm.enrolment.application.EnrolService;
 import dev.pulsermm.enrolment.infrastructure.EndpointRepository;
+import dev.pulsermm.enrolment.infrastructure.GroupRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -24,10 +29,32 @@ public class InternalEnrolController {
 
     private final EnrolService enrolService;
     private final EndpointRepository endpointRepository;
+    private final GroupRepository groupRepository;
+    private final String internalSecret;
 
-    public InternalEnrolController(EnrolService enrolService, EndpointRepository endpointRepository) {
+    public InternalEnrolController(EnrolService enrolService,
+                                   EndpointRepository endpointRepository,
+                                   GroupRepository groupRepository,
+                                   @Value("${pulse.identity.internal-secret}") String internalSecret) {
         this.enrolService = enrolService;
         this.endpointRepository = endpointRepository;
+        this.groupRepository = groupRepository;
+        this.internalSecret = internalSecret;
+    }
+
+    // Resolves an endpoint's owning org (endpoint -> group -> org) for the gateway's chain validation.
+    // 204 = no org (global/unassigned group) or endpoint unknown.
+    @GetMapping("/endpoints/{id}/org")
+    public ResponseEntity<UUID> endpointOrg(
+            @PathVariable UUID id,
+            @RequestHeader(value = "X-Internal-Token", required = false) String token) {
+        if (!internalSecret.equals(token)) {
+            return ResponseEntity.status(403).build();
+        }
+        UUID orgId = endpointRepository.findById(id)
+            .map(e -> groupRepository.findById(e.getGroupId()).map(g -> g.getOrgId()).orElse(null))
+            .orElse(null);
+        return orgId == null ? ResponseEntity.noContent().build() : ResponseEntity.ok(orgId);
     }
 
     record EnrolRequest(String token, String publicKey, String hostname, String os, String arch, String csrPem) {}

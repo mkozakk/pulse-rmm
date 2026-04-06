@@ -17,6 +17,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 @Tag(name = "Groups", description = "Endpoint grouping")
 @SecurityRequirement(name = "bearerAuth")
@@ -38,11 +39,12 @@ public class GroupController {
     @PostMapping
     public ResponseEntity<GroupResponse> create(
             @Valid @RequestBody CreateGroupRequest request,
+            @RequestHeader(value = "X-User-Org-Id", required = false) UUID orgId,
             Authentication auth) {
         if (auth == null || !auth.isAuthenticated()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        GroupResponse created = groupService.create(request.name(), request.parentId());
+        GroupResponse created = groupService.create(request.name(), request.parentId(), orgId);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
@@ -51,10 +53,12 @@ public class GroupController {
         content = @Content(array = @ArraySchema(schema = @Schema(implementation = GroupResponse.class))))
     @ApiResponse(responseCode = "401", description = "Unauthorized")
     @GetMapping
-    public ResponseEntity<List<GroupResponse>> list(Authentication auth) {
+    public ResponseEntity<List<GroupResponse>> list(
+            @RequestHeader(value = "X-User-Org-Id", required = false) UUID orgId,
+            Authentication auth) {
         if (auth == null || !auth.isAuthenticated()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        return ResponseEntity.ok(groupService.listAll());
+        return ResponseEntity.ok(groupService.listForOrg(orgId));
     }
 }
