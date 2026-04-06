@@ -32,6 +32,12 @@ public class Script {
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt;
 
+    @Column(name = "org_id")
+    private UUID orgId;
+
+    @Column(name = "is_global", nullable = false)
+    private boolean isGlobal;
+
     public Script() {
     }
 
@@ -40,6 +46,11 @@ public class Script {
         this.body = body;
         this.createdBy = createdBy;
         this.createdAt = OffsetDateTime.now();
+    }
+
+    public Script(String name, String body, UUID createdBy, UUID orgId) {
+        this(name, body, createdBy);
+        this.orgId = orgId;
     }
 
     public UUID getId() {
@@ -88,6 +99,22 @@ public class Script {
 
     public void setCreatedAt(OffsetDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public UUID getOrgId() {
+        return orgId;
+    }
+
+    public void setOrgId(UUID orgId) {
+        this.orgId = orgId;
+    }
+
+    public boolean isGlobal() {
+        return isGlobal;
+    }
+
+    public void setGlobal(boolean isGlobal) {
+        this.isGlobal = isGlobal;
     }
 
     public boolean isApproved() {
