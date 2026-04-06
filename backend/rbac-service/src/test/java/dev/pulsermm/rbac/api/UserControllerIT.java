@@ -94,7 +94,7 @@ class UserControllerIT {
     @Test
     void listUsersReturnsOk() throws Exception {
         givenAdminPermissions();
-        var user = new KeycloakUser(USER_ID, "alice", "alice@test.com", "Alice", "Smith", true);
+        var user = new KeycloakUser(USER_ID, "alice", "alice@test.com", "Alice", "Smith", true, null);
         when(keycloakAdminClient.listUsers()).thenReturn(List.of(user));
 
         mvc.perform(get("/api/identity/users")
@@ -107,8 +107,8 @@ class UserControllerIT {
     @Test
     void createUserReturns201() throws Exception {
         givenAdminPermissions();
-        var user = new KeycloakUser(USER_ID, "bob", "bob@test.com", "Bob", "Builder", true);
-        when(keycloakAdminClient.createUser(any(), any(), any(), any(), any())).thenReturn(USER_ID);
+        var user = new KeycloakUser(USER_ID, "bob", "bob@test.com", "Bob", "Builder", true, null);
+        when(keycloakAdminClient.createUser(any(), any(), any(), any(), any(), any())).thenReturn(USER_ID);
         when(keycloakAdminClient.getUser(USER_ID)).thenReturn(user);
 
         mvc.perform(post("/api/identity/users")

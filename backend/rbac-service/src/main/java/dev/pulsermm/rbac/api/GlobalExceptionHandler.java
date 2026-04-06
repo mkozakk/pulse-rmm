@@ -48,4 +48,22 @@ public class GlobalExceptionHandler {
     public ErrorResponse handleForbidden(UserController.ForbiddenException ex) {
         return new ErrorResponse("forbidden", "Insufficient permissions");
     }
+
+    @ExceptionHandler(ForbiddenException.class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public ErrorResponse handleForbidden(ForbiddenException ex) {
+        return new ErrorResponse("forbidden", ex.getMessage());
+    }
+
+    @ExceptionHandler(NotFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public ErrorResponse handleNotFound(NotFoundException ex) {
+        return new ErrorResponse("not_found", ex.getMessage());
+    }
+
+    @ExceptionHandler(ConflictException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public ErrorResponse handleConflict(ConflictException ex) {
+        return new ErrorResponse("conflict", ex.getMessage());
+    }
 }
