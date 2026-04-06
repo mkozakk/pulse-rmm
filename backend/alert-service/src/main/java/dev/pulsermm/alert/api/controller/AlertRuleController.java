@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -41,9 +42,10 @@ public class AlertRuleController {
     @PostMapping
     public ResponseEntity<AlertRuleResponse> createRule(
             @Valid @RequestBody CreateAlertRuleRequest request,
-            Authentication authentication) {
+            Authentication authentication,
+            @RequestHeader(value = "X-User-Org-Id", required = false) UUID orgId) {
         var userId = UUID.fromString(authentication.getName());
-        var rule = alertRuleService.create(request, userId);
+        var rule = alertRuleService.create(request, userId, orgId);
         var response = AlertRuleResponse.from(rule);
         return ResponseEntity.created(URI.create("/api/alert-rules/" + rule.getId())).body(response);
     }
@@ -51,8 +53,9 @@ public class AlertRuleController {
     @Operation(summary = "List all alert rules")
     @ApiResponse(responseCode = "200", description = "Rules returned")
     @GetMapping
-    public ResponseEntity<List<AlertRuleResponse>> listRules() {
-        var rules = alertRuleService.list().stream()
+    public ResponseEntity<List<AlertRuleResponse>> listRules(
+            @RequestHeader(value = "X-User-Org-Id", required = false) UUID orgId) {
+        var rules = alertRuleService.list(orgId).stream()
                 .map(AlertRuleResponse::from)
                 .toList();
         return ResponseEntity.ok(rules);
@@ -62,8 +65,10 @@ public class AlertRuleController {
     @ApiResponse(responseCode = "204", description = "Deleted")
     @ApiResponse(responseCode = "404", description = "Rule not found")
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteRule(@PathVariable UUID id) {
-        alertRuleService.delete(id);
+    public ResponseEntity<Void> deleteRule(
+            @PathVariable UUID id,
+            @RequestHeader(value = "X-User-Org-Id", required = false) UUID orgId) {
+        alertRuleService.delete(id, orgId);
         return ResponseEntity.noContent().build();
     }
 }

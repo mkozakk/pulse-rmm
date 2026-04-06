@@ -1,7 +1,6 @@
 package dev.pulsermm.commands.api.errors;
 
 import dev.pulsermm.commands.application.ScriptAlreadyApprovedException;
-import dev.pulsermm.commands.application.ScriptRunForbiddenException;
 import dev.pulsermm.commands.application.ScriptNotFoundException;
 import dev.pulsermm.commands.application.ScriptRunNotFoundException;
 import dev.pulsermm.commands.application.ScriptRunResultNotFoundException;
@@ -26,12 +25,6 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleScriptAlreadyApproved(ScriptAlreadyApprovedException ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(new ErrorResponse("SCRIPT_ALREADY_APPROVED", ex.getMessage()));
-    }
-
-    @ExceptionHandler(ScriptRunForbiddenException.class)
-    public ResponseEntity<ErrorResponse> handleScriptRunForbidden(ScriptRunForbiddenException ex) {
-        return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                .body(new ErrorResponse("FORBIDDEN", "Access denied to one or more endpoints"));
     }
 
     @ExceptionHandler(ScriptRunNotFoundException.class)

@@ -9,4 +9,6 @@ import java.util.UUID;
 public interface AlertRuleRepository extends JpaRepository<AlertRule, UUID> {
 
     List<AlertRule> findAllByEnabledTrue();
+
+    List<AlertRule> findByOrgId(UUID orgId);
 }

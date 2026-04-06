@@ -11,8 +11,6 @@ import dev.pulsermm.commands.domain.ScriptSecret;
 import dev.pulsermm.commands.infrastructure.config.ScriptDispatchRabbitConfig;
 import dev.pulsermm.commands.infrastructure.messaging.ScriptDispatchMessage;
 import dev.pulsermm.commands.infrastructure.persistence.ScriptRepository;
-import dev.pulsermm.common.rbac.IdentityClient;
-import dev.pulsermm.common.rbac.PermissionChecker;
 import dev.pulsermm.commands.infrastructure.persistence.ScriptRunRepository;
 import dev.pulsermm.commands.infrastructure.persistence.ScriptRunResultRepository;
 import dev.pulsermm.commands.infrastructure.persistence.ScriptSecretRepository;
@@ -44,7 +42,6 @@ public class ScriptService {
     private final RabbitTemplate rabbitTemplate;
     private final DomainEventPublisher domainEventPublisher;
     private final String scriptServiceBaseUrl;
-    private final IdentityClient identityClient;
 
     public ScriptService(ScriptRepository scriptRepository,
                          ScriptRunRepository scriptRunRepository,
@@ -54,8 +51,7 @@ public class ScriptService {
                          @Qualifier("scriptSecretKek") String scriptSecretKek,
                          RabbitTemplate rabbitTemplate,
                          DomainEventPublisher domainEventPublisher,
-                         @Value("${pulse.script.base-url:http://localhost:8084}") String scriptServiceBaseUrl,
-                         IdentityClient identityClient) {
+                         @Value("${pulse.script.base-url:http://localhost:8084}") String scriptServiceBaseUrl) {
         this.scriptRepository = scriptRepository;
         this.scriptRunRepository = scriptRunRepository;
         this.scriptRunResultRepository = scriptRunResultRepository;
@@ -65,7 +61,6 @@ public class ScriptService {
         this.rabbitTemplate = rabbitTemplate;
         this.domainEventPublisher = domainEventPublisher;
         this.scriptServiceBaseUrl = scriptServiceBaseUrl;
-        this.identityClient = identityClient;
     }
 
     @Auditable(action = "script.create", permission = "script:adhoc")
@@ -124,14 +119,6 @@ public class ScriptService {
         if (callerOrgId != null && !script.isGlobal() &&
                 (script.getOrgId() == null || !script.getOrgId().equals(callerOrgId))) {
             throw new ScriptNotFoundException("Script not found: " + scriptId);
-        }
-
-        var perms = identityClient.getPermissions(initiatedBy.toString());
-        for (String endpointIdStr : endpointIds) {
-            UUID groupId = identityClient.getEndpointGroup(endpointIdStr).orElse(null);
-            if (!PermissionChecker.hasPermission(perms, "script:run", groupId)) {
-                throw new ScriptRunForbiddenException("No permission for endpoint: " + endpointIdStr);
-            }
         }
 
         var run = new ScriptRun(scriptId, initiatedBy);

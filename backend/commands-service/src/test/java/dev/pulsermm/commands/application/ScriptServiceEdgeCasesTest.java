@@ -10,7 +10,6 @@ import dev.pulsermm.commands.infrastructure.persistence.ScriptRunResultRepositor
 import dev.pulsermm.commands.infrastructure.persistence.ScriptSecretRepository;
 import dev.pulsermm.commands.infrastructure.security.ScriptSecretEncryptor;
 import dev.pulsermm.common.events.DomainEventPublisher;
-import dev.pulsermm.common.rbac.IdentityClient;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -34,7 +33,6 @@ class ScriptServiceEdgeCasesTest {
     private ScriptSecretEncryptor encryptor;
     private RabbitTemplate rabbitTemplate;
     private DomainEventPublisher domainEventPublisher;
-    private IdentityClient identityClient;
     private ScriptService service;
 
     @BeforeEach
@@ -45,11 +43,10 @@ class ScriptServiceEdgeCasesTest {
         secretRepo = mock(ScriptSecretRepository.class);
         rabbitTemplate = mock(RabbitTemplate.class);
         domainEventPublisher = mock(DomainEventPublisher.class);
-        identityClient = mock(IdentityClient.class);
 
         encryptor = new ScriptSecretEncryptor();
 
-        service = new ScriptService(scriptRepo, runRepo, resultRepo, secretRepo, encryptor, "test-secret-key-1234567", rabbitTemplate, domainEventPublisher, "http://localhost:8084", identityClient);
+        service = new ScriptService(scriptRepo, runRepo, resultRepo, secretRepo, encryptor, "test-secret-key-1234567", rabbitTemplate, domainEventPublisher, "http://localhost:8084");
     }
 
     @Test

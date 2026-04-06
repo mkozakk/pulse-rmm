@@ -7,6 +7,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -55,7 +56,7 @@ class AlertRuleServiceTest {
     @Test
     void deleteThrowsIfNotFound() {
         UUID ruleId = UUID.randomUUID();
-        when(repository.existsById(ruleId)).thenReturn(false);
+        when(repository.findById(ruleId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.delete(ruleId))
             .isInstanceOf(AlertRuleNotFoundException.class);
@@ -64,10 +65,11 @@ class AlertRuleServiceTest {
     @Test
     void deleteRemovesExistingRule() {
         UUID ruleId = UUID.randomUUID();
-        when(repository.existsById(ruleId)).thenReturn(true);
+        var rule = new AlertRule("Test", "cpu", ">", 80.0, 300, "group", "prod", UUID.randomUUID());
+        when(repository.findById(ruleId)).thenReturn(Optional.of(rule));
 
         service.delete(ruleId);
 
-        verify(repository).deleteById(ruleId);
+        verify(repository).delete(rule);
     }
 }

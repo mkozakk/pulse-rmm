@@ -48,7 +48,6 @@ class ScriptControllerIT {
         registry.add("pulse.script.secret-kek", () -> "test-kek-32-chars-long-ok-here!!");
         registry.add("spring.rabbitmq.listener.simple.auto-startup", () -> "false");
         registry.add("spring.rabbitmq.listener.direct.auto-startup", () -> "false");
-        registry.add("pulse.identity.internal-secret", () -> "test-internal-secret");
     }
 
     @Autowired

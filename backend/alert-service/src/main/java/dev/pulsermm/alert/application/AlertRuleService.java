@@ -19,7 +19,7 @@ public class AlertRuleService {
     }
 
     @Auditable(action = "alert_rule.create", permission = "alert:manage")
-    public AlertRule create(CreateAlertRuleRequest request, UUID createdBy) {
+    public AlertRule create(CreateAlertRuleRequest request, UUID createdBy, UUID orgId) {
         var rule = new AlertRule(
             request.name(),
             request.metricType(),
@@ -30,18 +30,36 @@ public class AlertRuleService {
             request.target().value(),
             createdBy
         );
+        rule.setOrgId(orgId);
         return ruleRepository.save(rule);
     }
 
+    @Auditable(action = "alert_rule.create", permission = "alert:manage")
+    public AlertRule create(CreateAlertRuleRequest request, UUID createdBy) {
+        return create(request, createdBy, null);
+    }
+
+    public List<AlertRule> list(UUID orgId) {
+        if (orgId == null) return ruleRepository.findAll();
+        return ruleRepository.findByOrgId(orgId);
+    }
+
     public List<AlertRule> list() {
-        return ruleRepository.findAll();
+        return list(null);
+    }
+
+    @Auditable(action = "alert_rule.delete", permission = "alert:manage")
+    public void delete(UUID id, UUID callerOrgId) {
+        var rule = ruleRepository.findById(id)
+            .orElseThrow(() -> new AlertRuleNotFoundException(id));
+        if (callerOrgId != null && !callerOrgId.equals(rule.getOrgId())) {
+            throw new AlertRuleNotFoundException(id);
+        }
+        ruleRepository.delete(rule);
     }
 
     @Auditable(action = "alert_rule.delete", permission = "alert:manage")
     public void delete(UUID id) {
-        if (!ruleRepository.existsById(id)) {
-            throw new AlertRuleNotFoundException(id);
-        }
-        ruleRepository.deleteById(id);
+        delete(id, null);
     }
 }
