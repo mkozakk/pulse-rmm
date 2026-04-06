@@ -16,6 +16,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
+import java.util.UUID;
+
 import java.time.Instant;
 import java.util.UUID;
 
@@ -42,9 +44,10 @@ public class AuditController {
             @Parameter(description = "Start of time range (ISO-8601)") @RequestParam(required = false) Instant from,
             @Parameter(description = "End of time range (ISO-8601)") @RequestParam(required = false) Instant to,
             @RequestParam(defaultValue = "0") int page,
-            @Parameter(description = "Page size, capped at 200") @RequestParam(defaultValue = "50") int size) {
+            @Parameter(description = "Page size, capped at 200") @RequestParam(defaultValue = "50") int size,
+            @RequestHeader(value = "X-User-Org-Id", required = false) UUID orgId) {
         int cappedSize = Math.min(size, 200);
-        return queryService.list(user, endpoint, from, to, PageRequest.of(page, cappedSize))
+        return queryService.list(user, endpoint, from, to, orgId, PageRequest.of(page, cappedSize))
                 .map(AuditEventResponse::from);
     }
 

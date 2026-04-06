@@ -39,12 +39,12 @@ class AuditQueryServiceTest {
         var event = new AuditEvent(UUID.randomUUID(), userId, "alice", "auth:login", "user.login", endpointId, "{}", Instant.now());
         Page<AuditEvent> page = new PageImpl<>(List.of(event), pageable, 1);
 
-        when(repository.findFiltered(userId, endpointId, from, to, pageable)).thenReturn(page);
+        when(repository.findFiltered(userId, endpointId, from, to, null, pageable)).thenReturn(page);
 
         var result = service.list(userId, endpointId, from, to, pageable);
 
         assertThat(result).hasSize(1);
-        verify(repository).findFiltered(userId, endpointId, from, to, pageable);
+        verify(repository).findFiltered(userId, endpointId, from, to, null, pageable);
     }
 
     @Test
@@ -52,7 +52,7 @@ class AuditQueryServiceTest {
         Pageable pageable = PageRequest.of(0, 20);
         Page<AuditEvent> page = new PageImpl<>(List.of(), pageable, 0);
 
-        when(repository.findFiltered(null, null, null, null, pageable)).thenReturn(page);
+        when(repository.findFiltered(null, null, null, null, null, pageable)).thenReturn(page);
 
         var result = service.list(null, null, null, null, pageable);
 
@@ -66,7 +66,7 @@ class AuditQueryServiceTest {
         Pageable pageable = PageRequest.of(0, 2);
         Page<AuditEvent> page = new PageImpl<>(List.of(event1, event2), pageable, 100);
 
-        when(repository.findFiltered(null, null, null, null, pageable)).thenReturn(page);
+        when(repository.findFiltered(null, null, null, null, null, pageable)).thenReturn(page);
 
         var result = service.list(null, null, null, null, pageable);
 
@@ -79,7 +79,7 @@ class AuditQueryServiceTest {
         Pageable pageable = PageRequest.of(0, 20);
         Page<AuditEvent> page = new PageImpl<>(List.of(), pageable, 0);
 
-        when(repository.findFiltered(null, null, null, null, pageable)).thenReturn(page);
+        when(repository.findFiltered(null, null, null, null, null, pageable)).thenReturn(page);
 
         var result = service.list(null, null, null, null, pageable);
 

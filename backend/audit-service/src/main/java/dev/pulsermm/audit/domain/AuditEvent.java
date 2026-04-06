@@ -36,6 +36,9 @@ public class AuditEvent {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
+    @Column(name = "org_id")
+    private UUID orgId;
+
     protected AuditEvent() {}
 
     public AuditEvent(UUID id, UUID userId, String username, String permissionUsed,
@@ -50,6 +53,12 @@ public class AuditEvent {
         this.createdAt = createdAt;
     }
 
+    public AuditEvent(UUID id, UUID userId, String username, String permissionUsed,
+                      String action, UUID endpointId, String payload, Instant createdAt, UUID orgId) {
+        this(id, userId, username, permissionUsed, action, endpointId, payload, createdAt);
+        this.orgId = orgId;
+    }
+
     public UUID getId() { return id; }
     public UUID getUserId() { return userId; }
     public String getUsername() { return username; }
@@ -58,4 +67,5 @@ public class AuditEvent {
     public UUID getEndpointId() { return endpointId; }
     public String getPayload() { return payload; }
     public Instant getCreatedAt() { return createdAt; }
+    public UUID getOrgId() { return orgId; }
 }
