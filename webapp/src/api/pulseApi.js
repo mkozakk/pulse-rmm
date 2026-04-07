@@ -275,6 +275,28 @@ export const pulseApi = createApi({
     updateUserRoles: builder.mutation({
       query: ({ id, roleIds }) => ({ url: `/identity/users/${id}/roles`, method: 'PUT', body: { roleIds } }),
       invalidatesTags: ['Users']
+    }),
+    getOrganizations: builder.query({
+      query: () => '/organizations',
+      providesTags: ['Organizations'],
+      keepUnusedDataFor: 0
+    }),
+    createOrganization: builder.mutation({
+      query: (body) => ({ url: '/organizations', method: 'POST', body }),
+      invalidatesTags: ['Organizations']
+    }),
+    deleteOrganization: builder.mutation({
+      query: (id) => ({ url: `/organizations/${id}`, method: 'DELETE' }),
+      invalidatesTags: ['Organizations']
+    }),
+    getOrgUsers: builder.query({
+      query: (orgId) => `/organizations/${orgId}/users`,
+      providesTags: (result, error, orgId) => [{ type: 'OrgUsers', id: orgId }],
+      keepUnusedDataFor: 0
+    }),
+    createOrgUser: builder.mutation({
+      query: ({ orgId, ...body }) => ({ url: `/organizations/${orgId}/users`, method: 'POST', body }),
+      invalidatesTags: (result, error, { orgId }) => [{ type: 'OrgUsers', id: orgId }]
     })
   })
 })
@@ -334,5 +356,10 @@ export const {
   useCreateUserMutation,
   useUpdateUserMutation,
   useDeleteUserMutation,
-  useUpdateUserRolesMutation
+  useUpdateUserRolesMutation,
+  useGetOrganizationsQuery,
+  useCreateOrganizationMutation,
+  useDeleteOrganizationMutation,
+  useGetOrgUsersQuery,
+  useCreateOrgUserMutation
 } = pulseApi

@@ -15,6 +15,7 @@ import AgentVersionsPage from './pages/AgentVersionsPage'
 import WebhooksPage from './pages/WebhooksPage'
 import WebhookDetailPage from './pages/WebhookDetailPage'
 import UsersPage from './pages/UsersPage'
+import OrganizationsPage from './pages/OrganizationsPage'
 
 export default function App() {
   return (
@@ -36,6 +37,7 @@ export default function App() {
           <Route path="/webhooks" element={<WebhooksPage />} />
           <Route path="/webhooks/:id" element={<WebhookDetailPage />} />
           <Route path="/users" element={<UsersPage />} />
+          <Route path="/organizations" element={<OrganizationsPage />} />
         </Route>
         <Route path="/" element={<Navigate to="/endpoints" replace />} />
         <Route path="*" element={<Navigate to="/endpoints" replace />} />
