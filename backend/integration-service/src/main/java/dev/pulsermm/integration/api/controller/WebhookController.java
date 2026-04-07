@@ -33,9 +33,10 @@ public class WebhookController {
     @ApiResponse(responseCode = "400", description = "Invalid request")
     @PostMapping
     public ResponseEntity<WebhookResponse> create(@RequestBody @Valid CreateWebhookRequest req,
-                                                   Authentication auth) {
+                                                   Authentication auth,
+                                                   @RequestHeader(value = "X-User-Org-Id", required = false) UUID orgId) {
         var createdBy = UUID.fromString(auth.getName());
-        var webhook = webhookService.create(req.url(), req.eventTypes(), req.secret(), createdBy);
+        var webhook = webhookService.create(req.url(), req.eventTypes(), req.secret(), createdBy, orgId);
         return ResponseEntity.created(URI.create("/api/webhooks/" + webhook.getId()))
             .body(WebhookResponse.from(webhook));
     }
@@ -43,16 +44,17 @@ public class WebhookController {
     @Operation(summary = "List all webhooks")
     @ApiResponse(responseCode = "200", description = "Webhooks returned")
     @GetMapping
-    public List<WebhookResponse> list() {
-        return webhookService.list().stream().map(WebhookResponse::from).toList();
+    public List<WebhookResponse> list(@RequestHeader(value = "X-User-Org-Id", required = false) UUID orgId) {
+        return webhookService.list(orgId).stream().map(WebhookResponse::from).toList();
     }
 
     @Operation(summary = "Get a webhook by ID")
     @ApiResponse(responseCode = "200", description = "Webhook returned")
     @ApiResponse(responseCode = "404", description = "Webhook not found")
     @GetMapping("/{id}")
-    public WebhookResponse get(@PathVariable UUID id) {
-        return WebhookResponse.from(webhookService.get(id));
+    public WebhookResponse get(@PathVariable UUID id,
+                                @RequestHeader(value = "X-User-Org-Id", required = false) UUID orgId) {
+        return WebhookResponse.from(webhookService.get(id, orgId));
     }
 
     @Operation(summary = "Update a webhook")
@@ -60,9 +62,10 @@ public class WebhookController {
     @ApiResponse(responseCode = "404", description = "Webhook not found")
     @PutMapping("/{id}")
     public WebhookResponse update(@PathVariable UUID id,
-                                   @RequestBody @Valid UpdateWebhookRequest req) {
+                                   @RequestBody @Valid UpdateWebhookRequest req,
+                                   @RequestHeader(value = "X-User-Org-Id", required = false) UUID orgId) {
         return WebhookResponse.from(
-            webhookService.update(id, req.url(), req.eventTypes(), req.enabled(), req.secret())
+            webhookService.update(id, req.url(), req.eventTypes(), req.enabled(), req.secret(), orgId)
         );
     }
 
@@ -71,7 +74,8 @@ public class WebhookController {
     @ApiResponse(responseCode = "404", description = "Webhook not found")
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable UUID id) {
-        webhookService.delete(id);
+    public void delete(@PathVariable UUID id,
+                       @RequestHeader(value = "X-User-Org-Id", required = false) UUID orgId) {
+        webhookService.delete(id, orgId);
     }
 }
