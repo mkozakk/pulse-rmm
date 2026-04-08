@@ -34,14 +34,11 @@ services:
       RABBITMQ_PORT: 5672
       RABBITMQ_USER: ${RABBITMQ_USER}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
-      PULSE_CA_URL: http://ca-service:8089
       REDIS_HOST: ${REDIS_HOST}
       REDIS_PORT: ${REDIS_PORT}
       RATE_LIMIT_CAPACITY: ${RATE_LIMIT_CAPACITY}
       RATE_LIMIT_REFILL_TOKENS: ${RATE_LIMIT_REFILL_TOKENS}
       RATE_LIMIT_REFILL_SECONDS: ${RATE_LIMIT_REFILL_SECONDS}
-    volumes:
-      - api_gateway_tls:/var/lib/api-gateway/tls
     networks:
       - gateway
       - private
@@ -50,12 +47,10 @@ services:
       interval: 5s
       timeout: 2s
       retries: 5
-      start_period: 40s
+      start_period: 90s
     depends_on:
       <<: *app-deps
       keycloak:
-        condition: service_healthy
-      ca-service:
         condition: service_healthy
       rbac-service:
         condition: service_healthy
@@ -70,6 +65,49 @@ services:
       audit-service:
         condition: service_healthy
       integration-service:
+        condition: service_healthy
+
+  agent-hub:
+    build:
+      context: ..
+      dockerfile: backend/agent-hub/Dockerfile
+    environment:
+      KEYCLOAK_URL: ${KEYCLOAK_URL}
+      KEYCLOAK_ISSUER_URI: ${KEYCLOAK_ISSUER_URI}
+      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
+      RBAC_SERVICE_URL: http://rbac-service:8083
+      ENDPOINT_SERVICE_URL: http://endpoint-service:8081
+      METRIC_SERVICE_URL: http://metric-service:8082
+      COMMANDS_SERVICE_URL: http://commands-service:8084
+      PULSE_CA_URL: http://ca-service:8089
+      PULSE_MTLS_CERT_DIR: /var/lib/agent-hub/tls
+      PULSE_MTLS_GATEWAY_CN: agent-hub
+      PULSE_MTLS_GATEWAY_SANS: agent-hub,localhost,127.0.0.1
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      RATE_LIMIT_CAPACITY: ${RATE_LIMIT_CAPACITY}
+      RATE_LIMIT_REFILL_TOKENS: ${RATE_LIMIT_REFILL_TOKENS}
+      RATE_LIMIT_REFILL_SECONDS: ${RATE_LIMIT_REFILL_SECONDS}
+    volumes:
+      - agent_hub_tls:/var/lib/agent-hub/tls
+    networks:
+      - gateway
+      - private
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8092/actuator/health"]
+      interval: 5s
+      timeout: 2s
+      retries: 5
+      start_period: 90s
+    depends_on:
+      <<: *app-deps
+      ca-service:
+        condition: service_healthy
+      rbac-service:
         condition: service_healthy
 
   rbac-service:
@@ -98,7 +136,7 @@ services:
       interval: 5s
       timeout: 2s
       retries: 5
-      start_period: 40s
+      start_period: 90s
     depends_on:
       <<: *app-deps
 
@@ -115,7 +153,7 @@ services:
       KEYCLOAK_ISSUER_URI: ${KEYCLOAK_ISSUER_URI}
       INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
       RBAC_SERVICE_URL: http://rbac-service:8083
-      GATEWAY_URL: http://api-gateway:8080
+      AGENT_HUB_URL: http://agent-hub:8092
       PULSE_CA_ENABLED: "true"
       PULSE_CA_URL: http://ca-service:8089
       TURN_SECRET: ${TURN_SECRET}
@@ -135,7 +173,7 @@ services:
       interval: 5s
       timeout: 2s
       retries: 5
-      start_period: 40s
+      start_period: 90s
     depends_on:
       <<: *app-deps
 
@@ -161,7 +199,7 @@ services:
       interval: 5s
       timeout: 2s
       retries: 5
-      start_period: 40s
+      start_period: 90s
     depends_on:
       <<: *app-deps
 
@@ -177,7 +215,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       KEYCLOAK_URL: ${KEYCLOAK_URL}
       KEYCLOAK_ISSUER_URI: ${KEYCLOAK_ISSUER_URI}
-      GATEWAY_URL: http://api-gateway:8080
+      AGENT_HUB_URL: http://agent-hub:8092
       SCRIPT_SERVICE_BASE_URL: http://commands-service:8084
       SCRIPT_SECRET_KEK: ${SCRIPT_SECRET_KEK}
       RABBITMQ_HOST: rabbitmq
@@ -191,7 +229,7 @@ services:
       interval: 5s
       timeout: 2s
       retries: 5
-      start_period: 40s
+      start_period: 90s
     depends_on:
       <<: *app-deps
 
@@ -218,7 +256,7 @@ services:
       interval: 5s
       timeout: 2s
       retries: 5
-      start_period: 40s
+      start_period: 90s
     depends_on:
       postgres:
         condition: service_healthy
@@ -246,7 +284,7 @@ services:
       interval: 5s
       timeout: 2s
       retries: 5
-      start_period: 40s
+      start_period: 90s
     depends_on:
       <<: *app-deps
 
@@ -274,7 +312,7 @@ services:
       interval: 5s
       timeout: 2s
       retries: 5
-      start_period: 40s
+      start_period: 90s
     depends_on:
       <<: *app-deps
 
@@ -295,7 +333,7 @@ services:
       interval: 5s
       timeout: 2s
       retries: 5
-      start_period: 40s
+      start_period: 90s
     depends_on:
       <<: *app-deps
 
@@ -330,6 +368,8 @@ services:
       - "9090:9090"
     depends_on:
       api-gateway:
+        condition: service_healthy
+      agent-hub:
         condition: service_healthy
 
   postgres:
@@ -488,4 +528,4 @@ volumes:
   redis_data:
   minio_data:
   rabbitmq_data:
-  api_gateway_tls:
+  agent_hub_tls:

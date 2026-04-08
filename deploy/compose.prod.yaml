@@ -27,8 +27,14 @@ services:
     environment:
       <<: *prod-env
       PULSE_COOKIE_SECURE: "true"
+      SWAGGER_UI_ENABLED: "false"
+
+  agent-hub:
+    environment:
+      <<: *prod-env
       PULSE_MTLS_ENABLED: "true"
       SWAGGER_UI_ENABLED: "false"
+    ports: !override []
 
   rbac-service:
     environment:

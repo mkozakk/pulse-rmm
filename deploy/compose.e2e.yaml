@@ -38,13 +38,13 @@ services:
     volumes:
       - minio_e2e_data:/data
 
-  api-gateway:
+  agent-hub:
     volumes:
-      - api_gateway_tls_e2e:/var/lib/api-gateway/tls
+      - agent_hub_tls_e2e:/var/lib/agent-hub/tls
 
 volumes:
   postgres_e2e_data:
   redis_e2e_data:
   rabbitmq_e2e_data:
   minio_e2e_data:
-  api_gateway_tls_e2e:
+  agent_hub_tls_e2e:
