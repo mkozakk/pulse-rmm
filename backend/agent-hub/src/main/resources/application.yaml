@@ -1,0 +1,65 @@
+server:
+  port: 8092
+  tomcat:
+    max-http-form-post-size: -1
+
+grpc:
+  server:
+    port: 9090
+
+spring:
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${KEYCLOAK_URL:http://localhost:8180}/realms/pulse-rmm/protocol/openid-connect/certs
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8180/realms/pulse-rmm}
+  application:
+    name: agent-hub
+  threads:
+    virtual:
+      enabled: true
+  servlet:
+    multipart:
+      enabled: true
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+
+pulse:
+  rate-limit:
+    capacity: ${RATE_LIMIT_CAPACITY:200}
+    refill-tokens: ${RATE_LIMIT_REFILL_TOKENS:200}
+    refill-seconds: ${RATE_LIMIT_REFILL_SECONDS:60}
+  identity:
+    url: ${RBAC_SERVICE_URL:http://rbac-service:8083}
+    internal-secret: ${INTERNAL_API_SECRET:change-me-in-production-set-INTERNAL_API_SECRET-env-var}
+  mtls:
+    cert-dir: ${PULSE_MTLS_CERT_DIR:/var/lib/agent-hub/tls}
+    gateway-cn: ${PULSE_MTLS_GATEWAY_CN:agent-hub}
+    gateway-sans: ${PULSE_MTLS_GATEWAY_SANS:agent-hub,localhost,127.0.0.1}
+  ca:
+    url: ${PULSE_CA_URL:http://ca-service:8089}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  metrics:
+    tags:
+      service: agent-hub
+
+springdoc:
+  api-docs:
+    enabled: ${SWAGGER_UI_ENABLED:false}
+    path: /v3/api-docs
+  swagger-ui:
+    enabled: ${SWAGGER_UI_ENABLED:false}
+    path: /swagger-ui.html
