@@ -1,5 +1,6 @@
 package dev.pulsermm.gateway.api;
 
+import dev.pulsermm.common.ratelimit.RateLimitFilter;
 import io.github.bucket4j.Bandwidth;
 import io.github.bucket4j.BucketConfiguration;
 import io.github.bucket4j.distributed.proxy.ProxyManager;
@@ -38,7 +39,8 @@ public class SecurityConfig {
     @Value("${pulse.rate-limit.refill-seconds:60}")
     private long rateLimitRefillSeconds;
 
-    public SecurityConfig(PermissionGuard permissionGuard, BearerTokenResolver bearerTokenResolver,
+    public SecurityConfig(PermissionGuard permissionGuard,
+                          BearerTokenResolver bearerTokenResolver,
                           @Lazy ProxyManager<String> rateLimitProxyManager,
                           dev.pulsermm.gateway.infrastructure.identity.EndpointOrgClient endpointOrgClient) {
         this.permissionGuard = permissionGuard;

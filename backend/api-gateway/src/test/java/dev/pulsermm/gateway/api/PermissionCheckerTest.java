@@ -1,5 +1,7 @@
 package dev.pulsermm.gateway.api;
 
+import dev.pulsermm.common.rbac.PermissionChecker;
+import dev.pulsermm.common.rbac.ResolvedPermission;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;

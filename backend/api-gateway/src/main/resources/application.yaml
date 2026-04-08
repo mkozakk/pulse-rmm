@@ -3,10 +3,6 @@ server:
   tomcat:
     max-http-form-post-size: -1
 
-grpc:
-  server:
-    port: 9090
-
 spring:
   data:
     redis:
@@ -22,9 +18,6 @@ spring:
     name: api-gateway
   threads:
     virtual:
-      enabled: true
-  servlet:
-    multipart:
       enabled: true
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost}
@@ -127,12 +120,6 @@ pulse:
     internal-secret: ${INTERNAL_API_SECRET:change-me-in-production-set-INTERNAL_API_SECRET-env-var}
   endpoint:
     url: ${ENDPOINT_SERVICE_URL:http://endpoint-service:8081}
-  mtls:
-    cert-dir: ${PULSE_MTLS_CERT_DIR:/var/lib/api-gateway/tls}
-    gateway-cn: ${PULSE_MTLS_GATEWAY_CN:api-gateway}
-    gateway-sans: ${PULSE_MTLS_GATEWAY_SANS:api-gateway,localhost,127.0.0.1}
-  ca:
-    url: ${PULSE_CA_URL:http://ca-service:8089}
 
 management:
   endpoints:
