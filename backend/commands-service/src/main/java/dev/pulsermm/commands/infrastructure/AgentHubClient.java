@@ -11,21 +11,21 @@ import java.util.Map;
 import java.util.UUID;
 
 @Component
-public class GatewayClient {
+public class AgentHubClient {
 
-    private static final Logger logger = LoggerFactory.getLogger(GatewayClient.class);
+    private static final Logger logger = LoggerFactory.getLogger(AgentHubClient.class);
     private final RestClient restClient;
 
-    public GatewayClient(@Value("${pulse.gateway.url:http://localhost:8080}") String gatewayUrl) {
+    public AgentHubClient(@Value("${pulse.agent-hub.url:http://localhost:8092}") String agentHubUrl) {
         this.restClient = RestClient.builder()
-            .baseUrl(gatewayUrl)
+            .baseUrl(agentHubUrl)
             .build();
     }
 
     public void dispatchScriptCommand(UUID endpointId, UUID runResultId, String scriptBody, Map<String, String> envVars, String callbackUrl) {
         try {
             var request = new DispatchRequest(endpointId, runResultId.toString(), scriptBody, envVars, callbackUrl);
-            logger.info("Dispatching script command {} to endpoint {} via gateway", runResultId, endpointId);
+            logger.info("Dispatching script command {} to endpoint {} via agent-hub", runResultId, endpointId);
             restClient.post()
                 .uri("/internal/script-commands/dispatch")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -34,14 +34,14 @@ public class GatewayClient {
                 .toBodilessEntity();
             logger.info("Script command dispatched successfully");
         } catch (Exception e) {
-            logger.error("Failed to dispatch script command to gateway: {}", e.getMessage(), e);
+            logger.error("Failed to dispatch script command to agent-hub: {}", e.getMessage(), e);
         }
     }
 
     public void dispatchSoftwareCommand(UUID endpointId, String commandId, String action, String packageName, String appId, String packageVersion) {
         try {
             var request = new SoftwareDispatchRequest(endpointId, commandId, action, packageName, appId, packageVersion);
-            logger.info("Dispatching software command {} to endpoint {} via gateway", commandId, endpointId);
+            logger.info("Dispatching software command {} to endpoint {} via agent-hub", commandId, endpointId);
             restClient.post()
                 .uri("/internal/software-commands/dispatch")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -50,7 +50,7 @@ public class GatewayClient {
                 .toBodilessEntity();
             logger.info("Software command dispatched successfully");
         } catch (Exception e) {
-            logger.error("Failed to dispatch software command to gateway: {}", e.getMessage(), e);
+            logger.error("Failed to dispatch software command to agent-hub: {}", e.getMessage(), e);
         }
     }
 
@@ -65,7 +65,7 @@ public class GatewayClient {
                 .retrieve()
                 .toBodilessEntity();
         } catch (Exception e) {
-            logger.error("Failed to dispatch list-processes command to gateway: {}", e.getMessage(), e);
+            logger.error("Failed to dispatch list-processes command to agent-hub: {}", e.getMessage(), e);
         }
     }
 
@@ -80,7 +80,7 @@ public class GatewayClient {
                 .retrieve()
                 .toBodilessEntity();
         } catch (Exception e) {
-            logger.error("Failed to dispatch kill-process command to gateway: {}", e.getMessage(), e);
+            logger.error("Failed to dispatch kill-process command to agent-hub: {}", e.getMessage(), e);
         }
     }
 

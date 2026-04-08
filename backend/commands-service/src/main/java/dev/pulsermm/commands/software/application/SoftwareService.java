@@ -6,7 +6,7 @@ import dev.pulsermm.common.events.DomainEvent;
 import dev.pulsermm.common.events.DomainEventPublisher;
 import dev.pulsermm.commands.software.domain.SoftwareCommand;
 import dev.pulsermm.commands.software.domain.SoftwareItem;
-import dev.pulsermm.commands.infrastructure.GatewayClient;
+import dev.pulsermm.commands.infrastructure.AgentHubClient;
 import dev.pulsermm.commands.software.infrastructure.SoftwareCommandRepository;
 import dev.pulsermm.commands.software.infrastructure.SoftwareItemRepository;
 import jakarta.persistence.EntityManager;
@@ -22,14 +22,14 @@ import java.util.UUID;
 public class SoftwareService {
     private final SoftwareItemRepository softwareItemRepository;
     private final SoftwareCommandRepository softwareCommandRepository;
-    private final GatewayClient gatewayClient;
+    private final AgentHubClient agentHubClient;
     private final EntityManager entityManager;
     private final DomainEventPublisher domainEventPublisher;
 
-    public SoftwareService(SoftwareItemRepository softwareItemRepository, SoftwareCommandRepository softwareCommandRepository, GatewayClient gatewayClient, EntityManager entityManager, DomainEventPublisher domainEventPublisher) {
+    public SoftwareService(SoftwareItemRepository softwareItemRepository, SoftwareCommandRepository softwareCommandRepository, AgentHubClient agentHubClient, EntityManager entityManager, DomainEventPublisher domainEventPublisher) {
         this.softwareItemRepository = softwareItemRepository;
         this.softwareCommandRepository = softwareCommandRepository;
-        this.gatewayClient = gatewayClient;
+        this.agentHubClient = agentHubClient;
         this.entityManager = entityManager;
         this.domainEventPublisher = domainEventPublisher;
     }
@@ -80,7 +80,7 @@ public class SoftwareService {
         org.slf4j.LoggerFactory.getLogger(SoftwareService.class).info(
             "Created software command: id={}, endpoint={}, action={}, package={}, appId={}",
             cmdId, endpointId, action, packageName, appId);
-        gatewayClient.dispatchSoftwareCommand(endpointId, cmdId.toString(), action, packageName, appId, packageVersion);
+        agentHubClient.dispatchSoftwareCommand(endpointId, cmdId.toString(), action, packageName, appId, packageVersion);
         return cmd;
     }
 

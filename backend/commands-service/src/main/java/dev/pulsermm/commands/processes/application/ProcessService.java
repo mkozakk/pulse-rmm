@@ -1,6 +1,6 @@
 package dev.pulsermm.commands.processes.application;
 
-import dev.pulsermm.commands.infrastructure.GatewayClient;
+import dev.pulsermm.commands.infrastructure.AgentHubClient;
 import dev.pulsermm.commands.processes.domain.ProcessKillCommand;
 import dev.pulsermm.commands.processes.domain.ProcessSnapshot;
 import dev.pulsermm.commands.processes.infrastructure.ProcessKillCommandRepository;
@@ -25,16 +25,16 @@ public class ProcessService {
 
     private final ProcessSnapshotRepository snapshotRepository;
     private final ProcessKillCommandRepository killRepository;
-    private final GatewayClient gatewayClient;
+    private final AgentHubClient agentHubClient;
     private final String baseUrl;
 
     public ProcessService(ProcessSnapshotRepository snapshotRepository,
                           ProcessKillCommandRepository killRepository,
-                          GatewayClient gatewayClient,
+                          AgentHubClient agentHubClient,
                           @Value("${pulse.script.base-url:http://localhost:8084}") String baseUrl) {
         this.snapshotRepository = snapshotRepository;
         this.killRepository = killRepository;
-        this.gatewayClient = gatewayClient;
+        this.agentHubClient = agentHubClient;
         this.baseUrl = baseUrl;
     }
 
@@ -48,11 +48,11 @@ public class ProcessService {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    gatewayClient.dispatchListProcesses(endpointId, commandId.toString(), callbackUrl);
+                    agentHubClient.dispatchListProcesses(endpointId, commandId.toString(), callbackUrl);
                 }
             });
         } else {
-            gatewayClient.dispatchListProcesses(endpointId, commandId.toString(), callbackUrl);
+            agentHubClient.dispatchListProcesses(endpointId, commandId.toString(), callbackUrl);
         }
 
         return commandId;
@@ -68,11 +68,11 @@ public class ProcessService {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    gatewayClient.dispatchKillProcess(endpointId, commandId.toString(), pid, callbackUrl);
+                    agentHubClient.dispatchKillProcess(endpointId, commandId.toString(), pid, callbackUrl);
                 }
             });
         } else {
-            gatewayClient.dispatchKillProcess(endpointId, commandId.toString(), pid, callbackUrl);
+            agentHubClient.dispatchKillProcess(endpointId, commandId.toString(), pid, callbackUrl);
         }
 
         return commandId;

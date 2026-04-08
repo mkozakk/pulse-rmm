@@ -15,8 +15,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.io.InputStreamResource;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -45,12 +43,10 @@ public class FileController {
 
     private final AgentRegistry agents;
     private final FileTransferRegistry transfers;
-    private final PermissionGuard guard;
 
-    public FileController(AgentRegistry agents, FileTransferRegistry transfers, PermissionGuard guard) {
+    public FileController(AgentRegistry agents, FileTransferRegistry transfers) {
         this.agents = agents;
         this.transfers = transfers;
-        this.guard = guard;
     }
 
     @Operation(summary = "List directory on endpoint")
@@ -60,10 +56,6 @@ public class FileController {
     @GetMapping
     public ResponseEntity<?> list(@PathVariable UUID endpointId,
                                   @Parameter(description = "Directory path on the endpoint") @RequestParam(required = false, defaultValue = "") String path) throws Exception {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (!guard.canBrowseFiles(auth, endpointId.toString())) {
-            return ResponseEntity.status(403).body(problem("Forbidden"));
-        }
         var sink = agents.get(endpointId).orElse(null);
         if (sink == null) return ResponseEntity.status(404).body(problem("agent not connected"));
 
@@ -89,10 +81,6 @@ public class FileController {
     @GetMapping("/download")
     public ResponseEntity<InputStreamResource> download(@PathVariable UUID endpointId,
                                                         @Parameter(description = "Absolute path to the file") @RequestParam String path) {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (!guard.canBrowseFiles(auth, endpointId.toString())) {
-            return ResponseEntity.status(403).build();
-        }
         var sink = agents.get(endpointId).orElse(null);
         if (sink == null) return ResponseEntity.status(404).build();
 
@@ -118,10 +106,6 @@ public class FileController {
     public ResponseEntity<?> upload(@PathVariable UUID endpointId,
                                     @Parameter(description = "Destination path on the endpoint") @RequestParam String path,
                                     @RequestParam("file") MultipartFile file) throws Exception {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (!guard.canBrowseFiles(auth, endpointId.toString())) {
-            return ResponseEntity.status(403).body(problem("Forbidden"));
-        }
         var sink = agents.get(endpointId).orElse(null);
         if (sink == null) return ResponseEntity.status(404).body(problem("agent not connected"));
 
