@@ -70,14 +70,14 @@ public class CaService {
     void loadOrInitialize() {
         var existing = repo.findCurrent();
         if (existing.isPresent()) {
-            this.rootCertPem = existing.get().certPem();
-            this.rootCert = parseCertificate(rootCertPem);
-            byte[] privDer = encryptor.decrypt(existing.get().encryptedPrivKey());
             try {
+                this.rootCertPem = existing.get().certPem();
+                this.rootCert = parseCertificate(rootCertPem);
+                byte[] privDer = encryptor.decrypt(existing.get().encryptedPrivKey());
                 this.rootKey = parseRsaPrivateKey(privDer);
                 return;
             } catch (IllegalStateException e) {
-                // Legacy Ed25519 root (pre-RSA switch). Re-bootstrap with a fresh RSA root.
+                // Key mismatch or legacy algorithm — re-bootstrap with a fresh root.
             }
         }
         bootstrapRoot();
