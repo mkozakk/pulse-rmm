@@ -109,6 +109,48 @@ spring:
             uri: ${INTEGRATION_SERVICE_URL:http://localhost:8091}
             predicates:
               - Path=/api/deliveries/**
+          - id: docs-rbac
+            uri: ${RBAC_SERVICE_URL:http://localhost:8083}
+            predicates:
+              - Path=/v3/api-docs/rbac-service
+            filters:
+              - RewritePath=/v3/api-docs/rbac-service, /v3/api-docs
+          - id: docs-endpoint
+            uri: ${ENDPOINT_SERVICE_URL:http://localhost:8081}
+            predicates:
+              - Path=/v3/api-docs/endpoint-service
+            filters:
+              - RewritePath=/v3/api-docs/endpoint-service, /v3/api-docs
+          - id: docs-metric
+            uri: ${METRIC_SERVICE_URL:http://localhost:8082}
+            predicates:
+              - Path=/v3/api-docs/metric-service
+            filters:
+              - RewritePath=/v3/api-docs/metric-service, /v3/api-docs
+          - id: docs-commands
+            uri: ${COMMANDS_SERVICE_URL:http://localhost:8084}
+            predicates:
+              - Path=/v3/api-docs/commands-service
+            filters:
+              - RewritePath=/v3/api-docs/commands-service, /v3/api-docs
+          - id: docs-alert
+            uri: ${ALERT_SERVICE_URL:http://localhost:8087}
+            predicates:
+              - Path=/v3/api-docs/alert-service
+            filters:
+              - RewritePath=/v3/api-docs/alert-service, /v3/api-docs
+          - id: docs-audit
+            uri: ${AUDIT_SERVICE_URL:http://localhost:8088}
+            predicates:
+              - Path=/v3/api-docs/audit-service
+            filters:
+              - RewritePath=/v3/api-docs/audit-service, /v3/api-docs
+          - id: docs-integration
+            uri: ${INTEGRATION_SERVICE_URL:http://localhost:8091}
+            predicates:
+              - Path=/v3/api-docs/integration-service
+            filters:
+              - RewritePath=/v3/api-docs/integration-service, /v3/api-docs
 
 pulse:
   rate-limit:
