@@ -6,9 +6,9 @@ Exposes delivery records so operators can audit what was sent, inspect failures,
 
 **API**
 [`WebhookDeliveryController.java`](../src/main/java/dev/pulsermm/integration/api/controller/WebhookDeliveryController.java):
-	- `listByWebhook` - `GET /api/webhooks/{webhookId}/deliveries?status=&limit=50` — returns deliveries for one webhook, newest first. Optional `status` filter narrows to `success`, `retrying`, `dead_letter`, or `pending`. Capped at 200 rows.
-	- `deadLetter` - `GET /api/deliveries/dead-letter?limit=100` — global view across all webhooks of deliveries in `dead_letter` state. Capped at 500 rows.
-	- `getOne` - `GET /api/deliveries/{deliveryId}` — single delivery with the full payload JSON rather than the truncated preview.
+	- `listByWebhook` - `GET /api/webhooks/{webhookId}/deliveries?status=&limit=50` - returns deliveries for one webhook, newest first. Optional `status` filter narrows to `success`, `retrying`, `dead_letter`, or `pending`. Capped at 200 rows.
+	- `deadLetter` - `GET /api/deliveries/dead-letter?limit=100` - global view across all webhooks of deliveries in `dead_letter` state. Capped at 500 rows.
+	- `getOne` - `GET /api/deliveries/{deliveryId}` - single delivery with the full payload JSON rather than the truncated preview.
 [`WebhookDeliveryView.java`](../src/main/java/dev/pulsermm/integration/api/dto/WebhookDeliveryView.java):
 	- `WebhookDeliveryView` - List-item projection: id, webhookId, eventType, eventId, payloadPreview (truncated to 200 chars), status, attempts, lastStatusCode, lastError, createdAt, completedAt.
 [`WebhookDeliveryResponse.java`](../src/main/java/dev/pulsermm/integration/api/dto/WebhookDeliveryResponse.java):
@@ -58,4 +58,4 @@ GET  /api/deliveries/{deliveryId}                  Single delivery with full pay
 }
 ```
 
-**Detail response** — same fields, plus `payload` as a full JSON object instead of `payloadPreview`.
+**Detail response** - same fields, plus `payload` as a full JSON object instead of `payloadPreview`.

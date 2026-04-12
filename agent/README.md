@@ -73,7 +73,7 @@ When an admin clicks "Run Script" in the web UI:
 |------|---------|
 | Go 1.22+ | https://go.dev/dl |
 | nfpm | `go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest` |
-| makensis | `sudo dnf install nsis` (Fedora) / `sudo apt install nsis` (Debian) — Windows installer only |
+| makensis | `sudo dnf install nsis` (Fedora) / `sudo apt install nsis` (Debian) - Windows installer only |
 
 ### Build targets
 
@@ -87,7 +87,7 @@ make pkg-deb
 # Build .rpm (Fedora/RHEL)
 make pkg-rpm
 
-# Build Windows installer .exe — requires makensis
+# Build Windows installer .exe - requires makensis
 make pkg-exe
 
 # Explicit version (defaults to git describe)
@@ -145,7 +145,7 @@ After installing via one-liner or package on a clean VM:
 
 1. `systemctl status pulse-agent` → **active (running)**
 2. Reboot → service comes back up automatically
-3. Check the webapp Endpoints page — new endpoint appears within ~30 s
+3. Check the webapp Endpoints page - new endpoint appears within ~30 s
 4. `sudo pulse-agent service uninstall` → service removed; binary stays; `/var/lib/pulse-agent` stays (identity preserved)
 
 Windows equivalent: check `services.msc` for **Pulse RMM Agent**, status Running, startup Automatic.

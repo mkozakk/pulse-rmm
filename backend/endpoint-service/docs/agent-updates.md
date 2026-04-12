@@ -57,9 +57,9 @@ agent_version_artifacts(
 
 ### Polling Frequency
 
-- **On startup** — Agent checks for updates once
-- **Daily** — Scheduled check every 24 hours
-- **On demand** — Technician can trigger via API (future)
+- **On startup** - Agent checks for updates once
+- **Daily** - Scheduled check every 24 hours
+- **On demand** - Technician can trigger via API (future)
 
 ### Version Comparison
 
@@ -120,11 +120,11 @@ rpc GetLatestAgent(Empty) returns (AgentVersion);
 
 ## Error Handling
 
-- `400 Bad Request` — Invalid version format, missing artifact type
-- `404 Not Found` — Version not found
-- `409 Conflict` — Version already published, artifact already exists
-- `422 Unprocessable Entity` — Invalid semver
-- `500 Internal Server Error` — MinIO communication error
+- `400 Bad Request` - Invalid version format, missing artifact type
+- `404 Not Found` - Version not found
+- `409 Conflict` - Version already published, artifact already exists
+- `422 Unprocessable Entity` - Invalid semver
+- `500 Internal Server Error` - MinIO communication error
 
 ## Rollback Strategy
 

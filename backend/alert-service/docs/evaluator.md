@@ -6,26 +6,36 @@ Runs a scheduled evaluation loop every 30 seconds, checking every enabled alert 
 
 **Scheduled loop**
 [`AlertEvaluator.java`](../src/main/java/dev/pulsermm/alert/application/AlertEvaluator.java):
-- `evaluate` — The entry point, called every 30 seconds via `@Scheduled(fixedDelay = 30_000)`. Loads all enabled rules and, for each rule, resolves target endpoints before delegating to `evaluateRuleForEndpoint`.
-- `evaluateRuleForEndpoint` — Runs the breach-count query for a single `(rule, endpoint)` pair. If the condition holds, attempts to insert a new event. If the condition has fully cleared, marks existing open events as cleared.
-- `tryInsertEvent` — Persists the new `AlertEvent` and publishes an `AlertFiredEvent` to the Spring application context. Catches `DataIntegrityViolationException` silently — the partial unique index on `(rule_id, endpoint_id) WHERE acked_at IS NULL` rejects a duplicate insert, which is the normal path when the evaluator fires again before the technician acks.
+- `evaluate` - The entry point, called every 30 seconds via `@Scheduled(fixedDelay = 30_000)`. Loads all enabled rules and, for each rule, resolves target endpoints before delegating to `evaluateRuleForEndpoint`.
+- `evaluateRuleForEndpoint` - Runs the breach-count query for a single `(rule, endpoint)` pair. If the condition holds, attempts to insert a new event. If the condition has fully cleared, marks existing open events as cleared.
+- `tryInsertEvent` - Persists the new `AlertEvent` and publishes an `AlertFiredEvent` to the Spring application context. Catches `DataIntegrityViolationException` silently - the partial unique index on `(rule_id, endpoint_id) WHERE acked_at IS NULL` rejects a duplicate insert, which is the normal path when the evaluator fires again before the technician acks.
 
 **Metric queries**
 [`MetricQueryGateway.java`](../src/main/java/dev/pulsermm/alert/infrastructure/MetricQueryGateway.java):
-- `conditionHolds` — Runs a native SQL `COUNT(*) FILTER (WHERE value OP :threshold)` against `public.metric_samples` scoped to the rolling window. Returns true only when every sample in the window breaches the threshold (`breaches == total AND total > 0`). Sparse data (no samples) does not trigger.
-- `conditionCleared` — Same query; returns true when zero samples in the window breach the threshold (`breaches == 0 AND total > 0`). Used to unlock a rule for re-firing after the condition resolves.
+- `conditionHolds` - Runs a native SQL `COUNT(*) FILTER (WHERE value OP :threshold)` against `public.metric_samples` scoped to the rolling window. Returns true only when every sample in the window breaches the threshold (`breaches == total AND total > 0`). Sparse data (no samples) does not trigger.
+- `conditionCleared` - Same query; returns true when zero samples in the window breach the threshold (`breaches == 0 AND total > 0`). Used to unlock a rule for re-firing after the condition resolves.
 
 **Endpoint resolution**
 [`EndpointResolver.java`](../src/main/java/dev/pulsermm/alert/infrastructure/EndpointResolver.java):
-- `resolve` — Given a `targetType` and `targetValue`, returns the list of endpoint UUIDs that the rule applies to. For `group` targets it queries `enrolment.endpoints` by `group_id`; for `tag` targets it splits the `key=value` string and joins `enrolment.endpoints` with `enrolment.endpoint_tags`.
+- `resolve` - Given a `targetType` and `targetValue`, returns the list of endpoint UUIDs that the rule applies to. For `group` targets it queries `enrolment.endpoints` by `group_id`; for `tag` targets it splits the `key=value` string and joins `enrolment.endpoints` with `enrolment.endpoint_tags`.
 
-**Domain event**
+**Domain event (in-process)**
 [`AlertFiredEvent.java`](../src/main/java/dev/pulsermm/alert/application/AlertFiredEvent.java):
-- A plain Spring `ApplicationEvent` wrapping the persisted `AlertEvent`. Published by `tryInsertEvent` and consumed by `SseBroadcaster` in the same JVM process.
+- A plain Spring `ApplicationEvent` wrapping the persisted `AlertEvent`. Published by `tryInsertEvent` and consumed by `SseBroadcaster` in the same JVM process. Fires synchronously when the evaluator inserts a new alert rule breach.
+
+**RabbitMQ consumer for operational events**
+[`DomainEventConsumer.java`](../src/main/java/dev/pulsermm/alert/infrastructure/messaging/DomainEventConsumer.java):
+- Listens on the `alert.service.notifications` RabbitMQ queue for domain events published by other services. When an endpoint comes online/offline, a script completes, software is installed, or an audit action occurs, a notification is immediately broadcast to all connected SSE clients. This complements the scheduled alert evaluator by pushing real-time operational status updates to the webapp without waiting for the next 30-second evaluation cycle.
 
 ### description
 
-The evaluator intentionally avoids any external messaging infrastructure this sprint. Because the SSE delivery is in-process, using Spring's `ApplicationEventPublisher` keeps the delivery path simple: the evaluator saves the row, publishes the event, and the broadcaster immediately pushes it to all connected `SseEmitter` instances. The only external dependency is the shared PostgreSQL database, where `metric_samples` lives in the `public` schema (owned by metric-service) and the alert tables live in the `alerts` schema (owned by this service).
+The alert-service uses a **hybrid notification strategy**:
+
+**Scheduled evaluator (alert-specific):** Every 30 seconds, the evaluator checks all enabled rules against time-series metric data. When a condition is breached or cleared, an alert event is persisted and immediately published via in-process `ApplicationEvent` to `SseBroadcaster`. This is the only place alerts are created.
+
+**Event-driven notifications (operational):** Other services publish domain events to RabbitMQ (endpoint online/offline, script results, software actions, audit events). The `DomainEventConsumer` listens to these events and broadcasts human-readable notifications to SSE clients in real-time. These are not alerts (they do not persist to the alert history), but they keep the dashboard fresh between 30-second alert evaluation cycles.
+
+The evaluator intentionally avoids any external messaging infrastructure for alert generation itself. Because the SSE delivery is in-process, using Spring's `ApplicationEventPublisher` keeps the delivery path simple: the evaluator saves the row, publishes the event, and the broadcaster immediately pushes it to all connected `SseEmitter` instances. The only external dependency is the shared PostgreSQL database, where `metric_samples` lives in the `public` schema (owned by metric-service) and the alert tables live in the `alerts` schema (owned by this service).
 
 Deduplication is enforced at the database level. The partial unique index `UNIQUE (rule_id, endpoint_id) WHERE acked_at IS NULL` means the evaluator can safely attempt an unconditional INSERT on every tick; Postgres rejects the duplicate and the `DataIntegrityViolationException` is swallowed. No application-level locking is needed.
 

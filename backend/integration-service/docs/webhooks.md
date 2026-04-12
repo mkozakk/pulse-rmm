@@ -29,10 +29,10 @@ Handles registration of webhook endpoints, secret encryption, and event-type mat
 
 **API**
 [`WebhookController.java`](../src/main/java/dev/pulsermm/integration/api/controller/WebhookController.java):
-	- `create` - `POST /api/webhooks` — accepts url, event_types[], and secret; returns 201 with the created webhook (secret never echoed).
-	- `list` - `GET /api/webhooks` — returns all webhooks for the tenant, secrets excluded.
-	- `update` - `PUT /api/webhooks/{id}` — partial update; secret field is optional.
-	- `delete` - `DELETE /api/webhooks/{id}` — returns 204.
+	- `create` - `POST /api/webhooks` - accepts url, event_types[], and secret; returns 201 with the created webhook (secret never echoed).
+	- `list` - `GET /api/webhooks` - returns all webhooks for the tenant, secrets excluded.
+	- `update` - `PUT /api/webhooks/{id}` - partial update; secret field is optional.
+	- `delete` - `DELETE /api/webhooks/{id}` - returns 204.
 
 ### description
 

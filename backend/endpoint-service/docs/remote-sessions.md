@@ -7,9 +7,9 @@ The Remote Sessions subsystem coordinates WebRTC-based remote access (desktop, s
 ## Session Types
 
 ```
-DESKTOP   — Screen capture, keyboard/mouse input, file transfer
-SHELL     — Terminal multiplexing (WebSocket proxy)
-HELP      — Built-in help request from endpoint user
+DESKTOP   - Screen capture, keyboard/mouse input, file transfer
+SHELL     - Terminal multiplexing (WebSocket proxy)
+HELP      - Built-in help request from endpoint user
 ```
 
 ## Session Lifecycle
@@ -167,12 +167,12 @@ Completed sessions are kept in the database for audit purposes (30 days retentio
 
 ## Error Handling
 
-- `400 Bad Request` — Invalid session type
-- `401 Unauthorized` — Missing/invalid JWT
-- `403 Forbidden` — User lacks remote:*:control permission
-- `404 Not Found` — Endpoint not found
-- `409 Conflict` — Endpoint offline, session already exists for endpoint
-- `500 Internal Server Error` — gRPC communication error, database error
+- `400 Bad Request` - Invalid session type
+- `401 Unauthorized` - Missing/invalid JWT
+- `403 Forbidden` - User lacks remote:*:control permission
+- `404 Not Found` - Endpoint not found
+- `409 Conflict` - Endpoint offline, session already exists for endpoint
+- `500 Internal Server Error` - gRPC communication error, database error
 
 ## Edge Cases
 

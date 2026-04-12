@@ -79,7 +79,7 @@ When `HandleStartSession` is received, the agent creates a Pion PeerConnection w
 
 The frontend receives `session_ready`, creates its own RTCPeerConnection, and sends an SDP offer via WebSocket. The Gateway relays the offer through the gRPC stream to `HandleSignal` → `HandleOffer`. The agent sets the remote description, flushes any pending ICE candidates (Trickle ICE queued before the offer arrived), creates and sends back an SDP answer.
 
-ICE candidates flow bidirectionally via Trickle ICE throughout the negotiation — neither side waits for gathering to complete. Candidates arriving before `SetRemoteDescription` are queued in `pendingICE` and flushed atomically in `HandleOffer`.
+ICE candidates flow bidirectionally via Trickle ICE throughout the negotiation - neither side waits for gathering to complete. Candidates arriving before `SetRemoteDescription` are queued in `pendingICE` and flushed atomically in `HandleOffer`.
 
 Input events (mouse, keyboard) arrive over a separate WebRTC DataChannel at up to 60Hz (rate-limited). They are injected into the OS using platform-specific mechanisms: uinput on Linux, SendInput on Windows.
 
@@ -87,4 +87,4 @@ File transfers use a third DataChannel to avoid blocking input. Uploads are vali
 
 Session teardown happens via `HandleEndSession` (triggered by `DELETE /api/sessions/{id}` from the frontend) or via the `OnPeerConnectionClosed` callback (triggered when the WebRTC connection drops). In both cases, the capture context is cancelled (killing ffmpeg) and `sess.Close()` is called (closing the injector, PeerConnection, and log file). The `closeOnce` guard prevents double-close if both paths fire.
 
-A `endedBeforeStart` map tracks session IDs that received `HandleEndSession` before the corresponding `HandleStartSession` — this handles the gateway-level race where HTTP requests for `start` and `end` can arrive at the agent's gRPC stream out of order, preventing a stale `HandleStartSession` from killing the currently active session.
+A `endedBeforeStart` map tracks session IDs that received `HandleEndSession` before the corresponding `HandleStartSession` - this handles the gateway-level race where HTTP requests for `start` and `end` can arrive at the agent's gRPC stream out of order, preventing a stale `HandleStartSession` from killing the currently active session.

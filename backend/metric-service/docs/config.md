@@ -1,23 +1,38 @@
 # API & Configuration (`api/`, `/`)
 
-Manages application entry points, internal security boundaries, OpenAPI documentation schemas, and the REST interfaces used to retrieve aggregated telemetry.
+Manages application entry points, security boundaries, and REST interfaces for ingestion and querying telemetry.
 
 ### code
+
 **Core Application**
 [`MetricApplication.java`](../src/main/java/dev/pulsermm/metric/MetricApplication.java):
-	- The primary execution hook that bootstraps the embedded Spring Boot web server, activates dependency injection, and initializes the TimescaleDB connection pools.
+	- Spring Boot entry point that bootstraps the server, enables dependency injection, and initializes database connection pools.
 
-**API & Routing**
+**Public Query API**
 [`MetricController.java`](../src/main/java/dev/pulsermm/metric/api/MetricController.java):
-	- Exposes standard REST HTTP endpoints allowing the frontend web application to query aggregated, historical hardware statistics and current operational statuses for rendering charts and dashboards.
+	- REST endpoints secured with JWT Bearer token. Allows authenticated users (webapp, dashboards) to query historical metrics and static system information for rendering charts and reports.
+	- `GET /api/endpoints/{id}/metrics` - Query metric samples by type and time range, with optional label filters.
+	- `GET /api/endpoints/{id}/system-info` - Retrieve cached hardware info (CPU model, cores, RAM, disk/NIC inventory).
+
+**Internal Ingestion API**
+[`InternalMetricController.java`](../src/main/java/dev/pulsermm/metric/api/InternalMetricController.java):
+	- Unauthenticated REST endpoints under `/internal/` prefix for agents (routed via API Gateway) to push telemetry. No JWT check; security relies on network isolation.
+	- `POST /internal/metrics` - Push metric samples (type, value, sampled_at, labels).
+	- `POST /internal/heartbeat` - Report endpoint is online.
+	- `POST /internal/system-info` - Upload static hardware inventory.
 
 **Security & Documentation**
-[`SecurityConfig.java`](../src/main/java/dev/pulsermm/metric/api/SecurityConfig.java) & [`JwtAuthFilter.java`](../src/main/java/dev/pulsermm/metric/api/JwtAuthFilter.java):
-	- Establish a localized, zero-trust security context. Even though the API Gateway handles broad perimeter authentication, these components ensure that any internal HTTP traffic attempting to pull sensitive telemetry data from the `MetricController` still provides a valid JSON Web Token.
+[`SecurityConfig.java`](../src/main/java/dev/pulsermm/metric/api/SecurityConfig.java):
+	- Enforces JWT validation on `/api/*` endpoints (public query API) while allowing unauthenticated `/internal/*` (ingestion). Zero-trust: validates tokens locally even though API Gateway already authenticated them.
 [`OpenApiConfig.java`](../src/main/java/dev/pulsermm/metric/api/OpenApiConfig.java):
-	- Automates the generation of Swagger schema definitions, providing strict contracts detailing the JSON shapes expected when querying historical metrics, assisting in frontend integration.
+	- Generates OpenAPI/Swagger documentation for the public query API endpoints.
 
 ### description
-Every Spring Boot microservice requires foundational wiring to function predictably within a distributed environment. The `MetricApplication` serves as the ignition switch, booting the server and wiring the internal components necessary to interface with TimescaleDB. While the ingestion pipeline operates heavily on gRPC, the service must also provide a mechanism for administrators to actually view the data. The `MetricController` solves this by exposing standard REST endpoints that the web application can query to generate historical CPU graphs or verify connection statuses. 
 
-Because this architecture adheres to zero-trust principles, trusting the API Gateway implicitly is considered a security risk. The `SecurityConfig` and `JwtAuthFilter` are implemented locally to intercept all inbound HTTP traffic requesting telemetry data. This ensures that even if an attacker successfully pivots laterally within the internal network, they cannot scrape sensitive historical performance data about the IT fleet without possessing a cryptographically signed JWT. Additionally, to maintain a clean contract with the frontend development team, the `OpenApiConfig` generates live documentation outlining exactly how the aggregated data will be structured when returned by the controller.
+The service exposes two distinct API surfaces: **internal ingestion** and **public queries**.
+
+**Ingestion:** Agents push raw data to `/internal/*` endpoints without authentication (secured by network boundary). The `InternalMetricController` validates JSON payloads and forwards them to `MetricIngestionService`. Metrics land in the `metric_samples` hypertable, system info in `endpoint_system_info`, and heartbeats update endpoint status and publish events.
+
+**Queries:** The webapp and dashboards call `/api/endpoints/{id}/metrics` (with JWT) to fetch historical data for charts. The `MetricController` validates the Bearer token, applies time/type/label filters, and returns metric points as an array of `{sampledAt, value, labels}` records. System info is fetched separately and includes hardware inventory (CPU, RAM, disks, NICs).
+
+Both flows share `MetricIngestionService`, which orchestrates database operations and domain event publishing.
