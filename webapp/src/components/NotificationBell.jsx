@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
+import { Bell, X } from 'lucide-react'
 import { useGetAlertsQuery, useAckAlertMutation } from '../api/pulseApi'
 import { seedAlerts, removeAlert, dismissNotif } from '../store/alertsSlice'
 import { useAlertStream } from '../hooks/useAlertStream'
@@ -27,7 +28,7 @@ export default function NotificationBell() {
   return (
     <div className="bell-wrap">
       <button className="bell-btn" onClick={() => setOpen(o => !o)}>
-        🔔
+        <Bell size={16} />
         {count > 0 && <span className="bell-badge">{count}</span>}
       </button>
       {open && (
@@ -48,7 +49,7 @@ export default function NotificationBell() {
                 <p className="bell-rule-name">{n.message}</p>
                 <p className="bell-meta">{new Date(n.occurredAt).toLocaleString()}</p>
               </div>
-              <button className="bell-ack" onClick={() => dispatch(dismissNotif(i))}>✕</button>
+              <button className="bell-ack" onClick={() => dispatch(dismissNotif(i))}><X size={12} /></button>
             </div>
           ))}
         </div>

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Upload, Star, Trash2 } from 'lucide-react'
 import AppShell from '../components/AppShell'
 import {
   useListAgentVersionsQuery,
@@ -8,7 +9,7 @@ import {
 } from '../api/pulseApi'
 
 export default function AgentVersionsPage() {
-  const { data: versions = [], refetch } = useListAgentVersionsQuery()
+  const { data: versions = [] } = useListAgentVersionsQuery()
   const [publish] = usePublishAgentVersionMutation()
   const [setCurrent] = useSetCurrentAgentVersionMutation()
   const [deleteVersion] = useDeleteAgentVersionMutation()
@@ -40,7 +41,6 @@ export default function AgentVersionsPage() {
       setFile(null)
       setVersion('')
       setUploadProgress('')
-      refetch()
     } catch (e) {
       setUploadError(e?.data?.detail ?? e?.data?.message ?? e?.message ?? 'Upload failed')
       setUploadProgress('')
@@ -53,7 +53,6 @@ export default function AgentVersionsPage() {
     setBusy(id + ':current')
     try {
       await setCurrent(id).unwrap()
-      refetch()
     } finally {
       setBusy('')
     }
@@ -64,7 +63,6 @@ export default function AgentVersionsPage() {
     setBusy(id + ':delete')
     try {
       await deleteVersion(id).unwrap()
-      refetch()
     } catch (e) {
       alert(e?.data?.detail ?? e?.data?.message ?? 'Delete failed')
     } finally {
@@ -101,8 +99,8 @@ export default function AgentVersionsPage() {
           <select value={artifactType} onChange={e => setArtifactType(e.target.value)}>
             {artifactTypeOptions.map(t => <option key={t} value={t}>{t}</option>)}
           </select>
-          <button onClick={handleUpload} disabled={uploading || !file || !version}>
-            {uploading ? uploadProgress || 'Uploading…' : 'Upload'}
+          <button className="icon-btn" onClick={handleUpload} disabled={uploading || !file || !version}>
+            <Upload size={14} />{uploading ? uploadProgress || 'Uploading…' : 'Upload'}
           </button>
         </div>
         {uploadError && <p className="form-error">{uploadError}</p>}
@@ -124,16 +122,17 @@ export default function AgentVersionsPage() {
                 </span>
                 <span style={{ display: 'flex', gap: 8 }}>
                   {!v.current && (
-                    <button onClick={() => handleSetCurrent(v.id)} disabled={busy === v.id + ':current'}>
-                      Set current
+                    <button className="icon-btn" onClick={() => handleSetCurrent(v.id)} disabled={busy === v.id + ':current'}>
+                      <Star size={13} />Set current
                     </button>
                   )}
                   <button
+                    className="icon-btn"
                     onClick={() => handleDelete(v.id)}
                     disabled={busy === v.id + ':delete' || v.current}
                     title={v.current ? 'Cannot delete current version' : undefined}
                   >
-                    Delete
+                    <Trash2 size={13} />Delete
                   </button>
                 </span>
               </div>

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { Key, FolderPlus, Tag, RefreshCw, Copy, Check } from 'lucide-react'
 import AppShell from '../components/AppShell'
 import {
   useCreateEnrolmentTokenMutation,
@@ -27,8 +28,8 @@ function CopyLine({ label, text }) {
         <code style={{ flex: 1, padding: '6px 8px', background: '#1a1a2e', borderRadius: 4, fontSize: 12, wordBreak: 'break-all' }}>
           {text}
         </code>
-        <button onClick={copy} style={{ whiteSpace: 'nowrap' }}>
-          {copied ? 'Copied!' : 'Copy'}
+        <button className="icon-btn" onClick={copy} style={{ whiteSpace: 'nowrap' }}>
+          {copied ? <><Check size={13} />Copied!</> : <><Copy size={13} />Copy</>}
         </button>
       </div>
     </div>
@@ -150,7 +151,7 @@ export default function EnrolmentPage() {
             ))}
           </select>
           <input value={tokenTtl} onChange={e => setTokenTtl(e.target.value)} type="number" min="1" placeholder="TTL hours" />
-          <button onClick={handleCreateToken} disabled={busy === 'token'}>Create token</button>
+          <button className="icon-btn" onClick={handleCreateToken} disabled={busy === 'token'}><Key size={14} />Create token</button>
         </div>
         {tokenResult && <InstallCommands token={tokenResult} />}
       </section>
@@ -165,7 +166,7 @@ export default function EnrolmentPage() {
               <option key={group.id} value={group.id}>{group.name}</option>
             ))}
           </select>
-          <button onClick={handleCreateGroup} disabled={busy === 'group'}>Create group</button>
+          <button className="icon-btn" onClick={handleCreateGroup} disabled={busy === 'group'}><FolderPlus size={14} />Create group</button>
         </div>
         <div className="list-card">
           {groupOptions.map(group => (
@@ -184,8 +185,8 @@ export default function EnrolmentPage() {
           <input value={rule.conditionValue} onChange={e => setRule({ ...rule, conditionValue: e.target.value })} placeholder="condition value" />
           <input value={rule.tagKey} onChange={e => setRule({ ...rule, tagKey: e.target.value })} placeholder="tag key" />
           <input value={rule.tagValue} onChange={e => setRule({ ...rule, tagValue: e.target.value })} placeholder="tag value" />
-          <button onClick={handleCreateRule} disabled={busy === 'rule'}>Create rule</button>
-          <button onClick={() => evaluateRules().unwrap()} disabled={busy === 'rule'}>Evaluate</button>
+          <button className="icon-btn" onClick={handleCreateRule} disabled={busy === 'rule'}><Tag size={14} />Create rule</button>
+          <button className="icon-btn" onClick={() => evaluateRules().unwrap()} disabled={busy === 'rule'}><RefreshCw size={14} />Evaluate</button>
         </div>
         <div className="list-card">
           {(tagRules.data ?? []).map(item => (
