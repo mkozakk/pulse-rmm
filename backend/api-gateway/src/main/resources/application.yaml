@@ -12,8 +12,8 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          jwk-set-uri: ${KEYCLOAK_URL:http://localhost:8180}/realms/pulse-rmm/protocol/openid-connect/certs
-          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8180/realms/pulse-rmm}
+          jwk-set-uri: ${KEYCLOAK_URL:http://localhost:8080/auth}/realms/pulse-rmm/protocol/openid-connect/certs
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8080/auth/realms/pulse-rmm}
   application:
     name: api-gateway
   threads:
