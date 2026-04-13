@@ -82,6 +82,8 @@ services:
     ports: !override []
 
   nginx:
+    volumes: !override
+      - ./nginx.prod.conf:/etc/nginx/nginx.conf:ro,Z
     ports: !override
       - "8082:80"
       - "8443:443"
