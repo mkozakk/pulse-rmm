@@ -4,6 +4,8 @@ import { Provider } from 'react-redux'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { configureStore } from '@reduxjs/toolkit'
 import authReducer from '../store/authSlice'
+import alertsReducer from '../store/alertsSlice'
+import { pulseApi } from '../api/pulseApi'
 import DesktopPage from './DesktopPage'
 
 vi.mock('../hooks/useDesktopSession')
@@ -24,8 +26,9 @@ function mockSession(overrides = {}) {
 
 function renderPage() {
   const store = configureStore({
-    reducer: { auth: authReducer },
-    preloadedState: { auth: { token: 'test-token', initialized: true } }
+    reducer: { auth: authReducer, alerts: alertsReducer, [pulseApi.reducerPath]: pulseApi.reducer },
+    preloadedState: { auth: { token: 'test-token', initialized: true } },
+    middleware: (getDefaultMiddleware) => getDefaultMiddleware().concat(pulseApi.middleware)
   })
   return render(
     <Provider store={store}>

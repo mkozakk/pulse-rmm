@@ -7,3 +7,11 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
     disconnect() {}
   }
 }
+
+if (typeof globalThis.EventSource === 'undefined') {
+  globalThis.EventSource = class {
+    constructor() {}
+    addEventListener() {}
+    close() {}
+  }
+}

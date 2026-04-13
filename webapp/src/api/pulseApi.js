@@ -18,21 +18,23 @@ const rawBaseQuery = fetchBaseQuery({
 export const pulseApi = createApi({
   reducerPath: 'pulseApi',
   baseQuery: rawBaseQuery,
-  tagTypes: ['Users'],
+  tagTypes: ['Endpoint', 'Group', 'TagRule', 'Script', 'Software', 'AlertRule', 'AgentVersion', 'Webhook', 'Users', 'Organizations', 'OrgUsers'],
   endpoints: (builder) => ({
     getGroups: builder.query({
       query: () => '/groups',
-      keepUnusedDataFor: 0
+      providesTags: ['Group']
     }),
     createGroup: builder.mutation({
-      query: (body) => ({ url: '/groups', method: 'POST', body })
+      query: (body) => ({ url: '/groups', method: 'POST', body }),
+      invalidatesTags: ['Group']
     }),
     getTagRules: builder.query({
       query: () => '/tag-rules',
-      keepUnusedDataFor: 0
+      providesTags: ['TagRule']
     }),
     createTagRule: builder.mutation({
-      query: (body) => ({ url: '/tag-rules', method: 'POST', body })
+      query: (body) => ({ url: '/tag-rules', method: 'POST', body }),
+      invalidatesTags: ['TagRule']
     }),
     evaluateTagRules: builder.mutation({
       query: () => ({ url: '/tag-rules/evaluate', method: 'POST' })
@@ -42,36 +44,41 @@ export const pulseApi = createApi({
     }),
     getEndpoints: builder.query({
       query: () => '/endpoints',
-      keepUnusedDataFor: 0
+      providesTags: ['Endpoint'],
+      keepUnusedDataFor: 30
     }),
     updateEndpointGroup: builder.mutation({
       query: ({ id, groupId }) => ({
         url: `/endpoints/${id}/group`,
         method: 'PUT',
         body: { groupId }
-      })
+      }),
+      invalidatesTags: ['Endpoint']
     }),
     updateEndpointTags: builder.mutation({
       query: ({ id, tags }) => ({
         url: `/endpoints/${id}/tags`,
         method: 'PUT',
         body: { tags }
-      })
+      }),
+      invalidatesTags: ['Endpoint']
     }),
     getScripts: builder.query({
       query: ({ status = 'all', page = 0, size = 50 } = {}) =>
         `/scripts?status=${status}&page=${page}&size=${size}`,
-      keepUnusedDataFor: 0
+      providesTags: ['Script']
     }),
     getScript: builder.query({
       query: (id) => `/scripts/${id}`,
-      keepUnusedDataFor: 0
+      providesTags: (result, error, id) => [{ type: 'Script', id }]
     }),
     createScript: builder.mutation({
-      query: (body) => ({ url: '/scripts', method: 'POST', body })
+      query: (body) => ({ url: '/scripts', method: 'POST', body }),
+      invalidatesTags: ['Script']
     }),
     approveScript: builder.mutation({
-      query: (id) => ({ url: `/scripts/${id}/approve`, method: 'POST' })
+      query: (id) => ({ url: `/scripts/${id}/approve`, method: 'POST' }),
+      invalidatesTags: ['Script']
     }),
     runScript: builder.mutation({
       query: ({ id, ...body }) => ({ url: `/scripts/${id}/run`, method: 'POST', body })
@@ -89,32 +96,37 @@ export const pulseApi = createApi({
     }),
     getSoftware: builder.query({
       query: (endpointId) => `/endpoints/${endpointId}/software`,
-      keepUnusedDataFor: 0
+      providesTags: (result, error, endpointId) => [{ type: 'Software', id: endpointId }],
+      keepUnusedDataFor: 30
     }),
     installSoftware: builder.mutation({
       query: ({ endpointId, ...body }) => ({
         url: `/endpoints/${endpointId}/software/install`,
         method: 'POST',
         body
-      })
+      }),
+      invalidatesTags: (result, error, { endpointId }) => [{ type: 'Software', id: endpointId }]
     }),
     updateSoftware: builder.mutation({
       query: ({ endpointId, ...body }) => ({
         url: `/endpoints/${endpointId}/software/update`,
         method: 'POST',
         body
-      })
+      }),
+      invalidatesTags: (result, error, { endpointId }) => [{ type: 'Software', id: endpointId }]
     }),
     removeSoftware: builder.mutation({
       query: ({ endpointId, ...body }) => ({
         url: `/endpoints/${endpointId}/software/remove`,
         method: 'POST',
         body
-      })
+      }),
+      invalidatesTags: (result, error, { endpointId }) => [{ type: 'Software', id: endpointId }]
     }),
     getEndpoint: builder.query({
       query: (id) => `/endpoints/${id}`,
-      keepUnusedDataFor: 0
+      providesTags: (result, error, id) => [{ type: 'Endpoint', id }],
+      keepUnusedDataFor: 30
     }),
     getMetrics: builder.query({
       query: ({ id, from, to, type, labels }) => {
@@ -130,7 +142,7 @@ export const pulseApi = createApi({
     }),
     getSystemInfo: builder.query({
       query: (id) => `/endpoints/${id}/system-info`,
-      keepUnusedDataFor: 0
+      keepUnusedDataFor: 30
     }),
     listFiles: builder.query({
       query: ({ id, path }) =>
@@ -160,13 +172,15 @@ export const pulseApi = createApi({
     }),
     getAlertRules: builder.query({
       query: () => '/alert-rules',
-      keepUnusedDataFor: 0
+      providesTags: ['AlertRule']
     }),
     createAlertRule: builder.mutation({
-      query: (body) => ({ url: '/alert-rules', method: 'POST', body })
+      query: (body) => ({ url: '/alert-rules', method: 'POST', body }),
+      invalidatesTags: ['AlertRule']
     }),
     deleteAlertRule: builder.mutation({
-      query: (id) => ({ url: `/alert-rules/${id}`, method: 'DELETE' })
+      query: (id) => ({ url: `/alert-rules/${id}`, method: 'DELETE' }),
+      invalidatesTags: ['AlertRule']
     }),
     getAlerts: builder.query({
       query: (status = 'open') => `/alerts?status=${status}`,
@@ -190,29 +204,35 @@ export const pulseApi = createApi({
     }),
     listAgentVersions: builder.query({
       query: () => '/agent-versions',
-      keepUnusedDataFor: 0
+      providesTags: ['AgentVersion']
     }),
     publishAgentVersion: builder.mutation({
-      query: (formData) => ({ url: '/agent-versions', method: 'POST', body: formData })
+      query: (formData) => ({ url: '/agent-versions', method: 'POST', body: formData }),
+      invalidatesTags: ['AgentVersion']
     }),
     setCurrentAgentVersion: builder.mutation({
-      query: (id) => ({ url: `/agent-versions/${id}/current`, method: 'PUT' })
+      query: (id) => ({ url: `/agent-versions/${id}/current`, method: 'PUT' }),
+      invalidatesTags: ['AgentVersion']
     }),
     deleteAgentVersion: builder.mutation({
-      query: (id) => ({ url: `/agent-versions/${id}`, method: 'DELETE' })
+      query: (id) => ({ url: `/agent-versions/${id}`, method: 'DELETE' }),
+      invalidatesTags: ['AgentVersion']
     }),
     listWebhooks: builder.query({
       query: () => '/webhooks',
-      keepUnusedDataFor: 0
+      providesTags: ['Webhook']
     }),
     createWebhook: builder.mutation({
-      query: (body) => ({ url: '/webhooks', method: 'POST', body })
+      query: (body) => ({ url: '/webhooks', method: 'POST', body }),
+      invalidatesTags: ['Webhook']
     }),
     updateWebhook: builder.mutation({
-      query: ({ id, ...body }) => ({ url: `/webhooks/${id}`, method: 'PUT', body })
+      query: ({ id, ...body }) => ({ url: `/webhooks/${id}`, method: 'PUT', body }),
+      invalidatesTags: ['Webhook']
     }),
     deleteWebhook: builder.mutation({
-      query: (id) => ({ url: `/webhooks/${id}`, method: 'DELETE' })
+      query: (id) => ({ url: `/webhooks/${id}`, method: 'DELETE' }),
+      invalidatesTags: ['Webhook']
     }),
     listDeliveries: builder.query({
       query: ({ webhookId, status, limit = 50 }) => {
@@ -247,18 +267,15 @@ export const pulseApi = createApi({
       })
     }),
     getRoles: builder.query({
-      query: () => '/identity/rbac/roles',
-      keepUnusedDataFor: 0
+      query: () => '/identity/rbac/roles'
     }),
     getUsers: builder.query({
       query: () => '/identity/users',
-      providesTags: ['Users'],
-      keepUnusedDataFor: 0
+      providesTags: ['Users']
     }),
     getUser: builder.query({
       query: (id) => `/identity/users/${id}`,
-      providesTags: (result, error, id) => [{ type: 'Users', id }],
-      keepUnusedDataFor: 0
+      providesTags: (result, error, id) => [{ type: 'Users', id }]
     }),
     createUser: builder.mutation({
       query: (body) => ({ url: '/identity/users', method: 'POST', body }),
@@ -278,8 +295,7 @@ export const pulseApi = createApi({
     }),
     getOrganizations: builder.query({
       query: () => '/organizations',
-      providesTags: ['Organizations'],
-      keepUnusedDataFor: 0
+      providesTags: ['Organizations']
     }),
     createOrganization: builder.mutation({
       query: (body) => ({ url: '/organizations', method: 'POST', body }),
@@ -291,8 +307,7 @@ export const pulseApi = createApi({
     }),
     getOrgUsers: builder.query({
       query: (orgId) => `/organizations/${orgId}/users`,
-      providesTags: (result, error, orgId) => [{ type: 'OrgUsers', id: orgId }],
-      keepUnusedDataFor: 0
+      providesTags: (result, error, orgId) => [{ type: 'OrgUsers', id: orgId }]
     }),
     createOrgUser: builder.mutation({
       query: ({ orgId, ...body }) => ({ url: `/organizations/${orgId}/users`, method: 'POST', body }),

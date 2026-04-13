@@ -45,9 +45,9 @@ function renderPage() {
 describe('AgentVersionsPage', () => {
   it('renders version rows grouped by platform', () => {
     renderPage()
-    expect(screen.getByText('linux/amd64')).toBeInTheDocument()
-    expect(screen.getByText('1.2.3')).toBeInTheDocument()
-    expect(screen.getByText('1.2.2')).toBeInTheDocument()
+    expect(screen.getAllByText('linux/amd64')).toHaveLength(2)
+    expect(screen.getByText('v1.2.3')).toBeInTheDocument()
+    expect(screen.getByText('v1.2.2')).toBeInTheDocument()
   })
 
   it('shows current badge on the current version', () => {

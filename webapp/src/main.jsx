@@ -5,24 +5,34 @@ import { store } from './store/store'
 import { setCredentials, clearCredentials, setInitialized } from './store/authSlice'
 import keycloak from './keycloak'
 import App from './App.jsx'
+import ErrorBoundary from './components/ErrorBoundary.jsx'
 import './index.css'
 import '@xterm/xterm/css/xterm.css'
 
+const root = createRoot(document.getElementById('root'))
+
+root.render(
+  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', color: '#64748b', fontSize: 14 }}>
+    Initialising…
+  </div>
+)
+
 keycloak
-  .init({ onLoad: 'login-required', pkceMethod: 'S256' })
+  .init({ onLoad: 'login-required', pkceMethod: 'S256', checkLoginIframe: false })
   .then((authenticated) => {
     if (authenticated) store.dispatch(setCredentials(keycloak.token))
     store.dispatch(setInitialized())
 
-    // keep the token used for REST (header) and WebSocket (?token=) fresh
     keycloak.onAuthRefreshSuccess = () => store.dispatch(setCredentials(keycloak.token))
     keycloak.onAuthLogout = () => store.dispatch(clearCredentials())
     keycloak.onTokenExpired = () => keycloak.updateToken(30).catch(() => keycloak.login())
 
-    createRoot(document.getElementById('root')).render(
+    root.render(
       <StrictMode>
         <Provider store={store}>
-          <App />
+          <ErrorBoundary>
+            <App />
+          </ErrorBoundary>
         </Provider>
       </StrictMode>
     )

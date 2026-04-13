@@ -4,6 +4,7 @@ import { Provider } from 'react-redux'
 import { MemoryRouter } from 'react-router-dom'
 import { configureStore } from '@reduxjs/toolkit'
 import authReducer from '../store/authSlice'
+import alertsReducer from '../store/alertsSlice'
 import { pulseApi } from '../api/pulseApi'
 import EnrolmentPage from './EnrolmentPage'
 
@@ -25,7 +26,7 @@ vi.mock('../api/pulseApi', async () => {
 
 function renderPage() {
   const store = configureStore({
-    reducer: { auth: authReducer, [pulseApi.reducerPath]: pulseApi.reducer },
+    reducer: { auth: authReducer, alerts: alertsReducer, [pulseApi.reducerPath]: pulseApi.reducer },
     preloadedState: { auth: { token: 'tok', initialized: true } },
     middleware: (getDefaultMiddleware) => getDefaultMiddleware().concat(pulseApi.middleware)
   })
