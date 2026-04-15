@@ -45,7 +45,7 @@ export default function PerDiskTable({ disks, samples }) {
             <td>{formatBytes(r.used)}</td>
             <td>{formatBytes(r.free)}</td>
             <td>{formatBytes(r.total)}</td>
-            <td>{r.pct != null ? `${r.pct}%` : '—'}</td>
+            <td>{r.pct != null ? `${r.pct}%` : '-'}</td>
           </tr>
         ))}
       </tbody>

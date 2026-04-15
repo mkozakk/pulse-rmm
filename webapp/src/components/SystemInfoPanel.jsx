@@ -1,5 +1,5 @@
 function formatBytes(n) {
-  if (n == null) return '—'
+  if (n == null) return '-'
   const units = ['B', 'KB', 'MB', 'GB', 'TB']
   let v = Number(n)
   let i = 0
@@ -11,65 +11,72 @@ function formatBytes(n) {
 }
 
 export default function SystemInfoPanel({ info }) {
-  if (!info) {
-    return <p className="panel-empty">No system info reported yet.</p>
-  }
+  if (!info) return <p className="panel-empty">No system info reported yet.</p>
 
   return (
-    <section className="system-info-panel">
-      <div className="panel-card">
-        <h3>CPU</h3>
-        <p className="detail-value">{info.cpuModel || 'Unknown'}</p>
-        <p className="detail-label">
-          {info.cpuPhysical ?? '?'} physical / {info.cpuLogical ?? '?'} logical cores
-          {info.cpuFreqMhz ? ` · ${Math.round(info.cpuFreqMhz)} MHz` : ''}
-        </p>
+    <>
+      <div className="panel-card stack">
+        <p className="section-title">CPU</p>
+        <div className="sysinfo-kv">
+          <span className="sysinfo-key">Model</span>
+          <span className="sysinfo-val" title={info.cpuModel}>{info.cpuModel || '-'}</span>
+        </div>
+        <div className="sysinfo-kv">
+          <span className="sysinfo-key">Cores</span>
+          <span className="sysinfo-val">{info.cpuPhysical ?? '?'} physical / {info.cpuLogical ?? '?'} logical</span>
+        </div>
+        {info.cpuFreqMhz != null && (
+          <div className="sysinfo-kv">
+            <span className="sysinfo-key">Freq</span>
+            <span className="sysinfo-val">{Math.round(info.cpuFreqMhz)} MHz</span>
+          </div>
+        )}
       </div>
 
-      <div className="panel-card">
-        <h3>Memory</h3>
-        <p className="detail-value">{formatBytes(info.ramTotal)}</p>
-        <p className="detail-label">Swap: {formatBytes(info.swapTotal)}</p>
+      <div className="panel-card stack">
+        <p className="section-title">Memory</p>
+        <div className="sysinfo-kv">
+          <span className="sysinfo-key">RAM</span>
+          <span className="sysinfo-val">{formatBytes(info.ramTotal)}</span>
+        </div>
+        <div className="sysinfo-kv">
+          <span className="sysinfo-key">Swap</span>
+          <span className="sysinfo-val">{formatBytes(info.swapTotal)}</span>
+        </div>
       </div>
 
-      <div className="panel-card">
-        <h3>Disks ({info.disks?.length ?? 0})</h3>
-        <table className="info-table">
-          <thead>
-            <tr><th>Device</th><th>Mount</th><th>FS</th><th>Total</th></tr>
-          </thead>
-          <tbody>
-            {(info.disks || []).map((d, i) => (
-              <tr key={i}>
-                <td>{d.device}</td>
-                <td>{d.mountpoint}</td>
-                <td>{d.fstype}</td>
-                <td>{formatBytes(d.totalBytes)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {info.disks?.length > 0 && (
+        <div className="panel-card stack">
+          <p className="section-title">Disks ({info.disks.length})</p>
+          {info.disks.map((d, i) => (
+            <div key={i} className="sysinfo-item">
+              <div className="sysinfo-item-head">
+                <span>{d.device}</span>
+                <span>{formatBytes(d.totalBytes)}</span>
+              </div>
+              <div className="sysinfo-item-sub">{d.mountpoint} · {d.fstype}</div>
+            </div>
+          ))}
+        </div>
+      )}
 
-      <div className="panel-card">
-        <h3>Network interfaces ({info.nics?.length ?? 0})</h3>
-        <table className="info-table">
-          <thead>
-            <tr><th>Name</th><th>MAC</th><th>Addresses</th><th>MTU</th></tr>
-          </thead>
-          <tbody>
-            {(info.nics || []).map((n, i) => (
-              <tr key={i}>
-                <td>{n.name}</td>
-                <td>{n.mac || '—'}</td>
-                <td>{(n.addresses || []).join(', ') || '—'}</td>
-                <td>{n.mtu}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
+      {info.nics?.length > 0 && (
+        <div className="panel-card stack">
+          <p className="section-title">Network ({info.nics.length})</p>
+          {info.nics.map((n, i) => (
+            <div key={i} className="sysinfo-item">
+              <div className="sysinfo-item-head">
+                <span>{n.name}</span>
+                <span style={{ color: '#374151', fontWeight: 400, fontSize: 11 }}>
+                  {(n.addresses || []).join(', ') || '-'}
+                </span>
+              </div>
+              {n.mac && <div className="sysinfo-item-sub">{n.mac}</div>}
+            </div>
+          ))}
+        </div>
+      )}
+    </>
   )
 }
 
