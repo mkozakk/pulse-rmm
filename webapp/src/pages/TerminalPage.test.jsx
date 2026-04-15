@@ -71,7 +71,7 @@ describe('TerminalPage', () => {
 
   it('shows shell title', () => {
     renderPage()
-    expect(screen.getByText(/terminal — abc-123/i)).toBeInTheDocument()
+    expect(screen.getByText(/terminal - abc-123/i)).toBeInTheDocument()
   })
 
   it('writes output when WS sends 0x01 frame', () => {
