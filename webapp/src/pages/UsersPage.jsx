@@ -1,19 +1,26 @@
 import { useState } from 'react'
 import { UserPlus, Pencil, Trash2 } from 'lucide-react'
 import AppShell from '../components/AppShell'
+import keycloak from '../keycloak'
 import {
   useGetUsersQuery,
   useGetRolesQuery,
+  useGetOrganizationsQuery,
   useCreateUserMutation,
+  useCreateOrgUserMutation,
   useUpdateUserMutation,
   useDeleteUserMutation,
   useUpdateUserRolesMutation
 } from '../api/pulseApi'
 
 export default function UsersPage() {
+  const isGlobalAdmin = !keycloak.tokenParsed?.org_id
+
   const { data: users = [], isLoading, refetch } = useGetUsersQuery()
   const { data: roles = [] } = useGetRolesQuery()
+  const { data: orgs = [] } = useGetOrganizationsQuery(undefined, { skip: !isGlobalAdmin })
   const [createUser] = useCreateUserMutation()
+  const [createOrgUser] = useCreateOrgUserMutation()
   const [updateUser] = useUpdateUserMutation()
   const [deleteUser] = useDeleteUserMutation()
   const [updateUserRoles] = useUpdateUserRolesMutation()
@@ -24,7 +31,7 @@ export default function UsersPage() {
   const [error, setError] = useState(null)
 
   const [createForm, setCreateForm] = useState({
-    username: '', email: '', firstName: '', lastName: '', password: '', roleName: ''
+    username: '', email: '', firstName: '', lastName: '', password: '', roleName: '', orgId: ''
   })
   const [editForm, setEditForm] = useState({
     email: '', firstName: '', lastName: '', enabled: true, roleId: '', newPassword: ''
@@ -33,15 +40,25 @@ export default function UsersPage() {
   function handleCreateSubmit(e) {
     e.preventDefault()
     setError(null)
-    const body = { ...createForm }
-    if (!body.roleName) delete body.roleName
-    createUser(body)
-      .unwrap()
-      .then(() => {
-        setShowCreate(false)
-        setCreateForm({ username: '', email: '', firstName: '', lastName: '', password: '', roleName: '' })
-      })
-      .catch(err => setError(err?.data?.message || 'Failed to create user'))
+
+    const resetForm = () => setCreateForm({ username: '', email: '', firstName: '', lastName: '', password: '', roleName: '', orgId: '' })
+
+    if (isGlobalAdmin) {
+      if (!createForm.orgId) { setError('Select an organization'); return }
+      const { orgId, ...body } = createForm
+      if (!body.roleName) delete body.roleName
+      createOrgUser({ orgId, ...body })
+        .unwrap()
+        .then(() => { setShowCreate(false); resetForm() })
+        .catch(err => setError(err?.data?.message || 'Failed to create user'))
+    } else {
+      const { orgId, ...body } = createForm
+      if (!body.roleName) delete body.roleName
+      createUser(body)
+        .unwrap()
+        .then(() => { setShowCreate(false); resetForm() })
+        .catch(err => setError(err?.data?.message || 'Failed to create user'))
+    }
   }
 
   function openEdit(user) {
@@ -156,6 +173,15 @@ export default function UsersPage() {
                 <input required value={createForm.username}
                   onChange={e => setCreateForm({ ...createForm, username: e.target.value })} />
               </label>
+              {isGlobalAdmin && (
+                <label>Organization *
+                  <select required value={createForm.orgId}
+                    onChange={e => setCreateForm({ ...createForm, orgId: e.target.value })}>
+                    <option value="">- Select org -</option>
+                    {orgs.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+                  </select>
+                </label>
+              )}
               <label>Email
                 <input type="email" value={createForm.email}
                   onChange={e => setCreateForm({ ...createForm, email: e.target.value })} />
