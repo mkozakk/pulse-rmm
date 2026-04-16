@@ -10,6 +10,70 @@ The headline feature is remote access to the endpoint. The clip below is a user 
 
 Everything in Pulse RMM hangs off one idea: the agent dials out to the backend and holds a long-lived connection open, and every action a user takes in the browser travels down that connection as a command. Because the agent makes the outbound connection, it works through NAT and corporate firewalls without anyone opening a port. The same pattern carries metrics up, commands down, and acknowledgements back, so there is one mental model to learn rather than one per feature.
 
+![Architecture overview](docs/media/component-overview.jpg)
+
+## Quick start
+
+You need docker (or podman), `make`, and - only if you intend to rebuild the agent or webapp yourself - Go 1.22+, Java 21, and Node.js 18+.
+
+```bash
+# Copy the dev environment template and set a JWT secret inside it
+cp deploy/.env.dev.example deploy/.env.dev
+
+# Build images and start the whole stack (dependencies + backend + webapp)
+make dev
+```
+
+`make dev` brings up PostgreSQL, Redis, RabbitMQ, MinIO, coturn, Keycloak, every backend service, and the webapp. Once it settles, the webapp is at `http://localhost:5173` and the API gateway is fronted by nginx at `http://localhost:8080`. Log in with the bootstrap admin credentials from your `deploy/.env.dev`. Use `make dev-logs service=api-gateway` to follow a single service and `make dev-down` to stop everything.
+
+## Building
+
+```bash
+make dev-build                 # rebuild all backend + webapp container images
+cd agent && make build         # cross-compile the Linux + Windows agent binaries
+cd webapp && npm install && npm run build   # production webapp bundle
+```
+
+## Repository layout
+
+```
+pulse-rmm/
+├── agent/                  # Go agent (Windows/Linux): metrics, shell, desktop, software, update
+├── backend/                # Java 21 Spring Boot, Maven multi-module
+│   ├── api-gateway/        # single REST/WebSocket entry point, auth, routing
+│   ├── rbac-service/       # identity, JWT, users, roles, RBAC, Keycloak OIDC, multi-org
+│   ├── endpoint-service/   # enrolment, groups, tags, agent-version distribution, sessions
+│   ├── agent-hub/          # agent gRPC control plane, mTLS, shell/desktop bridges, dispatch
+│   ├── ca-service/         # mTLS certificate authority (CSR signing, rotation, revocation)
+│   ├── metric-service/     # telemetry + heartbeat ingestion into TimescaleDB
+│   ├── alert-service/      # threshold rules, SSE notifications
+│   ├── audit-service/      # immutable audit log, CSV/JSON export
+│   ├── commands-service/   # script library, software inventory, process control
+│   ├── integration-service/# outbound HMAC-signed webhooks
+│   └── common/             # shared proto stubs, exceptions, utils
+├── webapp/                 # React + Vite (Redux Toolkit, RTK Query)
+├── proto/                  # protobuf contracts (gRPC), managed by buf
+├── deploy/                 # compose files, env templates, k8s manifests, observability
+├── e2e/                    # end-to-end tests (Python + pytest)
+├── docs/                   # architecture and planning docs
+└── Makefile                # dev, build, and test targets
+```
+
+## Tech stack
+
+| Component | Technology |
+|-----------|-----------|
+| Agent | Go 1.22+, gRPC, gopsutil, Pion (WebRTC), ffmpeg |
+| Backend | Java 21, Spring Boot 3, Maven, gRPC, Flyway |
+| Webapp | React, Vite, Redux Toolkit, RTK Query, recharts |
+| Database | PostgreSQL 16 + TimescaleDB extension |
+| Cache | Redis 7 |
+| Message broker | RabbitMQ 3 |
+| Object storage | MinIO (S3-compatible) |
+| Identity provider | Keycloak (OIDC) |
+| Relay | coturn (STUN/TURN) |
+| Observability | Prometheus, Grafana, Loki, Tempo |
+
 ## Remote access
 
 Remote access is where the agent earns its keep. A user with the right permission opens a session on any online endpoint and the agent starts streaming the desktop over WebRTC, using the Pion library on the agent side and the browser's native WebRTC stack on the other. The screen is captured through ffmpeg - `gdigrab` on Windows, `x11grab` or a PipeWire portal on Linux - encoded as H.264, and pushed over a video track at thirty frames a second. Audio is captured alongside the video. Mouse and keyboard events travel back over a data channel and are injected into the operating system natively: `SendInput` on Windows, a `uinput` virtual device on Linux. When a direct peer-to-peer path is not available, the media is relayed through a coturn STUN/TURN server, so the session survives both sides being behind NAT. A separate data channel carries file uploads and downloads during the session, with path-traversal protection so a download cannot escape the user's home directory.
@@ -68,28 +132,6 @@ Outbound integrations are available too: the integration service can post signed
 
 A browser talks to a single API gateway over REST and WebSocket. The gateway authenticates the request and forwards it to one of the backend services. Agents do not talk to the gateway for their long-lived connection - they hold a bidirectional gRPC stream to a dedicated control-plane service called the agent hub, which is where commands are dispatched to them and where shell and desktop signaling is bridged. Metrics land in TimescaleDB, hot state and the agent-to-pod connection registry live in Redis, domain events fan out over RabbitMQ, and agent installers and update artifacts sit in MinIO. The full picture, including the certificate authority and the WebRTC signaling path, is in [docs/architecture.md](docs/architecture.md).
 
-## Quick start
-
-You need docker (or podman), `make`, and - only if you intend to rebuild the agent or webapp yourself - Go 1.22+, Java 21, and Node.js 18+.
-
-```bash
-# Copy the dev environment template and set a JWT secret inside it
-cp deploy/.env.dev.example deploy/.env.dev
-
-# Build images and start the whole stack (dependencies + backend + webapp)
-make dev
-```
-
-`make dev` brings up PostgreSQL, Redis, RabbitMQ, MinIO, coturn, Keycloak, every backend service, and the webapp. Once it settles, the webapp is at `http://localhost:5173` and the API gateway is fronted by nginx at `http://localhost:8080`. Log in with the bootstrap admin credentials from your `deploy/.env.dev`. Use `make dev-logs service=api-gateway` to follow a single service and `make dev-down` to stop everything.
-
-## Building
-
-```bash
-make dev-build                 # rebuild all backend + webapp container images
-cd agent && make build         # cross-compile the Linux + Windows agent binaries
-cd webapp && npm install && npm run build   # production webapp bundle
-```
-
 ## Testing
 
 Backend tests run through the Makefile, which wires up `JAVA_HOME`, points Testcontainers at the rootless podman socket, and configures surefire/failsafe correctly - running raw `mvn` will not get those right.
@@ -103,46 +145,6 @@ make e2e                                    # full end-to-end stack + Python sui
 ```
 
 The agent and webapp use their native tooling - `cd agent && go test ./...` and `cd webapp && npm run test -- --run`. The full testing guide, including the one-time podman socket setup, is in [docs/testing.md](docs/testing.md).
-
-## Repository layout
-
-```
-pulse-rmm/
-├── agent/                  # Go agent (Windows/Linux): metrics, shell, desktop, software, update
-├── backend/                # Java 21 Spring Boot, Maven multi-module
-│   ├── api-gateway/        # single REST/WebSocket entry point, auth, routing
-│   ├── rbac-service/       # identity, JWT, users, roles, RBAC, Keycloak OIDC, multi-org
-│   ├── endpoint-service/   # enrolment, groups, tags, agent-version distribution, sessions
-│   ├── agent-hub/          # agent gRPC control plane, mTLS, shell/desktop bridges, dispatch
-│   ├── ca-service/         # mTLS certificate authority (CSR signing, rotation, revocation)
-│   ├── metric-service/     # telemetry + heartbeat ingestion into TimescaleDB
-│   ├── alert-service/      # threshold rules, SSE notifications
-│   ├── audit-service/      # immutable audit log, CSV/JSON export
-│   ├── commands-service/   # script library, software inventory, process control
-│   ├── integration-service/# outbound HMAC-signed webhooks
-│   └── common/             # shared proto stubs, exceptions, utils
-├── webapp/                 # React + Vite (Redux Toolkit, RTK Query)
-├── proto/                  # protobuf contracts (gRPC), managed by buf
-├── deploy/                 # compose files, env templates, k8s manifests, observability
-├── e2e/                    # end-to-end tests (Python + pytest)
-├── docs/                   # architecture and planning docs
-└── Makefile                # dev, build, and test targets
-```
-
-## Tech stack
-
-| Component | Technology |
-|-----------|-----------|
-| Agent | Go 1.22+, gRPC, gopsutil, Pion (WebRTC), ffmpeg |
-| Backend | Java 21, Spring Boot 3, Maven, gRPC, Flyway |
-| Webapp | React, Vite, Redux Toolkit, RTK Query, recharts |
-| Database | PostgreSQL 16 + TimescaleDB extension |
-| Cache | Redis 7 |
-| Message broker | RabbitMQ 3 |
-| Object storage | MinIO (S3-compatible) |
-| Identity provider | Keycloak (OIDC) |
-| Relay | coturn (STUN/TURN) |
-| Observability | Prometheus, Grafana, Loki, Tempo |
 
 ## Documentation
 
