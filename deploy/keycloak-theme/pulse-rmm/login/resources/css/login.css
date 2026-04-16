@@ -1,0 +1,171 @@
+/* Pulse RMM login theme — matches app palette */
+
+:root {
+  --blue: #2563eb;
+  --blue-hover: #1d4ed8;
+  --sidebar: #0f172a;
+  --text: #1f2937;
+  --muted: #6b7280;
+  --border: #e5e7eb;
+  --radius: 14px;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  font-family: Inter, system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+  background: #f1f5f9;
+  color: var(--text);
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Hide the default Keycloak chrome we don't want */
+#kc-header,
+.login-pf-page .login-pf-header,
+#kc-header-wrapper { display: none !important; }
+
+/* Center the card */
+#kc-container,
+.login-pf-page { all: unset; display: block; width: 100%; }
+
+#kc-center {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 100vh !important;
+  background: #f1f5f9 !important;
+}
+
+/* Main card */
+#kc-form-wrapper,
+.card-pf {
+  background: #fff;
+  border-radius: var(--radius);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+  padding: 2.5rem 2rem;
+  width: 100%;
+  max-width: 400px;
+  margin: 2rem auto;
+}
+
+/* Logo / brand header */
+#kc-form-wrapper::before {
+  content: "Pulse RMM";
+  display: block;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--blue);
+  margin-bottom: 0.25rem;
+}
+
+#kc-form-wrapper::after {
+  content: "Sign in to your account";
+  display: block;
+  font-size: 0.875rem;
+  color: var(--muted);
+  margin-bottom: 1.75rem;
+}
+
+/* Labels */
+.control-label,
+label { font-size: 13px; font-weight: 500; color: var(--text); margin-bottom: 4px; display: block; }
+
+/* Inputs */
+.form-control,
+input[type="text"],
+input[type="password"],
+input[type="email"] {
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font: inherit;
+  font-size: 14px;
+  background: #fff;
+  color: var(--text);
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.form-control:focus,
+input[type="text"]:focus,
+input[type="password"]:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(37,99,235,0.12); }
+
+/* Form groups */
+.form-group { margin-bottom: 1rem; }
+
+/* Primary button */
+.btn-primary,
+input[type="submit"],
+#kc-login {
+  width: 100%;
+  padding: 0.6rem 1rem;
+  background: var(--blue);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 0.5rem;
+  transition: background 0.15s;
+}
+
+.btn-primary:hover,
+input[type="submit"]:hover,
+#kc-login:hover { background: var(--blue-hover); }
+
+/* Links */
+a, #kc-registration a, #kc-reset-password a {
+  color: var(--blue);
+  text-decoration: none;
+  font-size: 13px;
+}
+a:hover { text-decoration: underline; }
+
+/* Alert / error */
+.alert-error,
+.kc-feedback-text {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #dc2626;
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  font-size: 13px;
+  margin-bottom: 1rem;
+}
+
+.alert-warning { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+.alert-success { background: #f0fdf4; border-color: #bbf7d0; color: #15803d; }
+
+/* Secondary/back buttons */
+.btn-default, #kc-cancel {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  padding: 0.55rem 1rem;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+.btn-default:hover { background: #f9fafb; }
+
+/* Password toggle */
+#password-toggle { color: var(--muted); }
+
+/* Checkbox */
+input[type="checkbox"] { accent-color: var(--blue); }
+
+/* Social/identity provider buttons */
+.kc-social-links { margin-top: 1rem; }
+.kc-social-provider-logo { margin-right: 8px; }
+
+/* Smaller footer text */
+#kc-info, .instruction { font-size: 12px; color: var(--muted); text-align: center; margin-top: 1rem; }
