@@ -1,0 +1,94 @@
+title "Pulse RMM Architecture"
+direction TB
+theme light
+
+// External to the system, same layer (the tray UI is embedded in the agent).
+zone public "External" {
+  service Agent "Agent (Go)"
+  client  Browser "Technician"
+}
+
+// nginx is the only thing reachable from the public network.
+zone dmz "DMZ" {
+  gateway Nginx "nginx"
+}
+
+zone private "Backend Services" {
+  // API gateway and agent hub sit on the same layer, both behind nginx.
+  gateway GW  "API Gateway"
+  service HUB "Agent Hub"
+
+  service EP   "Endpoint Service"
+  service CA   "CA Service"
+  service RBAC "RBAC Service"
+  service MET  "Metric Service"
+  service CMD  "Commands Service"
+  service ALR  "Alert Service"
+  service AUD  "Audit Service"
+  service INT  "Integration Service"
+}
+
+zone private "Data Stores" {
+  db    PG "PostgreSQL"
+  db    TS "TimescaleDB"
+  cache RD "Redis"
+  queue MQ "RabbitMQ"
+  store S3 "MinIO/S3"
+}
+
+zone public "Third-Party" {
+  external IDP  "Keycloak"
+  external ITSM "ITSM"
+}
+
+zone public "Relay" {
+  service RLY "STUN/TURN"
+}
+
+Browser -> Nginx : HTTPS REST
+Agent   -> Nginx : gRPC (mTLS)
+Agent   -> Nginx : enrol / renew
+
+Nginx -> GW  : REST / WS
+Nginx -> HUB : gRPC stream
+
+Browser <-> RLY : WebRTC
+Agent   <-> RLY : WebRTC
+
+GW -> RBAC : route
+GW -> EP   : route
+GW -> MET  : route
+GW -> CMD  : route
+GW -> ALR  : route
+GW -> AUD  : route
+GW -> INT  : route
+
+HUB  -> MET  : metrics
+EP   -> CA   : CSR sign/revoke
+RBAC -> IDP  : OIDC
+INT  -> ITSM : webhooks
+
+MET  -> TS : write
+EP   -> PG : write
+RBAC -> PG : write
+CMD  -> PG : write
+ALR  -> PG : write
+INT  -> PG : write
+CA   -> PG : write
+AUD  -> PG : write
+
+GW   -> RD : cache
+RBAC -> RD : cache
+HUB  -> RD : registry
+
+EP  ~> MQ : events
+MET ~> MQ : events
+CMD ~> MQ : events
+AUD ~> MQ : events
+INT ~> MQ : events
+
+MQ ~> AUD : consume
+MQ ~> INT : consume
+MQ ~> ALR : consume
+
+EP -> S3 : installers

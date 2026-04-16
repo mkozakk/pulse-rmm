@@ -1,0 +1,23 @@
+title "Remote Session Flow"
+direction TB
+theme light
+
+client Browser "Browser"
+gateway GW "API Gateway"
+service HUB "Agent Hub"
+service Agent "Agent"
+external RLY "TURN Relay"
+
+Browser -> GW : POST /api/sessions
+
+GW -> HUB : start session
+HUB -> Agent : StartSession command
+
+Agent -> Agent : prepare capture/PTY
+
+Browser <-> GW : WebSocket signaling
+GW <-> HUB : signal forwarding
+HUB <-> Agent : ICE candidates
+
+Browser <-> RLY : WebRTC media
+Agent <-> RLY : WebRTC media

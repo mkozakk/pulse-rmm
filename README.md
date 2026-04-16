@@ -1,412 +1,158 @@
 # Pulse RMM
 
-Enterprise remote management system for Windows and Linux endpoints. Deploy lightweight agents, monitor real-time metrics, execute remote shell and desktop sessions, manage software lifecycle, enforce policies, and audit all actions across your fleet.
+Pulse RMM is a remote monitoring and management system for a fleet of Windows and Linux endpoints. You install a small Go agent on each machine, and from a browser you can watch what the machine is doing, open a shell or a full remote desktop on it, manage its installed software, run scripts across the whole fleet, and keep an immutable record of everything that happened.
 
-## What is Pulse RMM?
+The headline feature is remote access to the endpoint. The clip below is a user opening a remote desktop session, remote shell, and browsing files across the endpoint and viewing the running processes - all from the browser, with the agent doing the capture and input injection on the far side.
 
-Pulse RMM is a complete RMM platform built from scratch for simplicity and clarity. It lets you:
-- **See** what's happening on any endpoint in real time
-- **Access** endpoints remotely via shell, desktop, or file transfer
-- **Manage** software, scripts, and policies across the fleet
-- **Know** who did what, when, and on which endpoints (immutable audit trail)
-- **Control** who can do what via fine-grained permissions and roles
+![Remote endpoint features](docs/media/remote-endpoint-features.gif)
 
-Think of it as a lightweight alternative to commercial platforms like ConnectWise or Kaseya, with a focus on core capabilities and operational transparency.
+## What Pulse RMM does
 
-## Features
+Everything in Pulse RMM hangs off one idea: the agent dials out to the backend and holds a long-lived connection open, and every action a user takes in the browser travels down that connection as a command. Because the agent makes the outbound connection, it works through NAT and corporate firewalls without anyone opening a port. The same pattern carries metrics up, commands down, and acknowledgements back, so there is one mental model to learn rather than one per feature.
 
-### Monitoring & Visibility
+## Remote access
 
-- **Live Metrics Dashboard** - Real-time CPU, RAM, disk, process counts, network I/O; charts update every 30 seconds
-- **Historical Metrics** - Query 30 days of metric history by endpoint, date range, and metric type
-- **Offline Detection** - Endpoints marked offline after 3 missed heartbeats (~90 seconds)
-- **System Inventory** - Hostname, OS version, architecture, CPU model, core count, RAM capacity, uptime
-- **Process Monitoring** - List running processes with memory/CPU usage; kill hung or rogue processes
-- **Software Inventory** - Automated scanning of installed packages (Windows Registry, dpkg, dnf, flatpak)
+Remote access is where the agent earns its keep. A user with the right permission opens a session on any online endpoint and the agent starts streaming the desktop over WebRTC, using the Pion library on the agent side and the browser's native WebRTC stack on the other. The screen is captured through ffmpeg - `gdigrab` on Windows, `x11grab` or a PipeWire portal on Linux - encoded as H.264, and pushed over a video track at thirty frames a second. Audio is captured alongside the video. Mouse and keyboard events travel back over a data channel and are injected into the operating system natively: `SendInput` on Windows, a `uinput` virtual device on Linux. When a direct peer-to-peer path is not available, the media is relayed through a coturn STUN/TURN server, so the session survives both sides being behind NAT. A separate data channel carries file uploads and downloads during the session, with path-traversal protection so a download cannot escape the user's home directory.
 
-### Remote Access & Control
+The same control connection also backs a remote shell. The agent spawns a real pseudo-terminal - bash through a PTY on Linux, cmd through ConPTY on Windows - and proxies its input and output over a WebSocket bridge to an `xterm.js` terminal in the browser. Several users can hold independent shell sessions on the same endpoint at once, and closing the tab tears the session down cleanly with no orphaned process. Whether a session is view-only or full control, and whether it can run unattended while no user is logged in, is decided by permissions on the server, never by the browser.
 
-- **Remote Shell** - Full PTY terminal on any online endpoint
-  - Bash/sh on Linux, PowerShell/cmd on Windows
-  - Full interactivity (pipes, redirects, color output)
-  - Multiple concurrent sessions per endpoint
-  - Timeout enforcement to prevent hung shells
-  
-- **Remote Desktop** - Live video streaming with input control
-  - Desktop capture via H.264 codec (hardware-accelerated where available)
-  - Full mouse and keyboard input injection
-  - VP9 software fallback on Linux (royalty-free)
-  - Works behind NAT via TURN relay (coturn)
-  - File transfer over WebRTC data channel (drag-and-drop)
-  - View-only mode available (no input injection)
-  
-- **File Transfer** - Upload/download files during remote sessions
-  - Bi-directional transfer over encrypted WebRTC data channel
-  - Chunked protocol for reliability
+## Monitoring
 
-### Software & Package Management
+Every agent collects CPU, memory, disk, and uptime roughly every thirty seconds and pushes the batch to the backend, which stores it in a TimescaleDB hypertable. The webapp shows the live numbers as charts and lets you scroll back through the retained history. Alongside the metric push the agent sends a heartbeat; if the backend stops hearing from an endpoint for about ninety seconds a scheduled job marks it offline, so the endpoint list reflects reality without anyone refreshing it. A technician with the right permission can also list the processes running on an endpoint and kill a runaway one without leaving the browser.
 
-- **Package Scanning** - Automated discovery of installed software
-  - Windows: Registry-based scanning
-  - Linux: dpkg, dnf, flatpak package detection
-  
-- **Remote Install/Update/Remove** - Execute package manager commands
-  - Windows: winget (Windows 10+)
-  - Linux: apt, dnf, flatpak
-  - Bulk operations across multiple endpoints
-  
-- **OS Patch Management** - Schedule and deploy OS security updates
-  - Third-party patch support (Chrome, Java, etc.)
-  - Maintenance window scheduling
-  - Rollback on failed updates
+## Software and scripting
 
-### Scripting & Automation
+The agent scans installed software using whatever the platform provides - the Windows registry, and `dpkg`, `dnf`, or `flatpak` on Linux - and reports the inventory so you can answer "what is installed where" across the fleet. From the webapp you can install, update, or remove a package, and the request is delivered to the agent as a command, executed against the native package manager, and acknowledged with its output so the result shows up within seconds.
 
-- **Script Library** - Create, organize, and share scripts
-  - PowerShell and Bash support
-  - Version control and edit history
-  
-- **Approval Workflow** - Enforce change control
-  - Junior techs can only run approved scripts
-  - Senior techs can create and approve scripts
-  - Audit trail of every execution
-  
-- **Bulk Execution** - Run any script across 1 or 1000 endpoints
-  - Real-time progress tracking
-  - Per-endpoint output and exit codes
-  - Timeout enforcement
-  
-- **Secret Injection** - Pass credentials securely
-  - Encrypted at rest; decrypted only in agent process
-  - Never logged or exposed in audit trail
-  - Scoped to specific scripts and users
+Scripting works the same way but is built around change control. Scripts live in a library; a technician with approval rights reviews them before they can be run by people who only hold the "run approved scripts" permission, while a separate ad-hoc permission allows uploading and running one-off scripts. A run can fan out to many endpoints at once, and each endpoint reports its own exit code and output. Secrets needed by a script are encrypted at rest and only decrypted in the agent process, so they never appear in the audit trail or the logs.
 
-### Policy Engine
+![Software management](docs/media/software-mgmt.png)
 
-- **Declarative Policies** - Define desired state in YAML
-  - Required applications and versions
-  - Required services and their state
-  - Firewall rules and settings
-  
-- **Drift Detection** - Continuous compliance checking
-  - Compare actual vs desired state
-  - Per-endpoint reasons for non-compliance
-  - Scheduled evaluation every 30 seconds
-  
-- **Auto-Reconciliation** - Automatically fix drift
-  - Generate install/start/configure commands
-  - Execute across scoped groups or tags
-  - Track compliance history
+## Enrolment and the agent
 
-### Alerting & Notifications
+An endpoint joins the fleet by enrolling. A technician generates an invitation token scoped to a group, and the agent presents that token on first run together with the public half of an ed25519 keypair it generates locally. The backend validates the token, records the public key, and issues the endpoint a stable UUID that survives reboots, OS upgrades, and hostname changes. From then on that UUID is the endpoint's identity everywhere in the system. Enrolling a second time from the same machine is idempotent - it does not create a duplicate.
 
-- **Threshold Rules** - Define alerts based on metrics
-  - CPU, memory, disk thresholds
-  - Condition must hold for configurable duration (avoid noise)
-  - Scoped to groups or tag selectors
-  
-- **Real-time Notifications** - SSE-based in-app alerts
-  - Browser notification when threshold triggers
-  - Alerts appear in-app within 30 seconds
-  - One-click acknowledge with history
-  
-- **Webhook Integration** - Forward events to external systems
-  - HMAC-SHA256 signed payloads (GitHub-style)
-  - Automatic retry with exponential backoff
-  - Dead-letter queue for failed deliveries
-  - Integration with Jira, ServiceNow, custom tools
+![Enrolment](docs/media/enrolment.png)
 
-### Identity, Access Control & Multi-Tenancy
+The agent itself is a single Go binary with no runtime dependencies on the endpoint. It is packaged as a `.deb`, an `.rpm`, and a Windows installer, and there is a one-liner install script for onboarding over SSH or PowerShell. Once installed it registers as a system service - systemd on Linux, the Windows service manager on Windows - and starts on boot. Building and packaging the agent is documented in `agent/README.md`.
 
-- **Permission-Based Access Model** - Fine-grained control
-  - 20+ permissions covering all actions
-  - Scope permissions to endpoint groups (hierarchy-aware)
-  - Scope permissions to organizations (for MSPs)
-  
-- **Built-in Roles** - Pre-configured for common job functions
-  - Admin (full access)
-  - Senior Technician (all remote access, scripting, approvals)
-  - Junior Technician (read-only shell and desktop view, run approved scripts)
-  - Auditor (audit logs and read-only visibility)
-  
-- **Custom Roles** - Build roles from permission catalog
-  - Clone and edit existing roles
-  - Add/remove individual permissions
-  
-- **Direct Permission Grants** - Temporary elevated access
-  - Grant one-off permissions to users
-  - Time-bound (expires automatically)
-  - Group-scoped or organization-scoped
-  
-- **Single Sign-On & MFA** - Enterprise authentication
-  - OIDC integration (test with Keycloak)
-  - TOTP-based multi-factor authentication
-  - User disabling in IdP revokes access automatically
-  
-- **Multi-Organization Support** - Managed Service Provider ready
-  - One deployment, multiple customer orgs
-  - Complete org isolation (users, endpoints, policies)
-  - Per-org RBAC and permissions
+## Alerting
 
-### Audit & Compliance
+Alert rules are thresholds on a metric - say, disk above ninety percent - scoped to a group or a tag selector and required to hold for a configurable duration so a brief spike does not page anyone. An evaluator runs every thirty seconds against the metric history, and when a rule trips the backend pushes a notification to the browser over a Server-Sent Events stream, so the bell in the webapp lights up within seconds. Alerts are acknowledged with one click and will not re-fire until the condition clears and trips again.
 
-- **Immutable Audit Log** - Append-only record of all actions
-  - Who, what, when, on which endpoint
-  - Which permission was used for each action
-  - No delete capability (tamper-proof)
-  
-- **Streaming Export** - Extract logs for compliance
-  - CSV and JSON export formats
-  - Date range and user filtering
-  - Memory-efficient streaming (handles millions of records)
-  
-- **Action Categories Logged**
-  - All API calls (REST endpoints)
-  - All RPC calls (gRPC endpoints)
-  - Script execution with parameters and output
-  - Policy changes and drift reconciliation
-  - User login, logout, privilege grants
-  - File transfers and shell sessions
-  - Software install/remove operations
+![Alerting](docs/media/alerting.png)
 
-### Enrolment & Agent Deployment
+## Audit
 
-- **One-Time Enrollment Tokens** - Secure agent registration
-  - Token scoped to specific endpoint groups
-  - Tokens expire automatically (24 hours default)
-  - One-time use (no token replay attacks)
-  
-- **Multiple Install Methods**
-  - `.exe` installer (Windows)
-  - `.deb` package (Ubuntu/Debian)
-  - `.rpm` package (Fedora/RHEL)
-  - One-liner bash/PowerShell commands
-  - Signed packages for secure distribution
-  
-- **Automatic Service Installation**
-  - systemd service on Linux
-  - Windows SCM service on Windows
-  - Auto-start on boot
+Every mutating action is recorded in an append-only audit log: who did it, what they did, when, on which endpoint, and which permission authorised it. The log has no update or delete path, so it cannot be rewritten from inside the application. Records are produced by publishing a domain event to RabbitMQ and persisted by a dedicated audit service, which keeps a slow audit write from blocking the API response. The log can be browsed with filters in the webapp and exported as CSV or JSON; the export streams its rows so it stays memory-efficient even over a large date range.
 
-### Agent Auto-Update & Rollback
+![Audit log](docs/media/audit-log.png)
 
-- **Canary Rollout** - Phased deployment with safety
-  - 1% of fleet gets new version first
-  - Admin must approve advance to 10%, then 100%
-  - Manual override available for urgent updates
-  
-- **Atomic Updates** - No partial or corrupt binaries
-  - Download and verify SHA256 hash
-  - Backup old binary before swap
-  - Atomic rename (old → backup, new → active)
-  
-- **Automatic Rollback** - Fail-safe mechanism
-  - Health check post-update (can start and reach backend?)
-  - If heartbeat fails within 60s, auto-restore old binary
-  - User notified of rollback event
-  
-- **Version Management** - Track and control agent versions
-  - View active version per endpoint
-  - See rollout progress
-  - Mark version as stable or deprecated
+## Identity, access control, and multi-tenancy
 
-### Endpoint Organization & Tagging
+Pulse RMM uses a permission-based access model. Every capability maps to a named permission, a role is just a bundle of permissions, and any permission can be scoped to the whole fleet or narrowed to specific endpoint groups. The system ships with four default roles - admin, senior technician, junior technician, and auditor - and lets you clone them or build custom roles from the catalogue. You can also grant a single permission directly to a user, scoped to a group and time-bounded, for situations like temporary incident access. Every API call and every gRPC command re-checks permissions on the server; the webapp hides controls a user cannot use, but that is a convenience, not the enforcement boundary.
 
-- **Group Hierarchy** - Tree-based organization
-  - Create nested groups (e.g., `HQ > Sales > Laptops`)
-  - Max depth limit (5 levels) to prevent complexity
-  - Permissions inherit down the tree
-  
-- **Flexible Tagging** - Ad-hoc classification
-  - Free-form key=value tags (e.g., `env=prod`, `site=warsaw`)
-  - Many-to-many with endpoints
-  - Tag filters on dashboards, alerts, and policies
-  
-- **Auto-Tagging Rules** - Automatic classification
-  - Rule-based tag assignment at enrollment
-  - Examples: OS detection, hostname pattern, IP range
-  - Re-evaluate on-demand
+User identity, passwords, and single sign-on are delegated to Keycloak over OIDC, which also handles multi-factor authentication at the identity-provider level, so disabling a user in the IdP cuts off their access. A single Pulse deployment can be divided into multiple organizations with isolated endpoints, users, and permissions, which is what makes it usable by a managed service provider running one instance for several customers.
 
-### REST API & Automation
+## Agent auto-update
 
-- **Complete REST API** - All UI operations via API
-  - Authenticated with API keys (scoped to permissions)
-  - Same permission model as web UI
-  - OpenAPI documentation available
-  
-- **Webhook Callbacks** - Event-driven integrations
-  - Alert fired, agent offline, session opened events
-  - Signed with HMAC-SHA256
-  - Automatic retry with dead-letter queue
+Agents update themselves, carefully. A new version is published as an artifact, and the rollout proceeds as a canary - one percent of the fleet first, then ten, then a hundred, with an admin advancing each stage. An agent downloads the new binary, verifies its SHA-256, keeps the old binary as a backup, and swaps atomically. After the swap it runs a health check, and if the new binary cannot start and reach the backend within a timeout it rolls back to the previous version on its own. The cohort for a given percentage is chosen deterministically from a hash of the endpoint UUID, so re-checking is idempotent and needs no extra state.
 
-### Remote Wipe & Decommission
+## Security
 
-- **Secure Decommissioning** - Destroy endpoint data
-  - Two-person approval required (prevent accidents)
-  - Wipe status tracking (pending/in-progress/completed)
-  - Cross-platform support (Windows and Linux)
+Agents and backend services authenticate each other with mutual TLS. A dedicated certificate authority service signs the agent's certificate during enrolment from a certificate-signing request, rotates it before expiry, and can revoke it, and the control-plane gRPC server checks the presented certificate against the revocation list on every connection. The agent's ed25519 enrolment key is generated on the endpoint and never leaves it. Secrets bound for scripts are sealed and only opened in the agent process.
 
-## Quick Start
-
-### Prerequisites
-
-- podman (or docker)
-- Go 1.22+ (to build agent)
-- Java 21 (to build backend)
-- Node.js 18+ (to build webapp)
-- make
-
-### 1. Start the Local Dev Stack
-
-```bash
-# Copy environment template
-cp deploy/.env.example deploy/.env
-
-# Start all services (postgres, redis, rabbitmq, minio, backend, webapp)
-podman compose -f deploy/compose.yaml up -d
-
-# Wait for services to be healthy (~30s)
-podman compose -f deploy/compose.yaml logs -f api-gateway
-```
-
-The webapp is available at `http://localhost:5173` (React dev server).
-
-### 2. Log In
-
-Default credentials (from `.env`):
-- **Username:** `admin`
-- **Password:** `admin`
-
-### 3. Explore
-
-- **Endpoints:** List of managed machines (empty until you enrol an agent)
-- **Metrics:** CPU, RAM, disk charts (live + historical)
-- **Shell:** Remote terminal access
-- **Desktop:** Remote desktop with mouse/keyboard/file transfer
-- **Scripts:** Upload and execute scripts on endpoints
-- **Alerts:** Create threshold rules
-- **Audit:** View all actions taken
+Outbound integrations are available too: the integration service can post signed (HMAC-SHA256) webhooks to external systems on events like an alert firing, with retries and a dead-letter queue for deliveries that keep failing.
 
 ## Architecture
 
-Pulse RMM has four tiers:
+A browser talks to a single API gateway over REST and WebSocket. The gateway authenticates the request and forwards it to one of the backend services. Agents do not talk to the gateway for their long-lived connection - they hold a bidirectional gRPC stream to a dedicated control-plane service called the agent hub, which is where commands are dispatched to them and where shell and desktop signaling is bridged. Metrics land in TimescaleDB, hot state and the agent-to-pod connection registry live in Redis, domain events fan out over RabbitMQ, and agent installers and update artifacts sit in MinIO. The full picture, including the certificate authority and the WebRTC signaling path, is in [docs/architecture.md](docs/architecture.md).
 
-```
-Browser (Technician)
-    ↓ HTTPS REST / WebSocket
-API Gateway (Spring Boot)
-    ↓ gRPC
-Backend Microservices (Java 21)
-    ↓
-PostgreSQL + TimescaleDB + Redis + RabbitMQ + MinIO
-```
+## Quick start
 
-Endpoints run a lightweight Go agent that:
-- Collects metrics every 30s
-- Executes commands pushed from the backend
-- Streams desktop via WebRTC
-- Stores identity (ed25519 keypair + X.509 cert) locally
-
-See `docs/architecture.md` for detailed component diagrams and data flows.
-
-## Build & Run
-
-### Backend (Java)
+You need docker (or podman), `make`, and - only if you intend to rebuild the agent or webapp yourself - Go 1.22+, Java 21, and Node.js 18+.
 
 ```bash
-cd backend
-mvn verify          # Build + test all modules
-mvn -pl api-gateway verify  # Build + test one service
+# Copy the dev environment template and set a JWT secret inside it
+cp deploy/.env.dev.example deploy/.env.dev
+
+# Build images and start the whole stack (dependencies + backend + webapp)
+make dev
 ```
 
-### Agent (Go)
+`make dev` brings up PostgreSQL, Redis, RabbitMQ, MinIO, coturn, Keycloak, every backend service, and the webapp. Once it settles, the webapp is at `http://localhost:5173` and the API gateway is fronted by nginx at `http://localhost:8080`. Log in with the bootstrap admin credentials from your `deploy/.env.dev`. Use `make dev-logs service=api-gateway` to follow a single service and `make dev-down` to stop everything.
+
+## Building
 
 ```bash
-cd agent
-go build ./...      # Build agent binary
-go test ./...       # Run tests
-```
-
-### Webapp (React + Vite)
-
-```bash
-cd webapp
-npm install
-npm run dev         # Dev server (http://localhost:5173)
-npm run build       # Production build → dist/
-npm run test        # Run unit tests
+make dev-build                 # rebuild all backend + webapp container images
+cd agent && make build         # cross-compile the Linux + Windows agent binaries
+cd webapp && npm install && npm run build   # production webapp bundle
 ```
 
 ## Testing
 
-Run tests before committing:
+Backend tests run through the Makefile, which wires up `JAVA_HOME`, points Testcontainers at the rootless podman socket, and configures surefire/failsafe correctly - running raw `mvn` will not get those right.
 
 ```bash
-# Backend unit + integration tests
-cd backend && mvn verify
-
-# Agent tests
-cd agent && go test ./...
-
-# Webapp tests
-cd webapp && npm run test -- --run
-
-# Full E2E suite (optional, takes longer)
-make e2e
+make tests                                  # unit + integration, all modules
+make tests-unit                             # unit only (skips integration tests)
+make tests-it                               # integration only (Testcontainers)
+make tests-it service=endpoint-service      # scope to one module
+make e2e                                    # full end-to-end stack + Python suite
 ```
 
-See `docs/testing.md` for detailed testing guide.
+The agent and webapp use their native tooling - `cd agent && go test ./...` and `cd webapp && npm run test -- --run`. The full testing guide, including the one-time podman socket setup, is in [docs/testing.md](docs/testing.md).
 
-## Documentation
-
-- **[Architecture](docs/architecture.md)** - System design, components, data flows
-- **[Development Plan](docs/dev-plan.md)** - Sprint-by-sprint feature roadmap (all sprints complete)
-- **[User Stories](docs/user-stories.md)** - Permissions catalog, roles, features by epic
-- **[Testing Guide](docs/testing.md)** - How to run unit, integration, and E2E tests
-- **[Agent Architecture](docs/agent.md)** - Agent components, startup flow, troubleshooting
-- **[Webapp Architecture](docs/webapp.md)** - React app structure, state management, features
-- **[Capabilities & Scope](docs/plan.md)** - Supported platforms, tenancy, endpoint organization
-
-## Repository Structure
+## Repository layout
 
 ```
 pulse-rmm/
-├── agent/                 # Go agent (Windows/Linux)
-├── backend/               # Java microservices (Maven multi-module)
-│   ├── pom.xml
-│   ├── api-gateway/
-│   ├── rbac-service/
-│   ├── endpoint-service/
-│   ├── metric-service/
-│   ├── alert-service/
-│   ├── audit-service/
-│   ├── integration-service/
-│   ├── commands-service/
-│   └── common/            # Shared protobuf stubs, exceptions
-├── webapp/                # React + Vite (TypeScript)
-├── proto/                 # Protocol buffers (gRPC contracts)
-├── deploy/
-│   ├── compose.yaml       # Local dev stack
-│   ├── compose.prod.yaml  # Production (alternative)
-│   ├── k8s/               # Kubernetes manifests
-│   └── .env.example       # Environment variables template
-├── docs/                  # Architecture & planning docs
-├── e2e/                   # End-to-end tests (Python + pytest)
-├── Makefile               # Common tasks
-└── CLAUDE.md              # Project conventions (local only)
+├── agent/                  # Go agent (Windows/Linux): metrics, shell, desktop, software, update
+├── backend/                # Java 21 Spring Boot, Maven multi-module
+│   ├── api-gateway/        # single REST/WebSocket entry point, auth, routing
+│   ├── rbac-service/       # identity, JWT, users, roles, RBAC, Keycloak OIDC, multi-org
+│   ├── endpoint-service/   # enrolment, groups, tags, agent-version distribution, sessions
+│   ├── agent-hub/          # agent gRPC control plane, mTLS, shell/desktop bridges, dispatch
+│   ├── ca-service/         # mTLS certificate authority (CSR signing, rotation, revocation)
+│   ├── metric-service/     # telemetry + heartbeat ingestion into TimescaleDB
+│   ├── alert-service/      # threshold rules, SSE notifications
+│   ├── audit-service/      # immutable audit log, CSV/JSON export
+│   ├── commands-service/   # script library, software inventory, process control
+│   ├── integration-service/# outbound HMAC-signed webhooks
+│   └── common/             # shared proto stubs, exceptions, utils
+├── webapp/                 # React + Vite (Redux Toolkit, RTK Query)
+├── proto/                  # protobuf contracts (gRPC), managed by buf
+├── deploy/                 # compose files, env templates, k8s manifests, observability
+├── e2e/                    # end-to-end tests (Python + pytest)
+├── docs/                   # architecture and planning docs
+└── Makefile                # dev, build, and test targets
 ```
 
-## Tech Stack
+## Tech stack
 
 | Component | Technology |
 |-----------|-----------|
-| Agent | Go 1.22+, gRPC, gopsutil, Pion (WebRTC) |
-| Backend | Java 21, Spring Boot 3.3+, Maven, Flyway |
-| Webapp | React 18+, Vite, Redux Toolkit, RTK Query |
+| Agent | Go 1.22+, gRPC, gopsutil, Pion (WebRTC), ffmpeg |
+| Backend | Java 21, Spring Boot 3, Maven, gRPC, Flyway |
+| Webapp | React, Vite, Redux Toolkit, RTK Query, recharts |
 | Database | PostgreSQL 16 + TimescaleDB extension |
 | Cache | Redis 7 |
-| Message Broker | RabbitMQ 3 |
-| Object Storage | MinIO (S3-compatible) |
+| Message broker | RabbitMQ 3 |
+| Object storage | MinIO (S3-compatible) |
+| Identity provider | Keycloak (OIDC) |
 | Relay | coturn (STUN/TURN) |
-| Observability | Prometheus + Grafana + Loki |
+| Observability | Prometheus, Grafana, Loki, Tempo |
 
+## Documentation
+
+- [docs/architecture.md](docs/architecture.md) - system design, the control plane, the WebRTC path, data flows
+- [docs/agent.md](docs/agent.md) - the agent in depth: startup, control stream, remote desktop, auto-update
+- [docs/user-stories.md](docs/user-stories.md) - permissions catalogue, roles, features by epic
+- [docs/testing.md](docs/testing.md) - unit, integration, and end-to-end testing
+- [agent/README.md](agent/README.md) - agent directory layout, building, and packaging
+- [backend/README.md](backend/README.md) - index of the backend services
+
+## License
+
+Pulse RMM is released under the [MIT License](LICENSE).

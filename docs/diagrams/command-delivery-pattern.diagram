@@ -1,0 +1,29 @@
+title "Command Delivery Pattern"
+direction TB
+theme light
+
+actor Tech "Technician"
+gateway GW "API Gateway"
+service CMD "Commands Service"
+service HUB "Agent Hub"
+service Agent "Agent"
+service ALR "Alert Service"
+
+Tech -> GW : POST /api/scripts/{id}/run
+
+GW -> CMD : dispatch
+
+CMD -> CMD : persist command
+CMD -> HUB : deliver
+
+HUB -> Agent : command
+
+Agent -> Agent : execute
+
+Agent -> HUB : ack
+
+HUB -> CMD : result
+
+CMD -> ALR : completion event
+
+ALR -> Tech : SSE notification
