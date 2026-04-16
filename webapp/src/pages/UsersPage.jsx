@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { UserPlus, Pencil, Trash2 } from 'lucide-react'
+import { UserPlus, Pencil, Trash2, X } from 'lucide-react'
 import AppShell from '../components/AppShell'
 import keycloak from '../keycloak'
 import {
@@ -167,48 +167,62 @@ export default function UsersPage() {
       {showCreate && (
         <div className="modal-overlay" onClick={() => setShowCreate(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
-            <h2>New User</h2>
+            <div className="modal-header">
+              <h2>New User</h2>
+              <button type="button" className="modal-close" onClick={() => setShowCreate(false)}><X size={16} /></button>
+            </div>
             <form onSubmit={handleCreateSubmit}>
-              <label>Username *
-                <input required value={createForm.username}
-                  onChange={e => setCreateForm({ ...createForm, username: e.target.value })} />
-              </label>
-              {isGlobalAdmin && (
-                <label>Organization *
-                  <select required value={createForm.orgId}
-                    onChange={e => setCreateForm({ ...createForm, orgId: e.target.value })}>
-                    <option value="">- Select org -</option>
-                    {orgs.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+              <div className="modal-body">
+                <div className="form-field">
+                  <label className="field-label">Username <span className="req">*</span></label>
+                  <input required placeholder="johndoe" value={createForm.username}
+                    onChange={e => setCreateForm({ ...createForm, username: e.target.value })} />
+                </div>
+                {isGlobalAdmin && (
+                  <div className="form-field">
+                    <label className="field-label">Organization <span className="req">*</span></label>
+                    <select required value={createForm.orgId}
+                      onChange={e => setCreateForm({ ...createForm, orgId: e.target.value })}>
+                      <option value="">Select organization</option>
+                      {orgs.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+                    </select>
+                  </div>
+                )}
+                <div className="form-field">
+                  <label className="field-label">Email</label>
+                  <input type="email" placeholder="john@company.com" value={createForm.email}
+                    onChange={e => setCreateForm({ ...createForm, email: e.target.value })} />
+                </div>
+                <div className="form-2col">
+                  <div className="form-field">
+                    <label className="field-label">First name</label>
+                    <input placeholder="John" value={createForm.firstName}
+                      onChange={e => setCreateForm({ ...createForm, firstName: e.target.value })} />
+                  </div>
+                  <div className="form-field">
+                    <label className="field-label">Last name</label>
+                    <input placeholder="Doe" value={createForm.lastName}
+                      onChange={e => setCreateForm({ ...createForm, lastName: e.target.value })} />
+                  </div>
+                </div>
+                <div className="form-field">
+                  <label className="field-label">Password <span className="req">*</span></label>
+                  <input required type="password" placeholder="Min 8 characters" value={createForm.password}
+                    onChange={e => setCreateForm({ ...createForm, password: e.target.value })} />
+                </div>
+                <div className="form-field">
+                  <label className="field-label">Role</label>
+                  <select value={createForm.roleName}
+                    onChange={e => setCreateForm({ ...createForm, roleName: e.target.value })}>
+                    <option value="">No role</option>
+                    {roles.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
                   </select>
-                </label>
-              )}
-              <label>Email
-                <input type="email" value={createForm.email}
-                  onChange={e => setCreateForm({ ...createForm, email: e.target.value })} />
-              </label>
-              <label>First name
-                <input value={createForm.firstName}
-                  onChange={e => setCreateForm({ ...createForm, firstName: e.target.value })} />
-              </label>
-              <label>Last name
-                <input value={createForm.lastName}
-                  onChange={e => setCreateForm({ ...createForm, lastName: e.target.value })} />
-              </label>
-              <label>Password *
-                <input required type="password" value={createForm.password}
-                  onChange={e => setCreateForm({ ...createForm, password: e.target.value })} />
-              </label>
-              <label>Role
-                <select value={createForm.roleName}
-                  onChange={e => setCreateForm({ ...createForm, roleName: e.target.value })}>
-                  <option value="">- None -</option>
-                  {roles.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
-                </select>
-              </label>
-              {error && <p className="form-error">{error}</p>}
+                </div>
+                {error && <p className="form-error">{error}</p>}
+              </div>
               <div className="modal-actions">
-                <button type="submit" className="btn-primary">Create</button>
                 <button type="button" className="btn-secondary" onClick={() => setShowCreate(false)}>Cancel</button>
+                <button type="submit" className="btn-primary">Create User</button>
               </div>
             </form>
           </div>
@@ -218,40 +232,52 @@ export default function UsersPage() {
       {editing && (
         <div className="modal-overlay" onClick={() => setEditing(null)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
-            <h2>Edit {editing.username}</h2>
+            <div className="modal-header">
+              <h2>Edit {editing.username}</h2>
+              <button type="button" className="modal-close" onClick={() => setEditing(null)}><X size={16} /></button>
+            </div>
             <form onSubmit={handleEditSubmit}>
-              <label>Email
-                <input type="email" value={editForm.email}
-                  onChange={e => setEditForm({ ...editForm, email: e.target.value })} />
-              </label>
-              <label>First name
-                <input value={editForm.firstName}
-                  onChange={e => setEditForm({ ...editForm, firstName: e.target.value })} />
-              </label>
-              <label>Last name
-                <input value={editForm.lastName}
-                  onChange={e => setEditForm({ ...editForm, lastName: e.target.value })} />
-              </label>
-              <label>
-                <input type="checkbox" checked={editForm.enabled}
-                  onChange={e => setEditForm({ ...editForm, enabled: e.target.checked })} />
-                {' '}Enabled
-              </label>
-              <label>Role
-                <select value={editForm.roleId}
-                  onChange={e => setEditForm({ ...editForm, roleId: e.target.value })}>
-                  <option value="">- None -</option>
-                  {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                </select>
-              </label>
-              <label>New password (leave blank to keep)
-                <input type="password" value={editForm.newPassword}
-                  onChange={e => setEditForm({ ...editForm, newPassword: e.target.value })} />
-              </label>
-              {error && <p className="form-error">{error}</p>}
+              <div className="modal-body">
+                <div className="form-field">
+                  <label className="field-label">Email</label>
+                  <input type="email" placeholder="john@company.com" value={editForm.email}
+                    onChange={e => setEditForm({ ...editForm, email: e.target.value })} />
+                </div>
+                <div className="form-2col">
+                  <div className="form-field">
+                    <label className="field-label">First name</label>
+                    <input placeholder="John" value={editForm.firstName}
+                      onChange={e => setEditForm({ ...editForm, firstName: e.target.value })} />
+                  </div>
+                  <div className="form-field">
+                    <label className="field-label">Last name</label>
+                    <input placeholder="Doe" value={editForm.lastName}
+                      onChange={e => setEditForm({ ...editForm, lastName: e.target.value })} />
+                  </div>
+                </div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: 13 }}>
+                  <input type="checkbox" checked={editForm.enabled}
+                    onChange={e => setEditForm({ ...editForm, enabled: e.target.checked })} />
+                  Active account
+                </label>
+                <div className="form-field">
+                  <label className="field-label">Role</label>
+                  <select value={editForm.roleId}
+                    onChange={e => setEditForm({ ...editForm, roleId: e.target.value })}>
+                    <option value="">No role</option>
+                    {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                  </select>
+                </div>
+                <div className="form-field">
+                  <label className="field-label">New password</label>
+                  <input type="password" placeholder="Leave blank to keep current" value={editForm.newPassword}
+                    onChange={e => setEditForm({ ...editForm, newPassword: e.target.value })} />
+                </div>
+                {error && <p className="form-error">{error}</p>}
+              </div>
               <div className="modal-actions">
-                <button type="submit" className="btn-primary">Save</button>
                 <button type="button" className="btn-secondary" onClick={() => setEditing(null)}>Cancel</button>
+                <button type="submit" className="btn-primary">Save Changes</button>
               </div>
             </form>
           </div>
