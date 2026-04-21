@@ -19,6 +19,7 @@
     <modules>
         <module>common</module>
         <module>api-gateway</module>
+        <module>identity-service</module>
         <module>enrolment-service</module>
         <module>metric-service</module>
     </modules>
