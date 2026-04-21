@@ -1,6 +1,8 @@
 package dev.pulsermm.identity.domain;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.Generated;
+import org.hibernate.annotations.GenerationTime;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
@@ -18,6 +20,7 @@ public class User {
     private String passwordHash;
 
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
+    @Generated(GenerationTime.INSERT)
     private OffsetDateTime createdAt;
 
     public User() {
