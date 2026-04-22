@@ -7,13 +7,26 @@ option java_outer_classname = "AgentProto";
 option java_package = "dev.pulsermm.proto.v1";
 option go_package = "github.com/pulsermm/pulse-rmm/agent/gen/pulse/v1;pulsev1";
 
-// Placeholder service — expanded from sprint 2 onward.
 service AgentService {
   rpc Ping(PingRequest) returns (PingResponse);
+  rpc Enrol(EnrolRequest) returns (EnrolResponse);
 }
 
 message PingRequest {}
 
 message PingResponse {
   string status = 1;
+}
+
+message EnrolRequest {
+  string token      = 1;
+  bytes  public_key = 2;
+  string hostname   = 3;
+  string os         = 4;
+  string arch       = 5;
+}
+
+message EnrolResponse {
+  string endpoint_id        = 1;
+  bytes  backend_public_key = 2;
 }
