@@ -1,6 +1,6 @@
 spring:
   datasource:
-    url: jdbc:tc:postgresql:16-alpine:///pulse
+    url: jdbc:tc:postgresql:16-alpine:///pulse?TC_TMPFS=/var/lib/postgresql/data:rw
     driver-class-name: org.testcontainers.jdbc.ContainerDatabaseDriver
   jpa:
     hibernate:
