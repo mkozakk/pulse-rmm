@@ -2,6 +2,8 @@
 CLAUDE.md
 **/CLAUDE.md
 
+**/WHAT_HAS_BEEN_DONE.md
+
 agent/bin/
 agent/*.exe
 agent/*.test
