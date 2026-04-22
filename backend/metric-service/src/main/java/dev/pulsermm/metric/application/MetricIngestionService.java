@@ -1,0 +1,56 @@
+package dev.pulsermm.metric.application;
+
+import dev.pulsermm.metric.domain.EndpointHeartbeat;
+import dev.pulsermm.metric.infrastructure.EndpointHeartbeatRepository;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
+@Service
+public class MetricIngestionService {
+
+    private final EndpointHeartbeatRepository heartbeatRepo;
+    private final JdbcTemplate jdbc;
+
+    public MetricIngestionService(EndpointHeartbeatRepository heartbeatRepo, JdbcTemplate jdbc) {
+        this.heartbeatRepo = heartbeatRepo;
+        this.jdbc = jdbc;
+    }
+
+    @Transactional
+    public void heartbeat(UUID endpointId) {
+        Instant now = Instant.now();
+        heartbeatRepo.findById(endpointId).ifPresentOrElse(
+            h -> {
+                h.setLastSeen(now);
+                h.setStatus("online");
+            },
+            () -> heartbeatRepo.save(new EndpointHeartbeat(endpointId, now, "online"))
+        );
+    }
+
+    public void pushMetrics(UUID endpointId, List<MetricSampleInput> samples) {
+        for (var s : samples) {
+            jdbc.update(
+                "INSERT INTO metric_samples (endpoint_id, type, value, sampled_at) VALUES (?, ?, ?, ?)",
+                endpointId, s.type(), s.value(), java.sql.Timestamp.from(s.sampledAt())
+            );
+        }
+    }
+
+    public List<Map<String, Object>> queryMetrics(UUID endpointId, Instant from, Instant to, String type) {
+        return jdbc.queryForList(
+            "SELECT sampled_at, value FROM metric_samples " +
+            "WHERE endpoint_id = ? AND type = ? AND sampled_at >= ? AND sampled_at <= ? " +
+            "ORDER BY sampled_at ASC",
+            endpointId, type, java.sql.Timestamp.from(from), java.sql.Timestamp.from(to)
+        );
+    }
+
+    public record MetricSampleInput(String type, double value, Instant sampledAt) {}
+}
