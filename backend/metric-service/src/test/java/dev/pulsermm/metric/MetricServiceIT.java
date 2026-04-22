@@ -13,6 +13,12 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -145,5 +151,42 @@ class MetricServiceIT {
         assertThat(rows).hasSize(3);
         assertThat(((Number) rows.get(0).get("value")).doubleValue()).isEqualTo(20.0);
         assertThat(((Number) rows.get(2).get("value")).doubleValue()).isEqualTo(10.0);
+    }
+
+    @Test
+    void load200ConcurrentAgentsPushMetrics() throws InterruptedException {
+        int agentCount = 200;
+        long now = Instant.now().toEpochMilli();
+
+        ExecutorService pool = Executors.newFixedThreadPool(agentCount);
+        CountDownLatch latch = new CountDownLatch(agentCount);
+        AtomicInteger errors = new AtomicInteger(0);
+
+        for (int i = 0; i < agentCount; i++) {
+            UUID endpointId = UUID.randomUUID();
+            pool.submit(() -> {
+                try {
+                    metricStub.pushMetrics(MetricBatch.newBuilder()
+                        .setEndpointId(endpointId.toString())
+                        .addSamples(MetricSample.newBuilder()
+                            .setType("cpu").setValue(50.0).setCollectedAt(now).build())
+                        .addSamples(MetricSample.newBuilder()
+                            .setType("ram").setValue(60.0).setCollectedAt(now).build())
+                        .build());
+                } catch (Exception e) {
+                    errors.incrementAndGet();
+                } finally {
+                    latch.countDown();
+                }
+            });
+        }
+
+        latch.await(30, TimeUnit.SECONDS);
+        pool.shutdown();
+
+        assertThat(errors.get()).isZero();
+
+        Long count = jdbc.queryForObject("SELECT COUNT(*) FROM metric_samples", Long.class);
+        assertThat(count).isEqualTo(agentCount * 2L); // cpu + ram per agent
     }
 }
