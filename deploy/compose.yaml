@@ -113,6 +113,8 @@ services:
       interval: 10s
       timeout: 10s
       retries: 10
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
 
   minio:
     image: minio/minio:latest
@@ -135,3 +137,4 @@ volumes:
   postgres_data:
   redis_data:
   minio_data:
+  rabbitmq_data:
