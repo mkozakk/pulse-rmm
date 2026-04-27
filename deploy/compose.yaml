@@ -15,6 +15,8 @@ services:
       dockerfile: backend/api-gateway/Dockerfile
     environment:
       PULSE_COOKIE_SECURE: "false"
+      IDENTITY_SERVICE_URL: http://identity-service:8083
+      ENROLMENT_SERVICE_URL: http://enrolment-service:8081
     ports:
       - "8080:8080"
     depends_on:
@@ -113,6 +115,8 @@ services:
       interval: 10s
       timeout: 10s
       retries: 10
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
 
   minio:
     image: minio/minio:latest
@@ -135,3 +139,4 @@ volumes:
   postgres_data:
   redis_data:
   minio_data:
+  rabbitmq_data:

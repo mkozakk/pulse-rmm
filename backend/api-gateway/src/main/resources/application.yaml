@@ -12,11 +12,11 @@ spring:
       mvc:
         routes:
           - id: identity
-            uri: http://localhost:8083
+            uri: ${IDENTITY_SERVICE_URL:http://localhost:8083}
             predicates:
               - Path=/api/auth/**
           - id: enrolment
-            uri: http://localhost:8081
+            uri: ${ENROLMENT_SERVICE_URL:http://localhost:8081}
             predicates:
               - Path=/api/enrolment/**
           - id: endpoint-metrics
@@ -24,7 +24,7 @@ spring:
             predicates:
               - Path=/api/endpoints/*/metrics
           - id: endpoints
-            uri: http://localhost:8081
+            uri: ${ENROLMENT_SERVICE_URL:http://localhost:8081}
             predicates:
               - Path=/api/endpoints/**
       globalcors:
