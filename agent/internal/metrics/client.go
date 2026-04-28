@@ -11,25 +11,33 @@ import (
 )
 
 type Client struct {
-	conn        *grpc.ClientConn
-	agentClient pb.AgentServiceClient
+	agentConn    *grpc.ClientConn
+	metricConn   *grpc.ClientConn
+	agentClient  pb.AgentServiceClient
 	metricClient pb.MetricServiceClient
 }
 
-func NewClient(addr string) (*Client, error) {
-	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+func NewClient(agentAddr, metricAddr string) (*Client, error) {
+	agentConn, err := grpc.NewClient(agentAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
+		return nil, fmt.Errorf("dialing agent server: %w", err)
+	}
+	metricConn, err := grpc.NewClient(metricAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		agentConn.Close()
 		return nil, fmt.Errorf("dialing metric server: %w", err)
 	}
 	return &Client{
-		conn:         conn,
-		agentClient:  pb.NewAgentServiceClient(conn),
-		metricClient: pb.NewMetricServiceClient(conn),
+		agentConn:    agentConn,
+		metricConn:   metricConn,
+		agentClient:  pb.NewAgentServiceClient(agentConn),
+		metricClient: pb.NewMetricServiceClient(metricConn),
 	}, nil
 }
 
 func (c *Client) Close() {
-	c.conn.Close()
+	c.agentConn.Close()
+	c.metricConn.Close()
 }
 
 func (c *Client) Heartbeat(ctx context.Context, endpointID string) error {
