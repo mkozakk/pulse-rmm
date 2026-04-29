@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+package pulse.v1;
+
+option java_multiple_files = true;
+option java_outer_classname = "ShellProto";
+option java_package = "dev.pulsermm.proto.v1";
+option go_package = "github.com/pulsermm/pulse-rmm/agent/gen/pulse/v1;pulsev1";
+
+service GatewayService {
+  rpc OpenAgentStream(stream AgentEvent) returns (stream GatewayCommand);
+}
+
+message AgentEvent {
+  oneof payload {
+    AgentHello   hello         = 1;
+    ShellStarted shell_started = 2;
+    ShellOutput  shell_output  = 3;
+    ShellExited  shell_exited  = 4;
+  }
+}
+
+message GatewayCommand {
+  oneof payload {
+    OpenShell   open_shell   = 1;
+    ShellInput  shell_input  = 2;
+    ShellResize shell_resize = 3;
+    CloseShell  close_shell  = 4;
+  }
+}
+
+message AgentHello   { string endpoint_id = 1; string agent_version = 2; }
+message OpenShell    { string session_id  = 1; uint32 cols = 2; uint32 rows = 3; }
+message ShellStarted { string session_id  = 1; int32  pid  = 2; }
+message ShellInput   { string session_id  = 1; bytes  data = 2; }
+message ShellOutput  { string session_id  = 1; bytes  data = 2; }
+message ShellResize  { string session_id  = 1; uint32 cols = 2; uint32 rows = 3; }
+message CloseShell   { string session_id  = 1; }
+message ShellExited  { string session_id  = 1; int32  exit_code = 2; string error = 3; }
