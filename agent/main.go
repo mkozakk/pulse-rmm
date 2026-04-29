@@ -8,11 +8,12 @@ import (
 	"syscall"
 	"time"
 
+	pb "github.com/pulsermm/pulse-rmm/agent/gen/pulse/v1"
 	"github.com/pulsermm/pulse-rmm/agent/internal/control"
 	"github.com/pulsermm/pulse-rmm/agent/internal/enrolment"
 	"github.com/pulsermm/pulse-rmm/agent/internal/metrics"
+	"github.com/pulsermm/pulse-rmm/agent/internal/shell"
 	"github.com/pulsermm/pulse-rmm/agent/internal/store"
-	pb "github.com/pulsermm/pulse-rmm/agent/gen/pulse/v1"
 )
 
 func main() {
@@ -81,9 +82,20 @@ func runControlStream(ctx context.Context, endpointID, gatewayAddr string) {
 	inCh := make(chan *pb.GatewayCommand, 16)
 	outCh := make(chan *pb.AgentEvent, 16)
 
-	// drain inCh — Phase 4 wires in the shell dispatcher
+	shellMgr := shell.NewManager(outCh)
+	defer shellMgr.CloseAll()
+
 	go func() {
-		for range inCh {
+		for {
+			select {
+			case cmd, ok := <-inCh:
+				if !ok {
+					return
+				}
+				dispatchCmd(shellMgr, cmd, outCh)
+			case <-ctx.Done():
+				return
+			}
 		}
 	}()
 
@@ -102,6 +114,33 @@ func runControlStream(ctx context.Context, endpointID, gatewayAddr string) {
 		if backoff < 30*time.Second {
 			backoff *= 2
 		}
+	}
+}
+
+func dispatchCmd(mgr *shell.Manager, cmd *pb.GatewayCommand, outCh chan<- *pb.AgentEvent) {
+	switch p := cmd.Payload.(type) {
+	case *pb.GatewayCommand_OpenShell:
+		o := p.OpenShell
+		if err := mgr.Open(o.SessionId, o.Cols, o.Rows); err != nil {
+			outCh <- &pb.AgentEvent{
+				Payload: &pb.AgentEvent_ShellExited{
+					ShellExited: &pb.ShellExited{SessionId: o.SessionId, ExitCode: -1, Error: err.Error()},
+				},
+			}
+			return
+		}
+		outCh <- &pb.AgentEvent{
+			Payload: &pb.AgentEvent_ShellStarted{
+				ShellStarted: &pb.ShellStarted{SessionId: o.SessionId},
+			},
+		}
+	case *pb.GatewayCommand_ShellInput:
+		mgr.Input(p.ShellInput.SessionId, p.ShellInput.Data)
+	case *pb.GatewayCommand_ShellResize:
+		s := p.ShellResize
+		mgr.Resize(s.SessionId, s.Cols, s.Rows)
+	case *pb.GatewayCommand_CloseShell:
+		mgr.Close(p.CloseShell.SessionId)
 	}
 }
 
