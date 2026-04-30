@@ -22,7 +22,7 @@ public class SecurityConfig {
             .httpBasic(AbstractHttpConfigurer::disable)
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/actuator/**", "/api/auth/**").permitAll()
+                .requestMatchers("/actuator/**", "/api/auth/**", "/internal/**").permitAll()
                 .anyRequest().authenticated()
             )
             .build();
