@@ -7,6 +7,7 @@ import ProtectedRoute from './components/ProtectedRoute'
 import LoginPage from './pages/LoginPage'
 import EndpointsPage from './pages/EndpointsPage'
 import EndpointDetailPage from './pages/EndpointDetailPage'
+import TerminalPage from './pages/TerminalPage'
 
 function Bootstrap({ children }) {
   const dispatch = useDispatch()
@@ -32,6 +33,7 @@ export default function App() {
           <Route element={<ProtectedRoute />}>
             <Route path="/endpoints" element={<EndpointsPage />} />
             <Route path="/endpoints/:id" element={<EndpointDetailPage />} />
+            <Route path="/endpoints/:id/shell" element={<TerminalPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/endpoints" replace />} />
         </Routes>

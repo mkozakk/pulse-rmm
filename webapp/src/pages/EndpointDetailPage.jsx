@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useGetMetricsQuery } from '../api/pulseApi'
 import MetricChart from '../components/MetricChart'
 
@@ -18,6 +18,7 @@ function useMetric(id, hours, type, tick) {
 
 export default function EndpointDetailPage() {
   const { id } = useParams()
+  const navigate = useNavigate()
   const [range, setRange] = useState(RANGES[0])
   const [tick, setTick] = useState(() => new Date())
 
@@ -35,6 +36,7 @@ export default function EndpointDetailPage() {
       <header className="page-header">
         <Link to="/endpoints">← Back</Link>
         <h1>Endpoint metrics</h1>
+        <button onClick={() => navigate(`/endpoints/${id}/shell`)}>Open Terminal</button>
         <div className="range-switcher">
           {RANGES.map(r => (
             <button
