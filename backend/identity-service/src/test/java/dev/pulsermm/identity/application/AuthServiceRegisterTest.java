@@ -3,8 +3,11 @@ package dev.pulsermm.identity.application;
 import dev.pulsermm.identity.api.dto.RegisterRequest;
 import dev.pulsermm.identity.api.dto.RegisterResponse;
 import dev.pulsermm.identity.api.errors.BootstrapClosedException;
+import dev.pulsermm.identity.domain.Role;
 import dev.pulsermm.identity.domain.User;
+import dev.pulsermm.identity.infrastructure.RoleRepository;
 import dev.pulsermm.identity.infrastructure.UserRepository;
+import dev.pulsermm.identity.infrastructure.UserRoleRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -14,6 +17,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.*;
@@ -24,13 +28,15 @@ import static org.mockito.Mockito.*;
 class AuthServiceRegisterTest {
 
     @Mock UserRepository userRepository;
+    @Mock RoleRepository roleRepository;
+    @Mock UserRoleRepository userRoleRepository;
     @Mock PasswordEncoder passwordEncoder;
 
     AuthService authService;
 
     @BeforeEach
     void setUp() {
-        authService = new AuthService(userRepository, passwordEncoder, null, null, null);
+        authService = new AuthService(userRepository, roleRepository, userRoleRepository, passwordEncoder, null, null, null);
     }
 
     @Test
@@ -38,10 +44,14 @@ class AuthServiceRegisterTest {
         UUID id = UUID.randomUUID();
         User saved = new User("admin", "$2a$04$hashed");
         saved.setId(id);
+        Role adminRole = new Role("Admin");
+        adminRole.setId(UUID.randomUUID());
 
         when(userRepository.count()).thenReturn(0L);
         when(passwordEncoder.encode("rawpassword12")).thenReturn("$2a$04$hashed");
         when(userRepository.save(any())).thenReturn(saved);
+        when(roleRepository.findByName("Admin")).thenReturn(Optional.of(adminRole));
+        when(userRoleRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         RegisterResponse response = authService.register(new RegisterRequest("admin", "rawpassword12"));
 
@@ -69,6 +79,7 @@ class AuthServiceRegisterTest {
         when(userRepository.count()).thenReturn(0L);
         when(passwordEncoder.encode(any())).thenReturn("$2a$04$hashed");
         when(userRepository.save(any())).thenThrow(DataIntegrityViolationException.class);
+        // roleRepository not reached — DataIntegrityViolationException thrown first
 
         assertThatThrownBy(() -> authService.register(new RegisterRequest("admin", "rawpassword12")))
             .isInstanceOf(DataIntegrityViolationException.class);
