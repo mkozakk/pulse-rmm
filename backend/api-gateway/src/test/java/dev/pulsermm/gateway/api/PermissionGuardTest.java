@@ -25,17 +25,17 @@ class PermissionGuardTest {
 
     @Test
     void adminCanOpenShell() {
-        assertThat(guard.canOpenShell(authWith(List.of("admin")))).isTrue();
+        assertThat(guard.canOpenShell(authWith(List.of("ADMIN")))).isTrue();
     }
 
     @Test
     void seniorTechnicianCanOpenShell() {
-        assertThat(guard.canOpenShell(authWith(List.of("senior_technician")))).isTrue();
+        assertThat(guard.canOpenShell(authWith(List.of("SENIOR_TECHNICIAN")))).isTrue();
     }
 
     @Test
     void juniorTechnicianCannotOpenShell() {
-        assertThat(guard.canOpenShell(authWith(List.of("junior_technician")))).isFalse();
+        assertThat(guard.canOpenShell(authWith(List.of("JUNIOR_TECHNICIAN")))).isFalse();
     }
 
     @Test
