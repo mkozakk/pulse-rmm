@@ -1,5 +1,6 @@
 package dev.pulsermm.identity.api;
 
+import dev.pulsermm.identity.infrastructure.EndpointGroupMembershipRepository;
 import dev.pulsermm.identity.infrastructure.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -17,6 +18,7 @@ import org.springframework.test.context.ActiveProfiles;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.*;
 
@@ -37,9 +39,11 @@ class InternalRbacControllerIT {
 
     @Autowired TestRestTemplate rest;
     @Autowired UserRepository userRepository;
+    @Autowired EndpointGroupMembershipRepository membershipRepository;
 
     @BeforeEach
     void cleanDb() {
+        membershipRepository.deleteAll();
         userRepository.deleteAll();
     }
 
@@ -106,6 +110,35 @@ class InternalRbacControllerIT {
     void unknownUserIdReturns404() {
         var response = rest.exchange(
             "/internal/rbac/permissions/00000000-0000-0000-0000-000000000000",
+            HttpMethod.GET, withToken("test-internal-secret"), Void.class);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(404);
+    }
+
+    @Test
+    void setAndGetEndpointGroup() {
+        UUID endpointId = UUID.randomUUID();
+        UUID groupId = UUID.randomUUID();
+
+        HttpHeaders h = new HttpHeaders();
+        h.set("X-Internal-Token", "test-internal-secret");
+        h.setContentType(MediaType.APPLICATION_JSON);
+        var put = rest.exchange(
+            "/internal/rbac/endpoint-groups/" + endpointId,
+            HttpMethod.PUT, new HttpEntity<>(groupId, h), Void.class);
+        assertThat(put.getStatusCode().value()).isEqualTo(200);
+
+        var get = rest.exchange(
+            "/internal/rbac/endpoint-groups/" + endpointId,
+            HttpMethod.GET, withToken("test-internal-secret"), UUID.class);
+        assertThat(get.getStatusCode().value()).isEqualTo(200);
+        assertThat(get.getBody()).isEqualTo(groupId);
+    }
+
+    @Test
+    void getEndpointGroupUnknownReturns404() {
+        var response = rest.exchange(
+            "/internal/rbac/endpoint-groups/" + UUID.randomUUID(),
             HttpMethod.GET, withToken("test-internal-secret"), Void.class);
 
         assertThat(response.getStatusCode().value()).isEqualTo(404);
