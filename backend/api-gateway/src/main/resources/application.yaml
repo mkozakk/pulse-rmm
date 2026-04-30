@@ -31,6 +31,10 @@ spring:
             uri: ${ENROLMENT_SERVICE_URL:http://localhost:8081}
             predicates:
               - Path=/api/groups/**
+          - id: tag-rules
+            uri: ${ENROLMENT_SERVICE_URL:http://localhost:8081}
+            predicates:
+              - Path=/api/tag-rules/**
           - id: endpoints
             uri: ${ENROLMENT_SERVICE_URL:http://localhost:8081}
             predicates:

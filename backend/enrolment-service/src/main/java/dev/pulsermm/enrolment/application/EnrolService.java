@@ -16,10 +16,14 @@ import java.util.UUID;
 public class EnrolService {
     private final EnrolmentTokenRepository tokenRepository;
     private final EndpointRepository endpointRepository;
+    private final TagRuleService tagRuleService;
 
-    public EnrolService(EnrolmentTokenRepository tokenRepository, EndpointRepository endpointRepository) {
+    public EnrolService(EnrolmentTokenRepository tokenRepository,
+                        EndpointRepository endpointRepository,
+                        TagRuleService tagRuleService) {
         this.tokenRepository = tokenRepository;
         this.endpointRepository = endpointRepository;
+        this.tagRuleService = tagRuleService;
     }
 
     public UUID enrol(UUID tokenId, byte[] publicKey, String hostname, String os, String arch) {
@@ -44,6 +48,8 @@ public class EnrolService {
             now
         );
 
-        return endpointRepository.save(endpoint).getId();
+        Endpoint saved = endpointRepository.save(endpoint);
+        tagRuleService.applyRulesTo(saved);
+        return saved.getId();
     }
 }
