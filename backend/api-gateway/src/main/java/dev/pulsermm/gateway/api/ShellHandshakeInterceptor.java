@@ -35,14 +35,15 @@ public class ShellHandshakeInterceptor implements HandshakeInterceptor {
             return false;
         }
 
-        if (!permissionGuard.canOpenShell(auth)) {
+        URI uri = request.getURI();
+        String path = uri.getPath();
+        String endpointId = path.substring(path.lastIndexOf('/') + 1);
+
+        if (!permissionGuard.canOpenShell(auth, endpointId)) {
             response.setStatusCode(HttpStatus.FORBIDDEN);
             return false;
         }
 
-        URI uri = request.getURI();
-        String path = uri.getPath();
-        String endpointId = path.substring(path.lastIndexOf('/') + 1);
         attributes.put(ShellWebSocketHandler.ATTR_ENDPOINT_ID, endpointId);
         return true;
     }

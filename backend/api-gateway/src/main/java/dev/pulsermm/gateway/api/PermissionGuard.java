@@ -1,28 +1,30 @@
 package dev.pulsermm.gateway.api;
 
+import dev.pulsermm.gateway.infrastructure.identity.IdentityClient;
 import io.jsonwebtoken.Claims;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Component;
 
-import java.util.List;
+import java.util.UUID;
 
 @Component
 public class PermissionGuard {
 
-    // TODO sprint 6: replace with PermissionEvaluator + group-scoped check
-    public boolean canOpenShell(Authentication auth) {
-        List<String> roles = extractRoles(auth);
-        return roles.contains("ADMIN") || roles.contains("SENIOR_TECHNICIAN");
+    private final IdentityClient identityClient;
+
+    public PermissionGuard(IdentityClient identityClient) {
+        this.identityClient = identityClient;
     }
 
-    private List<String> extractRoles(Authentication auth) {
-        if (auth == null || !auth.isAuthenticated()) return List.of();
-        if (auth.getPrincipal() instanceof Claims claims) {
-            Object raw = claims.get("roles");
-            if (raw instanceof List<?> list) {
-                return list.stream().map(Object::toString).toList();
-            }
+    public boolean canOpenShell(Authentication auth, String endpointId) {
+        if (auth == null || !auth.isAuthenticated() || !(auth.getPrincipal() instanceof Claims claims)) {
+            return false;
         }
-        return List.of();
+
+        String userId = claims.getSubject();
+        var perms = identityClient.getPermissions(userId);
+        UUID groupId = identityClient.getEndpointGroup(endpointId).orElse(null);
+
+        return PermissionChecker.hasPermission(perms, "remote:shell", groupId);
     }
 }
