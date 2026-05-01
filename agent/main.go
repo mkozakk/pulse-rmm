@@ -13,6 +13,7 @@ import (
 	"github.com/pulsermm/pulse-rmm/agent/internal/enrolment"
 	"github.com/pulsermm/pulse-rmm/agent/internal/metrics"
 	"github.com/pulsermm/pulse-rmm/agent/internal/shell"
+	"github.com/pulsermm/pulse-rmm/agent/internal/software"
 	"github.com/pulsermm/pulse-rmm/agent/internal/store"
 )
 
@@ -72,6 +73,7 @@ func main() {
 
 	go runHeartbeat(ctx, metricClient, endpointID)
 	go runMetrics(ctx, metricClient, endpointID)
+	go runSoftwareScan(ctx, endpointID)
 	go runControlStream(ctx, endpointID, gatewayAddr)
 
 	<-ctx.Done()
@@ -141,6 +143,8 @@ func dispatchCmd(mgr *shell.Manager, cmd *pb.GatewayCommand, outCh chan<- *pb.Ag
 		mgr.Resize(s.SessionId, s.Cols, s.Rows)
 	case *pb.GatewayCommand_CloseShell:
 		mgr.Close(p.CloseShell.SessionId)
+	case *pb.GatewayCommand_SoftwareCommand:
+		go executeSoftwareCommand(p.SoftwareCommand, outCh)
 	}
 }
 
@@ -178,5 +182,42 @@ func runMetrics(ctx context.Context, client *metrics.Client, endpointID string) 
 				fmt.Fprintf(os.Stderr, "metrics push error: %v\n", err)
 			}
 		}
+	}
+}
+
+func runSoftwareScan(ctx context.Context, endpointID string) {
+	ticker := time.NewTicker(10 * time.Minute)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			items, err := software.Scan()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "software scan error: %v\n", err)
+				continue
+			}
+			fmt.Printf("Scanned %d software items\n", len(items))
+		}
+	}
+}
+
+func executeSoftwareCommand(cmd *pb.SoftwareCommand, outCh chan<- *pb.AgentEvent) {
+	exitCode, output, err := software.Execute(cmd.Action, cmd.Name, cmd.Version)
+	if err != nil {
+		exitCode = -1
+		output = err.Error()
+	}
+
+	outCh <- &pb.AgentEvent{
+		Payload: &pb.AgentEvent_AckCommand{
+			AckCommand: &pb.AckCommand{
+				CommandId: cmd.CommandId,
+				ExitCode:  exitCode,
+				Output:    output,
+			},
+		},
 	}
 }
