@@ -1,0 +1,32 @@
+# Override for e2e runs. Replaces named volumes with e2e-specific ones so dev
+# volumes (postgres_data etc.) are never touched by e2e teardown.
+#
+# Usage:  podman compose -f deploy/compose.yaml -f deploy/compose.e2e.yaml up -d
+# Teardown: podman compose -f deploy/compose.yaml -f deploy/compose.e2e.yaml down -v
+
+services:
+  webapp:
+    profiles:
+      - skip
+
+  postgres:
+    volumes:
+      - postgres_e2e_data:/var/lib/postgresql/data
+
+  redis:
+    volumes:
+      - redis_e2e_data:/data
+
+  rabbitmq:
+    volumes:
+      - rabbitmq_e2e_data:/var/lib/rabbitmq
+
+  minio:
+    volumes:
+      - minio_e2e_data:/data
+
+volumes:
+  postgres_e2e_data:
+  redis_e2e_data:
+  rabbitmq_e2e_data:
+  minio_e2e_data:
