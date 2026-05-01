@@ -2,6 +2,7 @@ package dev.pulsermm.software.application;
 
 import dev.pulsermm.software.domain.SoftwareCommand;
 import dev.pulsermm.software.domain.SoftwareItem;
+import dev.pulsermm.software.infrastructure.GatewayClient;
 import dev.pulsermm.software.infrastructure.SoftwareCommandRepository;
 import dev.pulsermm.software.infrastructure.SoftwareItemRepository;
 import org.springframework.stereotype.Service;
@@ -15,10 +16,12 @@ import java.util.UUID;
 public class SoftwareService {
     private final SoftwareItemRepository softwareItemRepository;
     private final SoftwareCommandRepository softwareCommandRepository;
+    private final GatewayClient gatewayClient;
 
-    public SoftwareService(SoftwareItemRepository softwareItemRepository, SoftwareCommandRepository softwareCommandRepository) {
+    public SoftwareService(SoftwareItemRepository softwareItemRepository, SoftwareCommandRepository softwareCommandRepository, GatewayClient gatewayClient) {
         this.softwareItemRepository = softwareItemRepository;
         this.softwareCommandRepository = softwareCommandRepository;
+        this.gatewayClient = gatewayClient;
     }
 
     @Transactional
@@ -44,8 +47,11 @@ public class SoftwareService {
 
     @Transactional
     public SoftwareCommand createCommand(UUID endpointId, String action, String packageName, String packageVersion) {
-        var cmd = new SoftwareCommand(UUID.randomUUID(), endpointId, action, packageName, packageVersion);
-        return softwareCommandRepository.save(cmd);
+        var cmdId = UUID.randomUUID();
+        var cmd = new SoftwareCommand(cmdId, endpointId, action, packageName, packageVersion);
+        softwareCommandRepository.save(cmd);
+        gatewayClient.dispatchSoftwareCommand(endpointId, cmdId.toString(), action, packageName, packageVersion);
+        return cmd;
     }
 
     @Transactional
