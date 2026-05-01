@@ -9,6 +9,8 @@ import dev.pulsermm.script.infrastructure.persistence.ScriptRepository;
 import dev.pulsermm.script.infrastructure.persistence.ScriptRunRepository;
 import dev.pulsermm.script.infrastructure.persistence.ScriptRunResultRepository;
 import dev.pulsermm.script.infrastructure.persistence.ScriptSecretRepository;
+import dev.pulsermm.script.infrastructure.security.ScriptSecretEncryptor;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -25,15 +27,21 @@ public class ScriptService {
     private final ScriptRunRepository scriptRunRepository;
     private final ScriptRunResultRepository scriptRunResultRepository;
     private final ScriptSecretRepository scriptSecretRepository;
+    private final ScriptSecretEncryptor encryptor;
+    private final String scriptSecretKek;
 
     public ScriptService(ScriptRepository scriptRepository,
                          ScriptRunRepository scriptRunRepository,
                          ScriptRunResultRepository scriptRunResultRepository,
-                         ScriptSecretRepository scriptSecretRepository) {
+                         ScriptSecretRepository scriptSecretRepository,
+                         ScriptSecretEncryptor encryptor,
+                         @Qualifier("scriptSecretKek") String scriptSecretKek) {
         this.scriptRepository = scriptRepository;
         this.scriptRunRepository = scriptRunRepository;
         this.scriptRunResultRepository = scriptRunResultRepository;
         this.scriptSecretRepository = scriptSecretRepository;
+        this.encryptor = encryptor;
+        this.scriptSecretKek = scriptSecretKek;
     }
 
     public Script createScript(CreateScriptRequest request, UUID createdBy) {
@@ -81,8 +89,13 @@ public class ScriptService {
 
         if (secrets != null && !secrets.isEmpty()) {
             secrets.forEach((key, value) -> {
-                var secret = new ScriptSecret(savedRun.getId(), key, value);
-                scriptSecretRepository.save(secret);
+                try {
+                    var encryptedValue = encryptor.encrypt(value, scriptSecretKek);
+                    var secret = new ScriptSecret(savedRun.getId(), key, encryptedValue);
+                    scriptSecretRepository.save(secret);
+                } catch (Exception e) {
+                    throw new SecretEncryptionException("Failed to encrypt secret: " + key, e);
+                }
             });
         }
 
