@@ -60,4 +60,10 @@ public class ScriptController {
         var script = scriptService.getScriptById(id);
         return ResponseEntity.ok(ScriptResponse.from(script));
     }
+
+    @PostMapping("/{id}/approve")
+    public ResponseEntity<ScriptResponse> approveScript(@PathVariable UUID id) {
+        var script = scriptService.approveScript(id);
+        return ResponseEntity.ok(ScriptResponse.from(script));
+    }
 }

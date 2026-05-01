@@ -1,5 +1,6 @@
 package dev.pulsermm.script.api;
 
+import dev.pulsermm.script.application.ScriptAlreadyApprovedException;
 import dev.pulsermm.script.application.ScriptNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -14,6 +15,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleScriptNotFound(ScriptNotFoundException ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(new ErrorResponse("SCRIPT_NOT_FOUND", ex.getMessage()));
+    }
+
+    @ExceptionHandler(ScriptAlreadyApprovedException.class)
+    public ResponseEntity<ErrorResponse> handleScriptAlreadyApproved(ScriptAlreadyApprovedException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new ErrorResponse("SCRIPT_ALREADY_APPROVED", ex.getMessage()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

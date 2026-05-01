@@ -40,6 +40,15 @@ public class ScriptService {
         };
     }
 
+    public Script approveScript(UUID scriptId) {
+        var script = getScriptById(scriptId);
+        if (script.isApproved()) {
+            throw new ScriptAlreadyApprovedException("Script is already approved: " + scriptId);
+        }
+        script.setApprovedAt(java.time.OffsetDateTime.now());
+        return scriptRepository.save(script);
+    }
+
     public enum ScriptStatus {
         ALL, PENDING, LIBRARY
     }
