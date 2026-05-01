@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/scripts")
@@ -65,5 +66,26 @@ public class ScriptController {
     public ResponseEntity<ScriptResponse> approveScript(@PathVariable UUID id) {
         var script = scriptService.approveScript(id);
         return ResponseEntity.ok(ScriptResponse.from(script));
+    }
+
+    @PostMapping("/{id}/run")
+    public ResponseEntity<InitiateScriptRunResponse> runScript(
+            @PathVariable UUID id,
+            @Valid @RequestBody RunScriptRequest request,
+            Authentication authentication) {
+        var userId = UUID.fromString(authentication.getName());
+        var runData = scriptService.runScript(id, request.endpointIds(), request.secrets(), userId);
+        return ResponseEntity.status(HttpStatus.ACCEPTED)
+                .body(new InitiateScriptRunResponse(runData.runId()));
+    }
+
+    @GetMapping("/runs/{runId}/results")
+    public ResponseEntity<ScriptRunResponse> getScriptRunResults(@PathVariable UUID runId) {
+        var runData = scriptService.getScriptRunResults(runId);
+        var results = runData.results().stream()
+                .map(ScriptRunResultResponse::from)
+                .collect(Collectors.toList());
+        var response = new ScriptRunResponse(runData.runId(), results, runData.total(), runData.pending());
+        return ResponseEntity.ok(response);
     }
 }
