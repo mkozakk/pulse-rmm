@@ -27,4 +27,13 @@ public class PermissionGuard {
 
         return PermissionChecker.hasPermission(perms, "remote:shell", groupId);
     }
+
+    public boolean canManageStructure(Authentication auth) {
+        if (auth == null || !auth.isAuthenticated() || !(auth.getPrincipal() instanceof Claims claims)) {
+            return false;
+        }
+        String userId = claims.getSubject();
+        var perms = identityClient.getPermissions(userId);
+        return PermissionChecker.hasPermission(perms, "endpoint:structure:manage", null);
+    }
 }

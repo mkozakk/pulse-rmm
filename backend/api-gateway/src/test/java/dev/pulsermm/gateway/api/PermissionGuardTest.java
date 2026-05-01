@@ -103,6 +103,28 @@ class PermissionGuardTest {
         assertThat(guard.canOpenShell(null, endpointId.toString())).isFalse();
     }
 
+    @Test
+    void userWithStructureManagePermissionCanManageStructure() {
+        UUID userId = UUID.randomUUID();
+        PermissionGuard guard = new PermissionGuard(identityClient);
+
+        when(identityClient.getPermissions(userId.toString()))
+            .thenReturn(List.of(new ResolvedPermission("endpoint:structure:manage", null)));
+
+        assertThat(guard.canManageStructure(authWith(userId))).isTrue();
+    }
+
+    @Test
+    void userWithoutStructureManagePermissionCannotManageStructure() {
+        UUID userId = UUID.randomUUID();
+        PermissionGuard guard = new PermissionGuard(identityClient);
+
+        when(identityClient.getPermissions(userId.toString()))
+            .thenReturn(List.of(new ResolvedPermission("endpoint:view", null)));
+
+        assertThat(guard.canManageStructure(authWith(userId))).isFalse();
+    }
+
     private Authentication authWith(UUID userId) {
         String token = Jwts.builder()
             .subject(userId.toString())
