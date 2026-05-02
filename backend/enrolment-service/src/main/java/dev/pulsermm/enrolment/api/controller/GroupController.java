@@ -1,5 +1,7 @@
-package dev.pulsermm.enrolment.api;
+package dev.pulsermm.enrolment.api.controller;
 
+import dev.pulsermm.enrolment.api.dto.CreateGroupRequest;
+import dev.pulsermm.enrolment.api.dto.GroupResponse;
 import dev.pulsermm.enrolment.application.GroupService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.ArraySchema;

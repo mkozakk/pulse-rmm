@@ -1,4 +1,4 @@
-package dev.pulsermm.enrolment.api;
+package dev.pulsermm.enrolment.api.security;
 
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;

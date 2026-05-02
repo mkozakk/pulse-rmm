@@ -1,5 +1,7 @@
-package dev.pulsermm.enrolment.api;
+package dev.pulsermm.enrolment.api.controller;
 
+import dev.pulsermm.enrolment.api.dto.CreateTagRuleRequest;
+import dev.pulsermm.enrolment.api.dto.TagRuleResponse;
 import dev.pulsermm.enrolment.application.TagRuleService;
 import dev.pulsermm.enrolment.domain.TagRule;
 import dev.pulsermm.enrolment.infrastructure.TagRuleRepository;
