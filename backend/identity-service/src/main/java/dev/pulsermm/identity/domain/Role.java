@@ -1,5 +1,6 @@
 package dev.pulsermm.identity.domain;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.persistence.*;
 import java.util.UUID;
 
@@ -9,9 +10,11 @@ public class Role {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
+    @Schema(description = "Role id")
     private UUID id;
 
     @Column(nullable = false, unique = true)
+    @Schema(description = "Role name", example = "Admin")
     private String name;
 
     public Role() {}

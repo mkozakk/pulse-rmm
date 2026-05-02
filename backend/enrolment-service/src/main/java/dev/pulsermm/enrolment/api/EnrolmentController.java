@@ -5,6 +5,13 @@ import dev.pulsermm.enrolment.application.TagService;
 import dev.pulsermm.enrolment.application.TokenService;
 import dev.pulsermm.enrolment.domain.Endpoint;
 import dev.pulsermm.enrolment.infrastructure.EndpointRepository;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -16,6 +23,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+@Tag(name = "Enrolment", description = "Enrolment tokens and endpoint inventory")
+@SecurityRequirement(name = "bearerAuth")
 @RestController
 public class EnrolmentController {
     private final TokenService tokenService;
@@ -36,6 +45,11 @@ public class EnrolmentController {
         this.jdbcTemplate = jdbcTemplate;
     }
 
+    @Operation(summary = "Create enrolment token")
+    @ApiResponse(responseCode = "201", description = "Token created",
+        content = @Content(schema = @Schema(implementation = TokenResponse.class)))
+    @ApiResponse(responseCode = "400", description = "Validation error")
+    @ApiResponse(responseCode = "401", description = "Unauthorized")
     @PostMapping("/api/enrolment/tokens")
     public ResponseEntity<TokenResponse> createToken(
             @Valid @RequestBody CreateTokenRequest request,
@@ -49,6 +63,11 @@ public class EnrolmentController {
             .body(new TokenResponse(token.getId(), token.getExpiresAt()));
     }
 
+    @Operation(summary = "List endpoints",
+        description = "Optional tag filtering using repeated query param: ?tag=key=value")
+    @ApiResponse(responseCode = "200", description = "Endpoint list",
+        content = @Content(array = @ArraySchema(schema = @Schema(implementation = EndpointResponse.class))))
+    @ApiResponse(responseCode = "401", description = "Unauthorized")
     @GetMapping("/api/endpoints")
     public ResponseEntity<List<EndpointResponse>> listEndpoints(
             @RequestParam(required = false) List<String> tag,
@@ -88,6 +107,9 @@ public class EnrolmentController {
         }, params.toArray());
     }
 
+    @Operation(summary = "Set endpoint tags")
+    @ApiResponse(responseCode = "200", description = "Tags updated")
+    @ApiResponse(responseCode = "401", description = "Unauthorized")
     @PutMapping("/api/endpoints/{id}/tags")
     public ResponseEntity<Void> setTags(
             @PathVariable UUID id,
@@ -100,6 +122,9 @@ public class EnrolmentController {
         return ResponseEntity.ok().build();
     }
 
+    @Operation(summary = "Move endpoint to group")
+    @ApiResponse(responseCode = "200", description = "Endpoint moved")
+    @ApiResponse(responseCode = "401", description = "Unauthorized")
     @PutMapping("/api/endpoints/{id}/group")
     public ResponseEntity<Void> moveEndpoint(
             @PathVariable UUID id,

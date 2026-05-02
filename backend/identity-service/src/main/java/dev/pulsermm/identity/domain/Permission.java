@@ -1,5 +1,6 @@
 package dev.pulsermm.identity.domain;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.persistence.*;
 import java.util.UUID;
 
@@ -9,9 +10,11 @@ public class Permission {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
+    @Schema(description = "Permission id")
     private UUID id;
 
     @Column(nullable = false, unique = true)
+    @Schema(description = "Permission name", example = "scripts.run")
     private String name;
 
     public Permission() {}

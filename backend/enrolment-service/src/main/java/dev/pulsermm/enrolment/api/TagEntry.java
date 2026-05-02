@@ -1,3 +1,10 @@
 package dev.pulsermm.enrolment.api;
 
-public record TagEntry(String key, String value) {}
+import io.swagger.v3.oas.annotations.media.Schema;
+
+public record TagEntry(
+    @Schema(description = "Tag key", example = "role")
+    String key,
+    @Schema(description = "Tag value", example = "db")
+    String value
+) {}

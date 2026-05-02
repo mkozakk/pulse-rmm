@@ -5,7 +5,7 @@ CREATE TABLE scripts (
     approved_at TIMESTAMPTZ,
     created_by UUID NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    FOREIGN KEY (created_by) REFERENCES users(id)
+    FOREIGN KEY (created_by) REFERENCES identity.users(id)
 );
 
 CREATE TABLE script_runs (
@@ -14,7 +14,7 @@ CREATE TABLE script_runs (
     initiated_by UUID NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     FOREIGN KEY (script_id) REFERENCES scripts(id),
-    FOREIGN KEY (initiated_by) REFERENCES users(id)
+    FOREIGN KEY (initiated_by) REFERENCES identity.users(id)
 );
 
 CREATE TABLE script_run_results (
@@ -26,7 +26,7 @@ CREATE TABLE script_run_results (
     executed_at TIMESTAMPTZ,
     acked_at TIMESTAMPTZ,
     FOREIGN KEY (run_id) REFERENCES script_runs(id),
-    FOREIGN KEY (endpoint_id) REFERENCES endpoints(id)
+    FOREIGN KEY (endpoint_id) REFERENCES enrolment.endpoints(id)
 );
 
 CREATE TABLE script_secrets (

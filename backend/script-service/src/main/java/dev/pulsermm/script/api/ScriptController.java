@@ -9,7 +9,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -82,12 +81,22 @@ public class ScriptController {
         return ResponseEntity.ok(ScriptResponse.from(script));
     }
 
+    @Operation(summary = "Approve script")
+    @ApiResponse(responseCode = "200", description = "Script approved",
+        content = @Content(schema = @Schema(implementation = ScriptResponse.class)))
+    @ApiResponse(responseCode = "404", description = "Script not found")
     @PostMapping("/{id}/approve")
     public ResponseEntity<ScriptResponse> approveScript(@PathVariable UUID id) {
         var script = scriptService.approveScript(id);
         return ResponseEntity.ok(ScriptResponse.from(script));
     }
 
+    @Operation(summary = "Run script",
+        description = "Triggers async execution across selected endpoints")
+    @ApiResponse(responseCode = "202", description = "Run initiated",
+        content = @Content(schema = @Schema(implementation = InitiateScriptRunResponse.class)))
+    @ApiResponse(responseCode = "400", description = "Validation error")
+    @ApiResponse(responseCode = "404", description = "Script not found")
     @PostMapping("/{id}/run")
     public ResponseEntity<InitiateScriptRunResponse> runScript(
             @PathVariable UUID id,
@@ -99,6 +108,10 @@ public class ScriptController {
                 .body(new InitiateScriptRunResponse(runData.runId()));
     }
 
+    @Operation(summary = "Get script run results")
+    @ApiResponse(responseCode = "200", description = "Run results",
+        content = @Content(schema = @Schema(implementation = ScriptRunResponse.class)))
+    @ApiResponse(responseCode = "404", description = "Run not found")
     @GetMapping("/runs/{runId}/results")
     public ResponseEntity<ScriptRunResponse> getScriptRunResults(@PathVariable UUID runId) {
         var runData = scriptService.getScriptRunResults(runId);
@@ -109,6 +122,10 @@ public class ScriptController {
         return ResponseEntity.ok(response);
     }
 
+    @Operation(summary = "Acknowledge script execution")
+    @ApiResponse(responseCode = "204", description = "Acknowledged")
+    @ApiResponse(responseCode = "400", description = "Validation error")
+    @ApiResponse(responseCode = "404", description = "Delivery not found")
     @PostMapping("/runs/{runId}/endpoints/{endpointId}/ack")
     public ResponseEntity<Void> ackScriptExecution(
             @PathVariable UUID runId,

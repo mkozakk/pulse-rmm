@@ -174,8 +174,9 @@ class End2EndScriptExecutionIT {
         assertThat(allResults).allMatch(ScriptRunResult::isComplete);
 
         for (int i = 0; i < endpoints.length; i++) {
+            var endpointId = endpoints[i];
             var result = allResults.stream()
-                    .filter(r -> r.getEndpointId().equals(endpoints[i]))
+                    .filter(r -> r.getEndpointId().equals(endpointId))
                     .findFirst()
                     .orElseThrow();
 
