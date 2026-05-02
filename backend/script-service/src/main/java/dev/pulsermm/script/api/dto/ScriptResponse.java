@@ -1,4 +1,4 @@
-package dev.pulsermm.script.api;
+package dev.pulsermm.script.api.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import dev.pulsermm.script.domain.Script;
