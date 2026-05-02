@@ -2,6 +2,12 @@ package dev.pulsermm.script.api;
 
 import dev.pulsermm.script.application.ScriptService;
 import dev.pulsermm.script.application.ScriptService.ScriptStatus;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.PageRequest;
@@ -19,6 +25,8 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+@Tag(name = "Scripts", description = "Script library, approval and bulk execution")
+@SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequestMapping("/api/scripts")
 public class ScriptController {
@@ -29,6 +37,10 @@ public class ScriptController {
         this.scriptService = scriptService;
     }
 
+    @Operation(summary = "Upload a new script")
+    @ApiResponse(responseCode = "201", description = "Script created, pending approval",
+        content = @Content(schema = @Schema(implementation = CreateScriptResponse.class)))
+    @ApiResponse(responseCode = "400", description = "Validation error")
     @PostMapping
     public ResponseEntity<CreateScriptResponse> createScript(
             @Valid @RequestBody CreateScriptRequest request,
@@ -39,6 +51,10 @@ public class ScriptController {
                 .body(new CreateScriptResponse(script.getId()));
     }
 
+    @Operation(summary = "List scripts",
+        description = "Filter by status: all | pending | library")
+    @ApiResponse(responseCode = "200", description = "Paginated script list",
+        content = @Content(schema = @Schema(implementation = ListScriptsResponse.class)))
     @GetMapping
     public ResponseEntity<ListScriptsResponse> listScripts(
             @RequestParam(defaultValue = "all") String status,
@@ -56,6 +72,10 @@ public class ScriptController {
         return ResponseEntity.ok(response);
     }
 
+    @Operation(summary = "Get a script by ID")
+    @ApiResponse(responseCode = "200", description = "Script details",
+        content = @Content(schema = @Schema(implementation = ScriptResponse.class)))
+    @ApiResponse(responseCode = "404", description = "Script not found")
     @GetMapping("/{id}")
     public ResponseEntity<ScriptResponse> getScript(@PathVariable UUID id) {
         var script = scriptService.getScriptById(id);
