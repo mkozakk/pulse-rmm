@@ -12,9 +12,9 @@ spring:
     baselineOnMigrate: true
     locations: classpath:db/migration
   datasource:
-    url: jdbc:postgresql://${DATABASE_HOST:localhost}:${DATABASE_PORT:5432}/${DATABASE_NAME:pulse_rmm}
-    username: ${DATABASE_USER:postgres}
-    password: ${DATABASE_PASSWORD:postgres}
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:5432/${POSTGRES_DB:pulse}
+    username: ${POSTGRES_USER:postgres}
+    password: ${POSTGRES_PASSWORD:postgres}
     hikari:
       maximum-pool-size: 20
   security:
