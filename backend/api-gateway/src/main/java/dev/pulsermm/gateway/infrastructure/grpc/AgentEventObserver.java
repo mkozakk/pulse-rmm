@@ -45,8 +45,6 @@ class AgentEventObserver implements StreamObserver<AgentEvent> {
             router.route(event.getShellOutput().getSessionId(), event);
         } else if (event.hasShellExited()) {
             router.route(event.getShellExited().getSessionId(), event);
-        } else if (event.hasAckCommand()) {
-            logger.debug("Ack received from {}: {}", endpointId, event.getAckCommand().getCommandId());
         } else {
             logger.debug("Agent event from {}: {}", endpointId, event.getPayloadCase());
         }

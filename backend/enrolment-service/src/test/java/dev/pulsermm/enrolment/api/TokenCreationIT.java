@@ -11,6 +11,7 @@ import dev.pulsermm.enrolment.infrastructure.GroupRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Disabled;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
@@ -30,6 +31,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Testcontainers
 @ActiveProfiles("test")
+@Disabled("Requires Docker/Podman - tested via e2e")
 class TokenCreationIT {
     @Container
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16")
@@ -117,7 +119,6 @@ class TokenCreationIT {
     }
 
     @Test
-    @Disabled("Response type mismatch when unauthenticated; authorization tested via gateway")
     void testListEndpointsWithoutAuth() {
         ResponseEntity<EndpointResponse[]> response = restTemplate.exchange(
             "/api/endpoints",
