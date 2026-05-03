@@ -64,3 +64,6 @@ backend/cookies.txt
 *.tmp
 *.swp
 *.swo
+
+**/__pycache__/
+**/*.py[cod]

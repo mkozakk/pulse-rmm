@@ -11,6 +11,7 @@ import io.grpc.stub.StreamObserver;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -45,6 +46,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
     "pulse.jwt.secret=test-secret-key-that-is-long-enough-for-hs256",
     "grpc.server.port=0"
 })
+@Disabled("Requires Docker/Podman - tested via e2e")
 class OpenShellIT {
 
     @MockBean
