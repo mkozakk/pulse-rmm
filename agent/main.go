@@ -12,6 +12,7 @@ import (
 	"github.com/pulsermm/pulse-rmm/agent/internal/control"
 	"github.com/pulsermm/pulse-rmm/agent/internal/enrolment"
 	"github.com/pulsermm/pulse-rmm/agent/internal/metrics"
+	"github.com/pulsermm/pulse-rmm/agent/internal/script"
 	"github.com/pulsermm/pulse-rmm/agent/internal/shell"
 	"github.com/pulsermm/pulse-rmm/agent/internal/software"
 	"github.com/pulsermm/pulse-rmm/agent/internal/store"
@@ -145,6 +146,8 @@ func dispatchCmd(mgr *shell.Manager, cmd *pb.GatewayCommand, outCh chan<- *pb.Ag
 		mgr.Close(p.CloseShell.SessionId)
 	case *pb.GatewayCommand_SoftwareCommand:
 		go executeSoftwareCommand(p.SoftwareCommand, outCh)
+	case *pb.GatewayCommand_ScriptCommand:
+		go executeScriptCommand(p.ScriptCommand, outCh)
 	}
 }
 
@@ -206,6 +209,28 @@ func runSoftwareScan(ctx context.Context, endpointID string) {
 
 func executeSoftwareCommand(cmd *pb.SoftwareCommand, outCh chan<- *pb.AgentEvent) {
 	exitCode, output, err := software.Execute(cmd.Action, cmd.Name, cmd.Version)
+	if err != nil {
+		exitCode = -1
+		output = err.Error()
+	}
+
+	outCh <- &pb.AgentEvent{
+		Payload: &pb.AgentEvent_AckCommand{
+			AckCommand: &pb.AckCommand{
+				CommandId: cmd.CommandId,
+				ExitCode:  exitCode,
+				Output:    output,
+			},
+		},
+	}
+}
+
+func executeScriptCommand(cmd *pb.ScriptCommand, outCh chan<- *pb.AgentEvent) {
+	envVars := make(map[string]string, len(cmd.EnvVars))
+	for k, v := range cmd.EnvVars {
+		envVars[k] = v
+	}
+	exitCode, output, err := script.Execute(cmd.ScriptBody, envVars)
 	if err != nil {
 		exitCode = -1
 		output = err.Error()

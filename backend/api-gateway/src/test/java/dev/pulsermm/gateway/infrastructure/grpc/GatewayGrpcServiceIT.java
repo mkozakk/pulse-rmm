@@ -40,11 +40,12 @@ class GatewayGrpcServiceIT {
     void setup() throws IOException {
         registry = new AgentRegistry();
         ShellSessionRouter router = new ShellSessionRouter();
+        PendingCommandRegistry pendingRegistry = new PendingCommandRegistry();
         String serverName = InProcessServerBuilder.generateName();
 
         server = InProcessServerBuilder.forName(serverName)
             .directExecutor()
-            .addService(new GatewayGrpcService(registry, router))
+            .addService(new GatewayGrpcService(registry, router, pendingRegistry))
             .build()
             .start();
 

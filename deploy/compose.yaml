@@ -19,7 +19,6 @@ services:
       ENROLMENT_SERVICE_URL: http://enrolment-service:8081
       METRIC_SERVICE_URL: http://metric-service:8082
       SCRIPT_SERVICE_URL: http://script-service:8084
-      SOFTWARE_SERVICE_URL: http://software-service:8085
       JWT_SECRET: ${JWT_SECRET}
       INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
     ports:
@@ -27,15 +26,13 @@ services:
       - "9090:9090"
     depends_on:
       identity-service:
-        condition: service_started
+        condition: service_healthy
       enrolment-service:
-        condition: service_started
+        condition: service_healthy
       metric-service:
-        condition: service_started
+        condition: service_healthy
       script-service:
-        condition: service_started
-      software-service:
-        condition: service_started
+        condition: service_healthy
       <<: *app-deps
 
   identity-service:
@@ -51,6 +48,11 @@ services:
       INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
     ports:
       - "8083:8083"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8083/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
     depends_on:
       <<: *app-deps
 
@@ -67,6 +69,11 @@ services:
     ports:
       - "8081:8081"
       - "9091:9091"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8081/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
     depends_on:
       <<: *app-deps
 
@@ -83,6 +90,11 @@ services:
     ports:
       - "8082:8082"
       - "9092:9092"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8082/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
     depends_on:
       <<: *app-deps
 
@@ -91,35 +103,26 @@ services:
       context: ..
       dockerfile: backend/script-service/Dockerfile
     environment:
+      SERVICE_PORT: 8084
       POSTGRES_HOST: postgres
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
       JWT_SECRET: ${JWT_SECRET}
+      JWT_ISSUER_URI: http://identity-service:8083
+      GATEWAY_URL: http://api-gateway:8080
+      SCRIPT_SERVICE_BASE_URL: http://script-service:8084
       SCRIPT_SECRET_KEK: ${SCRIPT_SECRET_KEK}
-      SWAGGER_UI_ENABLED: ${SWAGGER_UI_ENABLED}
-      SERVICE_PORT: 8084
     ports:
       - "8084:8084"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8084/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
     depends_on:
-      <<: *app-deps
-
-  software-service:
-    build:
-      context: ..
-      dockerfile: backend/software-service/Dockerfile
-    environment:
-      POSTGRES_HOST: postgres
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
-      JWT_SECRET: ${JWT_SECRET}
-      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
-      SWAGGER_UI_ENABLED: ${SWAGGER_UI_ENABLED}
-    ports:
-      - "8085:8085"
-    depends_on:
-      <<: *app-deps
+      postgres:
+        condition: service_healthy
 
   webapp:
     build:

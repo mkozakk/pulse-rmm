@@ -2,7 +2,7 @@ FROM maven:3.9.9-eclipse-temurin-21 AS build
 WORKDIR /workspace
 
 COPY backend backend
-RUN mvn -f backend/pom.xml -pl script-service -am -DskipTests package
+RUN mvn -f backend/pom.xml -pl script-service -am -DskipTests -Dmaven.test.skip=true package
 
 FROM eclipse-temurin:21-jre
 WORKDIR /app
