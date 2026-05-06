@@ -4,6 +4,8 @@ import pytest
 import requests
 import websocket
 
+pytestmark = [pytest.mark.slow, pytest.mark.requires_agent]
+
 
 def test_shell_requires_auth(enrolled_agent):
     ws = websocket.WebSocket()

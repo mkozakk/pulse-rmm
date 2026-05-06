@@ -49,6 +49,54 @@ def poll_until(fn, timeout=10, interval=0.5):
     raise RuntimeError(f"poll_until timeout after {timeout}s. Last error: {last_error}")
 
 
+def pytest_addoption(parser):
+    """Add custom command-line options."""
+    parser.addoption(
+        "--logs",
+        action="store_true",
+        help="Show container logs on test failure"
+    )
+    parser.addoption(
+        "--follow-logs",
+        action="store_true",
+        help="Stream container logs during test execution"
+    )
+
+
+def _get_container_logs(service_name):
+    """Fetch logs from a container."""
+    try:
+        result = subprocess.run(
+            ["podman", "compose", "-f", "deploy/compose.yaml", "-f", "deploy/compose.e2e.yaml",
+             "--project-name", "pulse-e2e", "logs", service_name],
+            capture_output=True, text=True, timeout=5
+        )
+        return result.stdout
+    except Exception as e:
+        return f"Failed to fetch logs: {e}"
+
+
+@pytest.hookimpl(tryfirst=True, hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    """Capture logs on test failure."""
+    outcome = yield
+    rep = outcome.get_result()
+
+    if rep.failed and item.config.getoption("--logs"):
+        print("\n" + "="*80)
+        print(f"LOGS FOR FAILED TEST: {item.nodeid}")
+        print("="*80)
+
+        services = ["api-gateway", "identity-service", "enrolment-service",
+                   "metric-service", "script-service"]
+        for service in services:
+            logs = _get_container_logs(service)
+            if logs:
+                print(f"\n--- {service} ---")
+                lines = logs.split('\n')
+                print('\n'.join(lines[-30:]))  # Last 30 lines
+
+
 @pytest.fixture(scope="session")
 def registered_user():
     """Register a new admin user; assumes clean database."""

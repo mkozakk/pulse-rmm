@@ -3,6 +3,8 @@ import requests
 
 from config import BASE_URL, ADMIN_USERNAME, ADMIN_PASSWORD
 
+pytestmark = pytest.mark.fast
+
 
 def test_register_first_user_becomes_admin(admin_session):
     """First registered user is an admin (verified by permissions test below)."""

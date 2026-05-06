@@ -1,9 +1,12 @@
 from datetime import datetime, timedelta, timezone
 
+import pytest
 import requests
 
 from config import BASE_URL
 from conftest import poll_until
+
+pytestmark = [pytest.mark.slow, pytest.mark.requires_agent]
 
 
 def test_metrics_require_auth(enrolled_agent):
