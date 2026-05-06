@@ -23,6 +23,7 @@
         <module>enrolment-service</module>
         <module>metric-service</module>
         <module>script-service</module>
+        <module>software-service</module>
     </modules>
 
     <properties>

@@ -19,6 +19,7 @@ services:
       ENROLMENT_SERVICE_URL: http://enrolment-service:8081
       METRIC_SERVICE_URL: http://metric-service:8082
       SCRIPT_SERVICE_URL: http://script-service:8084
+      SOFTWARE_SERVICE_URL: http://software-service:8085
       JWT_SECRET: ${JWT_SECRET}
       INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
     ports:
@@ -30,9 +31,11 @@ services:
       enrolment-service:
         condition: service_healthy
       metric-service:
-        condition: service_started
+        condition: service_healthy
       script-service:
-        condition: service_started
+        condition: service_healthy
+      software-service:
+        condition: service_healthy
       <<: *app-deps
 
   identity-service:
@@ -114,11 +117,40 @@ services:
       SCRIPT_SECRET_KEK: ${SCRIPT_SECRET_KEK}
     ports:
       - "8084:8084"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8084/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
     depends_on:
       postgres:
         condition: service_healthy
 
+  software-service:
+    build:
+      context: ..
+      dockerfile: backend/software-service/Dockerfile
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      JWT_SECRET: ${JWT_SECRET}
+      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
+      IDENTITY_SERVICE_URL: http://identity-service:8083
+      GATEWAY_SERVICE_URL: http://api-gateway:8080
+    ports:
+      - "8085:8085"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8085/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      <<: *app-deps
+
   webapp:
+    profiles: ["webapp"]
     build:
       context: ..
       dockerfile: webapp/Dockerfile
