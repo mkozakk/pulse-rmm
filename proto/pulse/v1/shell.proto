@@ -17,6 +17,7 @@ message AgentEvent {
     ShellStarted shell_started = 2;
     ShellOutput  shell_output  = 3;
     ShellExited  shell_exited  = 4;
+    AckCommand   ack_command   = 5;
   }
 }
 
@@ -26,6 +27,8 @@ message GatewayCommand {
     ShellInput  shell_input  = 2;
     ShellResize shell_resize = 3;
     CloseShell  close_shell  = 4;
+    SoftwareCommand software_command = 5;
+    ScriptCommand script_command = 6;
   }
 }
 
@@ -37,3 +40,19 @@ message ShellOutput  { string session_id  = 1; bytes  data = 2; }
 message ShellResize  { string session_id  = 1; uint32 cols = 2; uint32 rows = 3; }
 message CloseShell   { string session_id  = 1; }
 message ShellExited  { string session_id  = 1; int32  exit_code = 2; string error = 3; }
+message SoftwareCommand {
+  string command_id  = 1;
+  string action      = 2;
+  string name        = 3;
+  string version     = 4;
+}
+message ScriptCommand {
+  string command_id  = 1;
+  string script_body = 2;
+  map<string, string> env_vars = 3;
+}
+message AckCommand {
+  string command_id = 1;
+  int32 exit_code   = 2;
+  string output     = 3;
+}

@@ -12,14 +12,16 @@ public class GatewayGrpcService extends GatewayServiceGrpc.GatewayServiceImplBas
 
     private final AgentRegistry registry;
     private final ShellSessionRouter router;
+    private final PendingCommandRegistry pendingCommandRegistry;
 
-    public GatewayGrpcService(AgentRegistry registry, ShellSessionRouter router) {
+    public GatewayGrpcService(AgentRegistry registry, ShellSessionRouter router, PendingCommandRegistry pendingCommandRegistry) {
         this.registry = registry;
         this.router = router;
+        this.pendingCommandRegistry = pendingCommandRegistry;
     }
 
     @Override
     public StreamObserver<AgentEvent> openAgentStream(StreamObserver<GatewayCommand> outbound) {
-        return new AgentEventObserver(registry, router, outbound);
+        return new AgentEventObserver(registry, router, pendingCommandRegistry, outbound);
     }
 }
