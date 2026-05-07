@@ -32,4 +32,4 @@ e2e:
 	$(MAKE) e2e-build
 	$(MAKE) e2e-up
 	cd e2e && python -m pytest tests/ -v --logs
-	$(MAKE) e2e-downe
+	$(MAKE) e2e-down
