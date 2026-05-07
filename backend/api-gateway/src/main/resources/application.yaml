@@ -78,15 +78,15 @@ springdoc:
     path: /swagger-ui.html
     urls:
       - name: Identity
-        url: /api-docs/identity
+        url: http://localhost:8083/v3/api-docs
       - name: Enrolment
-        url: /api-docs/enrolment
+        url: http://localhost:8081/v3/api-docs
       - name: Metrics
-        url: /api-docs/metrics
+        url: http://localhost:8082/v3/api-docs
       - name: Scripts
-        url: /api-docs/scripts
+        url: http://localhost:8084/v3/api-docs
       - name: Software
-        url: /api-docs/software
+        url: http://localhost:8085/v3/api-docs
     urls-primary-name: Identity
     tags-sorter: alpha
     operations-sorter: alpha

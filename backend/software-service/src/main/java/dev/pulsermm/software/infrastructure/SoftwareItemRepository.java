@@ -10,4 +10,5 @@ import java.util.UUID;
 @Repository
 public interface SoftwareItemRepository extends JpaRepository<SoftwareItem, UUID> {
     List<SoftwareItem> findByEndpointId(UUID endpointId);
+    void deleteByEndpointId(UUID endpointId);
 }

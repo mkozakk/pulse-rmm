@@ -3,6 +3,7 @@ package software
 import (
 	"fmt"
 	"os/exec"
+	"os/user"
 	"runtime"
 )
 
@@ -63,7 +64,28 @@ func executeChocoCommand(action, name, version string) (int32, string, error) {
 }
 
 func executeAptCommand(args ...string) (int32, string, error) {
-	cmd := exec.Command("apt-get", args...)
+	// Check if running as root
+	currentUser, err := user.Current()
+	isRoot := err == nil && currentUser.Uid == "0"
+
+	var cmd *exec.Cmd
+	var cmdStr string
+	if isRoot {
+		// Running as root, don't use sudo
+		cmd = exec.Command("apt-get", args...)
+		cmdStr = fmt.Sprintf("apt-get %v", args)
+	} else {
+		// Not root, use sudo
+		fullArgs := append([]string{"apt-get"}, args...)
+		cmd = exec.Command("sudo", fullArgs...)
+		cmdStr = fmt.Sprintf("sudo apt-get %v", args)
+	}
+
+	fmt.Printf("[executor] Running: %s\n", cmdStr)
+	fmt.Printf("[executor] IsRoot: %v\n", isRoot)
+	fmt.Printf("[executor] WorkDir: %s\n", cmd.Dir)
+	fmt.Printf("[executor] Env count: %d\n", len(cmd.Env))
+
 	output, err := cmd.CombinedOutput()
 
 	exitCode := int32(0)
@@ -74,6 +96,10 @@ func executeAptCommand(args ...string) (int32, string, error) {
 			exitCode = -1
 		}
 	}
+
+	fmt.Printf("[executor] Exit code: %d\n", exitCode)
+	fmt.Printf("[executor] Output length: %d bytes\n", len(output))
+	fmt.Printf("[executor] Output:\n%s\n", string(output))
 
 	return exitCode, string(output), nil
 }

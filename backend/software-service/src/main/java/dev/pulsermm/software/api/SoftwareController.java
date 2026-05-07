@@ -38,11 +38,30 @@ public class SoftwareController {
     public ResponseEntity<List<SoftwareItemResponse>> list(
             @PathVariable UUID endpointId,
             Authentication auth) {
+        var logger = org.slf4j.LoggerFactory.getLogger(SoftwareController.class);
+        logger.info("GET /api/endpoints/{}/software - auth={}", endpointId, auth != null && auth.isAuthenticated());
+
         if (auth == null || !auth.isAuthenticated()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
         var items = softwareService.getSoftwareList(endpointId);
-        return ResponseEntity.ok(items.stream().map(SoftwareItemResponse::from).toList());
+        logger.info("getSoftwareList returned {} items for endpoint={}", items.size(), endpointId);
+        var response = items.stream().map(SoftwareItemResponse::from).toList();
+
+        // Check for hello in response
+        var helloItems = response.stream().filter(r -> r.name().contains("hello")).toList();
+        logger.info("Items containing 'hello': {}", helloItems.size());
+        if (!helloItems.isEmpty()) {
+            logger.info("Found hello: {}", helloItems.get(0).name());
+        }
+
+        if (response.size() > 0) {
+            logger.info("First 3 items: {} / {} / {}",
+                response.get(0).name(),
+                response.size() > 1 ? response.get(1).name() : "N/A",
+                response.size() > 2 ? response.get(2).name() : "N/A");
+        }
+        return ResponseEntity.ok(response);
     }
 
     @Operation(summary = "Install software")
