@@ -12,6 +12,7 @@ agent/pulse-agent
 agent/cookies.txt
 *.pprof
 
+.pytest_cache/
 **/target/
 BOOT-INF/
 **/pom.xml.tag
