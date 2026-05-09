@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package pulse.v1;
 
+import "pulse/v1/session.proto";
+
 option java_multiple_files = true;
 option java_outer_classname = "ShellProto";
 option java_package = "dev.pulsermm.proto.v1";
@@ -13,11 +15,13 @@ service GatewayService {
 
 message AgentEvent {
   oneof payload {
-    AgentHello   hello         = 1;
-    ShellStarted shell_started = 2;
-    ShellOutput  shell_output  = 3;
-    ShellExited  shell_exited  = 4;
-    AckCommand   ack_command   = 5;
+    AgentHello           hello          = 1;
+    ShellStarted         shell_started  = 2;
+    ShellOutput          shell_output   = 3;
+    ShellExited          shell_exited   = 4;
+    AckCommand           ack_command    = 5;
+    SessionReadyEvent    session_ready  = 6;
+    DesktopSignalMessage desktop_signal = 7;
   }
 }
 
@@ -27,8 +31,11 @@ message GatewayCommand {
     ShellInput  shell_input  = 2;
     ShellResize shell_resize = 3;
     CloseShell  close_shell  = 4;
-    SoftwareCommand software_command = 5;
-    ScriptCommand script_command = 6;
+    SoftwareCommand           software_command       = 5;
+    ScriptCommand             script_command         = 6;
+    StartDesktopSessionCommand start_desktop_session = 7;
+    EndDesktopSessionCommand   end_desktop_session   = 8;
+    DesktopSignalMessage       desktop_signal        = 9;
   }
 }
 
