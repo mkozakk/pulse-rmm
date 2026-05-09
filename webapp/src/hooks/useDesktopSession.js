@@ -27,16 +27,16 @@ export function useDesktopSession(endpointId) {
     setStatus('connecting')
 
     async function start() {
-      const session = await createSession({ endpoint_id: endpointId, type: 'desktop' }).unwrap()
+      const session = await createSession({ endpointId, type: 'desktop' }).unwrap()
       if (cancelled) return
 
-      sessionIdRef.current = session.session_id
-      setCanControl(!!session.can_control)
+      sessionIdRef.current = session.sessionId
+      setCanControl(!!session.canControl)
 
-      const iceServers = session.turn_urls?.length ? [{
-        urls: session.turn_urls,
-        username: session.turn_username,
-        credential: session.turn_credential
+      const iceServers = session.turnUrls?.length ? [{
+        urls: session.turnUrls,
+        username: session.turnUsername,
+        credential: session.turnCredential
       }] : []
 
       const pc = new RTCPeerConnection({ iceServers })
@@ -47,20 +47,8 @@ export function useDesktopSession(endpointId) {
         setStatus('connected')
       }
 
-      const ws = new WebSocket(`${WS_BASE}/ws/sessions/${session.session_id}/signal?token=${token}`)
+      const ws = new WebSocket(`${WS_BASE}/ws/sessions/${session.sessionId}/signal?token=${token}`)
       wsRef.current = ws
-
-      ws.onmessage = async (e) => {
-        const msg = JSON.parse(e.data)
-        if (msg.type === 'answer') {
-          await pc.setRemoteDescription({ type: 'answer', sdp: msg.payload })
-        } else if (msg.type === 'candidate') {
-          await pc.addIceCandidate(JSON.parse(msg.payload))
-        } else if (msg.type === 'error' && msg.code === 'wayland_not_supported') {
-          setError('wayland_not_supported')
-          setStatus('error')
-        }
-      }
 
       ws.onclose = () => { if (!cancelled) setStatus(s => s === 'connecting' ? 'error' : s) }
 
@@ -73,14 +61,30 @@ export function useDesktopSession(endpointId) {
         }
       }
 
-      if (session.can_control) {
+      if (session.canControl) {
         inputChannelRef.current = pc.createDataChannel('input')
       }
       fileChannelRef.current = pc.createDataChannel('file-transfer')
 
-      const offer = await pc.createOffer()
-      await pc.setLocalDescription(offer)
-      ws.send(JSON.stringify({ type: 'offer', payload: offer.sdp }))
+      // Wait for session_ready before sending offer — agent needs time to set up capture
+      ws.onmessage = async (e) => {
+        const msg = JSON.parse(e.data)
+        if (msg.type === 'session_ready') {
+          pc.addTransceiver('video', { direction: 'recvonly' })
+          const offer = await pc.createOffer()
+          await pc.setLocalDescription(offer)
+          ws.send(JSON.stringify({ type: 'offer', payload: offer.sdp }))
+        } else if (msg.type === 'answer') {
+          await pc.setRemoteDescription({ type: 'answer', sdp: msg.payload })
+        } else if (msg.type === 'candidate') {
+          await pc.addIceCandidate(JSON.parse(msg.payload))
+        } else if (msg.type === 'error') {
+          if (msg.code === 'wayland_not_supported') {
+            setError('wayland_not_supported')
+          }
+          setStatus('error')
+        }
+      }
     }
 
     start().catch(() => { if (!cancelled) setStatus('error') })
