@@ -9,6 +9,7 @@ import (
 	"time"
 
 	pb "github.com/pulsermm/pulse-rmm/agent/gen/pulse/v1"
+	"github.com/pulsermm/pulse-rmm/agent/desktop"
 	"github.com/pulsermm/pulse-rmm/agent/internal/control"
 	"github.com/pulsermm/pulse-rmm/agent/internal/enrolment"
 	"github.com/pulsermm/pulse-rmm/agent/internal/metrics"
@@ -103,6 +104,8 @@ func runControlStream(ctx context.Context, endpointID, gatewayAddr string, agent
 	shellMgr := shell.NewManager(outCh)
 	defer shellMgr.CloseAll()
 
+	desktopHandler := desktop.NewHandler()
+
 	go func() {
 		for {
 			select {
@@ -110,7 +113,7 @@ func runControlStream(ctx context.Context, endpointID, gatewayAddr string, agent
 				if !ok {
 					return
 				}
-				dispatchCmd(shellMgr, cmd, outCh, agentClient, endpointID)
+				dispatchCmd(shellMgr, desktopHandler, cmd, outCh, agentClient, endpointID)
 			case <-ctx.Done():
 				return
 			}
@@ -135,8 +138,15 @@ func runControlStream(ctx context.Context, endpointID, gatewayAddr string, agent
 	}
 }
 
-func dispatchCmd(mgr *shell.Manager, cmd *pb.GatewayCommand, outCh chan<- *pb.AgentEvent, agentClient pb.AgentServiceClient, endpointID string) {
+func dispatchCmd(mgr *shell.Manager, deskHandler *desktop.Handler, cmd *pb.GatewayCommand, outCh chan<- *pb.AgentEvent, agentClient pb.AgentServiceClient, endpointID string) {
+	send := func(e *pb.AgentEvent) { outCh <- e }
 	switch p := cmd.Payload.(type) {
+	case *pb.GatewayCommand_StartDesktopSession:
+		go deskHandler.HandleStartSession(p.StartDesktopSession, send)
+	case *pb.GatewayCommand_EndDesktopSession:
+		deskHandler.HandleEndSession(p.EndDesktopSession)
+	case *pb.GatewayCommand_DesktopSignal:
+		go deskHandler.HandleSignal(p.DesktopSignal, send)
 	case *pb.GatewayCommand_OpenShell:
 		o := p.OpenShell
 		if err := mgr.Open(o.SessionId, o.Cols, o.Rows); err != nil {
