@@ -29,6 +29,16 @@ export const pulseApi = createApi({
       query: ({ id, from, to, type }) =>
         `/endpoints/${id}/metrics?from=${from}&to=${to}&type=${type}`,
       keepUnusedDataFor: 0
+    }),
+    createSession: builder.mutation({
+      query: (body) => ({ url: '/sessions', method: 'POST', body })
+    }),
+    getSession: builder.query({
+      query: (id) => `/sessions/${id}`,
+      keepUnusedDataFor: 0
+    }),
+    endSession: builder.mutation({
+      query: (id) => ({ url: `/sessions/${id}`, method: 'DELETE' })
     })
   })
 })
@@ -38,5 +48,8 @@ export const {
   useRefreshMutation,
   useLogoutMutation,
   useGetEndpointsQuery,
-  useGetMetricsQuery
+  useGetMetricsQuery,
+  useCreateSessionMutation,
+  useGetSessionQuery,
+  useEndSessionMutation
 } = pulseApi

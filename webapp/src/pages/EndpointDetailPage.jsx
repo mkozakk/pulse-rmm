@@ -37,6 +37,7 @@ export default function EndpointDetailPage() {
         <Link to="/endpoints">← Back</Link>
         <h1>Endpoint metrics</h1>
         <button onClick={() => navigate(`/endpoints/${id}/shell`)}>Open Terminal</button>
+        <button onClick={() => navigate(`/endpoints/${id}/desktop`)}>Open Desktop</button>
         <div className="range-switcher">
           {RANGES.map(r => (
             <button
