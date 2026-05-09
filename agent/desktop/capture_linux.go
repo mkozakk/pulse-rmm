@@ -72,7 +72,7 @@ func startCapture(sess *DesktopSession, ctx context.Context) error {
 	}
 	vpxParams.BitRate = 1_000_000
 
-	reader := &x11Reader{conn: conn, root: root, w: w, h: h}
+	reader := &x11Reader{conn: conn, root: root, w: w, h: h, limiter: time.NewTicker(time.Second / 15).C}
 	encoder, err := vpxParams.BuildVideoEncoder(reader, prop.Media{
 		Video: prop.Video{Width: w, Height: h, FrameRate: 15},
 	})
@@ -99,28 +99,24 @@ func startCapture(sess *DesktopSession, ctx context.Context) error {
 
 	go func() {
 		defer encoder.Close()
-		defer conn.Close()
+		defer conn.Close() // closing conn unblocks any in-flight XGetImage in the encoder goroutine
 		const frameDur = time.Second / 15
-		ticker := time.NewTicker(frameDur)
-		defer ticker.Stop()
 		for {
-			select {
-			case <-ctx.Done():
+			if ctx.Err() != nil {
 				return
-			case <-ticker.C:
-				pkt, release, err := encoder.Read()
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "[desktop] encoder read error: %v\n", err)
-					return
-				}
-				if err := track.WriteSample(media.Sample{
-					Data:     pkt,
-					Duration: frameDur,
-				}); err != nil && ctx.Err() == nil {
-					fmt.Fprintf(os.Stderr, "[desktop] write sample error: %v\n", err)
-				}
-				release()
 			}
+			pkt, release, err := encoder.Read()
+			if err != nil {
+				return
+			}
+			if err := track.WriteSample(media.Sample{
+				Data:     pkt,
+				Duration: frameDur,
+			}); err != nil {
+				release()
+				return // pc closed — stop the capture loop
+			}
+			release()
 		}
 	}()
 
@@ -130,13 +126,17 @@ func startCapture(sess *DesktopSession, ctx context.Context) error {
 
 // x11Reader implements prop.VideoReader by capturing the root window via XGetImage.
 // No XShm required — works on VMs and remote X sessions.
+// The rate limiter prevents the encoder's internal goroutine from spinning at full
+// CPU speed; closing conn causes the next Read() to fail, unblocking Close().
 type x11Reader struct {
-	conn *xgb.Conn
-	root xproto.Window
-	w, h int
+	conn    *xgb.Conn
+	root    xproto.Window
+	w, h    int
+	limiter <-chan time.Time
 }
 
 func (r *x11Reader) Read() (img image.Image, release func(), err error) {
+	<-r.limiter // rate-limit to 15 fps
 	reply, err := xproto.GetImage(r.conn, xproto.ImageFormatZPixmap, xproto.Drawable(r.root),
 		0, 0, uint16(r.w), uint16(r.h), 0xffffffff).Reply()
 	if err != nil {
