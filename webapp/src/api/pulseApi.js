@@ -3,7 +3,7 @@ import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react'
 export const pulseApi = createApi({
   reducerPath: 'pulseApi',
   baseQuery: fetchBaseQuery({
-    baseUrl: '/api',
+    baseUrl: import.meta.env.VITE_API_BASE || 'http://localhost:8080/api',
     credentials: 'include',
     prepareHeaders: (headers, { getState }) => {
       const token = getState().auth.token

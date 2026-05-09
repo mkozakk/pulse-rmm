@@ -51,14 +51,6 @@ spring:
             uri: ${REMOTE_SERVICE_URL:http://localhost:8092}
             predicates:
               - Path=/api/sessions/**
-      globalcors:
-        cors-configurations:
-          '[/**]':
-            allowed-origins: "http://localhost:5173"
-            allowed-methods: [GET, POST, PUT, DELETE, OPTIONS]
-            allowed-headers: "*"
-            allow-credentials: true
-            max-age: 3600
 
 pulse:
   jwt:
@@ -66,6 +58,13 @@ pulse:
   identity:
     url: ${IDENTITY_SERVICE_URL:http://identity-service:8083}
     internal-secret: ${INTERNAL_API_SECRET:change-me-in-production-set-INTERNAL_API_SECRET-env-var}
+
+logging:
+  level:
+    org.springframework.security: DEBUG
+    org.springframework.web: DEBUG
+    org.springframework.cloud.gateway: DEBUG
+    dev.pulsermm.gateway: DEBUG
 
 management:
   endpoints:
