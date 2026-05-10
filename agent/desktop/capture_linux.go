@@ -33,7 +33,7 @@ func startCapture(sess *DesktopSession, ctx context.Context) error {
 		return errors.New("no X11 display (DISPLAY not set)")
 	}
 
-	fmt.Printf("[desktop] connecting to X11 display %s\n", os.Getenv("DISPLAY"))
+	sess.log.Printf("connecting to X11 display %s", os.Getenv("DISPLAY"))
 	conn, err := xgb.NewConn()
 	if err != nil {
 		return fmt.Errorf("connecting to X11: %w", err)
@@ -44,10 +44,9 @@ func startCapture(sess *DesktopSession, ctx context.Context) error {
 	root := screen.Root
 	w := int(screen.WidthInPixels)
 	h := int(screen.HeightInPixels)
-	fmt.Printf("[desktop] screen size: %dx%d\n", w, h)
+	sess.log.Printf("screen size: %dx%d", w, h)
 
-	// smoke-test: make sure XGetImage works before we proceed
-	fmt.Println("[desktop] testing XGetImage...")
+	sess.log.Println("testing XGetImage...")
 	testCh := make(chan error, 1)
 	go func() {
 		_, e := xproto.GetImage(conn, xproto.ImageFormatZPixmap, xproto.Drawable(root), 0, 0, uint16(w), uint16(h), 0xffffffff).Reply()
@@ -63,7 +62,7 @@ func startCapture(sess *DesktopSession, ctx context.Context) error {
 		conn.Close()
 		return errors.New("XGetImage timed out — X server may not be accessible (check XAUTHORITY)")
 	}
-	fmt.Println("[desktop] XGetImage OK, setting up encoder")
+	sess.log.Println("XGetImage OK, setting up encoder")
 
 	vpxParams, err := vpx.NewVP9Params()
 	if err != nil {
@@ -124,7 +123,7 @@ func startCapture(sess *DesktopSession, ctx context.Context) error {
 		}
 	}()
 
-	fmt.Println("[desktop] capture started successfully")
+	sess.log.Println("capture started successfully")
 	return nil
 }
 

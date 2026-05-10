@@ -46,6 +46,27 @@ func (x *x11Injector) MouseButton(button int, pressed bool) error {
 	).Check()
 }
 
+func (x *x11Injector) MouseScroll(deltaX, deltaY int) error {
+	// X11 scroll: button 4=up, 5=down, 6=left, 7=right. Each press = one notch.
+	press := func(btn byte) error {
+		if err := xtest.FakeInputChecked(x.conn, xproto.ButtonPress, btn, 0, x.root, 0, 0, 0).Check(); err != nil {
+			return err
+		}
+		return xtest.FakeInputChecked(x.conn, xproto.ButtonRelease, btn, 0, x.root, 0, 0, 0).Check()
+	}
+	if deltaY < 0 {
+		return press(4) // scroll up
+	} else if deltaY > 0 {
+		return press(5) // scroll down
+	}
+	if deltaX < 0 {
+		return press(6) // scroll left
+	} else if deltaX > 0 {
+		return press(7) // scroll right
+	}
+	return nil
+}
+
 func (x *x11Injector) KeyEvent(keyCode int, pressed bool) error {
 	evType := byte(xproto.KeyPress)
 	if !pressed {

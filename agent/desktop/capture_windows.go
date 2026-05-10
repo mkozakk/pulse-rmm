@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/exec"
 	"syscall"
@@ -40,9 +41,8 @@ func startCapture(sess *DesktopSession, ctx context.Context) error {
 		return fmt.Errorf("adding video track: %w", err)
 	}
 
-	// Use H264 with fallback to software libx264 if hardware unavailable
-	codec := selectBestH264Codec()
-	fmt.Printf("[desktop] Using H264 codec: %s\n", codec)
+	codec := selectBestH264Codec(sess.log)
+	sess.log.Printf("Using H264 codec: %s", codec)
 
 	// Build FFmpeg command for H264
 	ffmpegArgs := []string{
@@ -97,8 +97,11 @@ func startCapture(sess *DesktopSession, ctx context.Context) error {
 
 	cmd := exec.CommandContext(ctx, "ffmpeg", ffmpegArgs...)
 
-	stderr := os.Stderr
-	cmd.Stderr = stderr
+	var ffmpegLog io.Writer = os.Stderr
+	if sess.logFile != nil {
+		ffmpegLog = io.MultiWriter(os.Stderr, sess.logFile)
+	}
+	cmd.Stderr = ffmpegLog
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -115,11 +118,8 @@ func startCapture(sess *DesktopSession, ctx context.Context) error {
 		}
 	}
 
-	fmt.Println("[desktop] H264 capture started (FFmpeg + gdigrab)")
+	sess.log.Println("H264 capture started (FFmpeg + gdigrab)")
 
-	// When the context is cancelled, kill ffmpeg immediately and close the pipe
-	// read-end so that NextNAL() returns right away instead of blocking until
-	// exec's internal goroutine is eventually scheduled on Windows.
 	go func() {
 		<-ctx.Done()
 		killFFmpeg()
@@ -131,15 +131,15 @@ func startCapture(sess *DesktopSession, ctx context.Context) error {
 			killFFmpeg()
 			_ = stdout.Close()
 			_ = cmd.Wait()
-			fmt.Println("[desktop] capture stopped")
+			sess.log.Println("capture stopped")
 		}()
 
-		fmt.Println("[desktop] Waiting for H264 stream...")
+		sess.log.Println("Waiting for H264 stream...")
 		startTime := time.Now()
 
 		h264r, err := h264reader.NewReader(stdout)
 		if err != nil {
-			fmt.Printf("[desktop] h264reader init error: %v\n", err)
+			sess.log.Printf("h264reader init error: %v", err)
 			return
 		}
 
@@ -147,8 +147,6 @@ func startCapture(sess *DesktopSession, ctx context.Context) error {
 		const frameDur = time.Second / 30
 		startCode := []byte{0x00, 0x00, 0x00, 0x01}
 
-		// Accumulate NAL units of one access unit, emit when we see a slice NAL.
-		// Pion's H264 payloader splits Annex-B into RTP packets with the same timestamp.
 		var au []byte
 
 		for {
@@ -164,7 +162,7 @@ func startCapture(sess *DesktopSession, ctx context.Context) error {
 					return
 				}
 				if frameCount == 0 {
-					fmt.Printf("[desktop] No frames produced after %v: %v\n", time.Since(startTime), err)
+					sess.log.Printf("No frames produced after %v: %v", time.Since(startTime), err)
 				}
 				return
 			}
@@ -186,17 +184,17 @@ func startCapture(sess *DesktopSession, ctx context.Context) error {
 				Data:     au,
 				Duration: frameDur,
 			}); err != nil {
-				fmt.Printf("[desktop] WriteSample error: %v\n", err)
+				sess.log.Printf("WriteSample error: %v", err)
 				return
 			}
 			au = au[:0]
 
 			frameCount++
 			if frameCount == 1 {
-				fmt.Printf("[desktop] First frame after %v\n", time.Since(startTime))
+				sess.log.Printf("First frame after %v", time.Since(startTime))
 			}
 			if frameCount%30 == 0 {
-				fmt.Printf("[desktop] %d H264 frames sent\n", frameCount)
+				sess.log.Printf("%d H264 frames sent", frameCount)
 			}
 		}
 	}()
@@ -204,19 +202,15 @@ func startCapture(sess *DesktopSession, ctx context.Context) error {
 	return nil
 }
 
-// selectBestH264Codec tries hardware encoders first, falls back to libx264
-func selectBestH264Codec() string {
-	// Try hardware encoders in order
+func selectBestH264Codec(logger *log.Logger) string {
 	for _, codec := range []string{"h264_nvenc", "h264_qsv"} {
 		if tryH264Codec(codec) {
-			fmt.Printf("[desktop] ✓ Hardware codec %s available\n", codec)
+			logger.Printf("hardware codec %s available", codec)
 			return codec
 		}
-		fmt.Printf("[desktop] ✗ Hardware codec %s unavailable\n", codec)
+		logger.Printf("hardware codec %s unavailable", codec)
 	}
-
-	// Always fall back to libx264 (software, always available)
-	fmt.Println("[desktop] ✓ Using libx264 (software H264)")
+	logger.Printf("using libx264 (software H264)")
 	return "libx264"
 }
 

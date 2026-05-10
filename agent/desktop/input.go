@@ -10,6 +10,7 @@ import (
 type InputInjector interface {
 	MouseMove(x, y int) error
 	MouseButton(button int, pressed bool) error
+	MouseScroll(deltaX, deltaY int) error
 	KeyEvent(keyCode int, pressed bool) error
 	Close() error
 }
@@ -20,6 +21,8 @@ type inputEvent struct {
 	Y       int    `json:"y"`
 	Button  int    `json:"button"`
 	KeyCode int    `json:"keyCode"`
+	DeltaX  int    `json:"deltaX"`
+	DeltaY  int    `json:"deltaY"`
 }
 
 func parseInputEvent(data []byte) (inputEvent, error) {
@@ -59,7 +62,8 @@ func (r *rateLimiter) allow() bool {
 
 type noopInjector struct{}
 
-func (n *noopInjector) MouseMove(x, y int) error            { return nil }
+func (n *noopInjector) MouseMove(x, y int) error                  { return nil }
 func (n *noopInjector) MouseButton(button int, pressed bool) error { return nil }
+func (n *noopInjector) MouseScroll(deltaX, deltaY int) error       { return nil }
 func (n *noopInjector) KeyEvent(keyCode int, pressed bool) error   { return nil }
 func (n *noopInjector) Close() error                               { return nil }
