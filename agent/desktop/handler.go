@@ -12,6 +12,7 @@ import (
 
 type Handler struct {
 	mu       sync.Mutex
+	startMu  sync.Mutex
 	sessions map[string]*DesktopSession
 	cancels  map[string]context.CancelFunc
 }
@@ -24,6 +25,9 @@ func NewHandler() *Handler {
 }
 
 func (h *Handler) HandleStartSession(cmd *pb.StartDesktopSessionCommand, send func(*pb.AgentEvent)) {
+	h.startMu.Lock()
+	defer h.startMu.Unlock()
+
 	sessionID := cmd.GetSessionId()
 	fmt.Printf("[desktop] HandleStartSession: %s, TURN URLs: %v\n", sessionID, cmd.GetTurnUrls())
 
@@ -65,6 +69,17 @@ func (h *Handler) HandleStartSession(cmd *pb.StartDesktopSessionCommand, send fu
 	h.sessions[sessionID] = sess
 	h.cancels[sessionID] = cancel
 	h.mu.Unlock()
+
+	// Cancel capture when the browser closes the WebRTC connection without
+	// an explicit EndSession command (e.g. tab close, network drop).
+	sess.OnPeerConnectionClosed(func() {
+		fmt.Printf("[desktop] peer connection closed, terminating session %s\n", sessionID)
+		h.mu.Lock()
+		delete(h.sessions, sessionID)
+		delete(h.cancels, sessionID)
+		h.mu.Unlock()
+		cancel()
+	})
 
 	fmt.Printf("[desktop] Session created, waiting 500ms before ready signal\n")
 	// Give browser time to be ready for WebRTC connection before sending ready signal
@@ -124,6 +139,12 @@ func (h *Handler) HandleEndSession(cmd *pb.EndDesktopSessionCommand) {
 	delete(h.cancels, sessionID)
 	h.mu.Unlock()
 
+	if cancel == nil && sess == nil {
+		fmt.Printf("[desktop] EndSession: session %s not found (already ended)\n", sessionID)
+		return
+	}
+
+	fmt.Printf("[desktop] EndSession: terminating session %s\n", sessionID)
 	if cancel != nil {
 		cancel()
 	}

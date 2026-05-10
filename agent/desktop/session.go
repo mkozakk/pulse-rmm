@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"sync"
 	"time"
 
 	"github.com/pion/webrtc/v4"
@@ -128,6 +129,16 @@ func (s *DesktopSession) addVideoTrack(track webrtc.TrackLocal) error {
 	}
 	s.videoTrack = track
 	return nil
+}
+
+func (s *DesktopSession) OnPeerConnectionClosed(fn func()) {
+	once := sync.Once{}
+	s.pc.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {
+		switch state {
+		case webrtc.PeerConnectionStateFailed, webrtc.PeerConnectionStateClosed, webrtc.PeerConnectionStateDisconnected:
+			once.Do(fn)
+		}
+	})
 }
 
 func (s *DesktopSession) HandleOffer(sdpOffer string) (string, error) {

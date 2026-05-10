@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/shirou/gopsutil/v3/cpu"
-	"github.com/shirou/gopsutil/v3/disk"
 	"github.com/shirou/gopsutil/v3/mem"
 )
 
@@ -33,11 +32,9 @@ func Collect() ([]Sample, error) {
 	}
 	samples = append(samples, Sample{Type: "ram", Value: vmStat.UsedPercent, CollectedAt: now})
 
-	diskStat, err := disk.Usage("/")
-	if err != nil {
-		return nil, fmt.Errorf("collecting disk: %w", err)
+	if diskPct, err := diskUsage(); err == nil {
+		samples = append(samples, Sample{Type: "disk", Value: diskPct, CollectedAt: now})
 	}
-	samples = append(samples, Sample{Type: "disk", Value: diskStat.UsedPercent, CollectedAt: now})
 
 	return samples, nil
 }

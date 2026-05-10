@@ -206,8 +206,13 @@ func runMetrics(ctx context.Context, client *metrics.Client, endpointID string) 
 				fmt.Fprintf(os.Stderr, "metrics collect error: %v\n", err)
 				continue
 			}
+			for _, s := range samples {
+				fmt.Printf("[metrics] %s=%.1f%%\n", s.Type, s.Value)
+			}
 			if err := client.PushMetrics(ctx, endpointID, samples); err != nil {
 				fmt.Fprintf(os.Stderr, "metrics push error: %v\n", err)
+			} else {
+				fmt.Printf("[metrics] pushed %d samples for endpoint %s\n", len(samples), endpointID)
 			}
 		}
 	}
