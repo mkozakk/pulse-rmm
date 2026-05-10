@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"sync"
+	"time"
 
 	pb "github.com/pulsermm/pulse-rmm/agent/gen/pulse/v1"
 )
@@ -24,6 +25,7 @@ func NewHandler() *Handler {
 
 func (h *Handler) HandleStartSession(cmd *pb.StartDesktopSessionCommand, send func(*pb.AgentEvent)) {
 	sessionID := cmd.GetSessionId()
+	fmt.Printf("[desktop] HandleStartSession: %s, TURN URLs: %v\n", sessionID, cmd.GetTurnUrls())
 
 	// Cancel any existing sessions before starting a new one — prevents zombie
 	// capture goroutines from previous failed/retried session attempts.
@@ -40,6 +42,7 @@ func (h *Handler) HandleStartSession(cmd *pb.StartDesktopSessionCommand, send fu
 
 	sess, err := NewSession(sessionID, cmd.GetTurnUrls(), cmd.GetTurnSecret())
 	if err != nil {
+		fmt.Printf("[desktop] Failed to create session: %v\n", err)
 		sendSessionReady(send, sessionID, fmt.Sprintf("failed to create session: %v", err))
 		return
 	}
@@ -53,6 +56,7 @@ func (h *Handler) HandleStartSession(cmd *pb.StartDesktopSessionCommand, send fu
 		if err == ErrWaylandNotSupported {
 			errMsg = "wayland_not_supported"
 		}
+		fmt.Printf("[desktop] Capture failed: %v\n", err)
 		sendSessionReady(send, sessionID, errMsg)
 		return
 	}
@@ -62,11 +66,17 @@ func (h *Handler) HandleStartSession(cmd *pb.StartDesktopSessionCommand, send fu
 	h.cancels[sessionID] = cancel
 	h.mu.Unlock()
 
+	fmt.Printf("[desktop] Session created, waiting 500ms before ready signal\n")
+	// Give browser time to be ready for WebRTC connection before sending ready signal
+	time.Sleep(500 * time.Millisecond)
+
 	sendSessionReady(send, sessionID, "")
+	fmt.Printf("[desktop] Session ready signal sent: %s\n", sessionID)
 }
 
 func (h *Handler) HandleSignal(msg *pb.DesktopSignalMessage, send func(*pb.AgentEvent)) {
 	sessionID := msg.GetSessionId()
+	fmt.Printf("[desktop] HandleSignal: %s, type=%s\n", sessionID, msg.GetType())
 
 	h.mu.Lock()
 	sess := h.sessions[sessionID]
@@ -79,12 +89,14 @@ func (h *Handler) HandleSignal(msg *pb.DesktopSignalMessage, send func(*pb.Agent
 
 	switch msg.GetType() {
 	case "offer":
+		fmt.Printf("[desktop] Processing offer for session %s\n", sessionID)
 		// HandleOffer waits for ICE gathering; answer SDP includes all candidates (bundled ICE)
 		answer, err := sess.HandleOffer(msg.GetPayload())
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "desktop: HandleOffer for %s: %v\n", sessionID, err)
 			return
 		}
+		fmt.Printf("[desktop] Sending answer for session %s\n", sessionID)
 		send(&pb.AgentEvent{
 			Payload: &pb.AgentEvent_DesktopSignal{
 				DesktopSignal: &pb.DesktopSignalMessage{
@@ -95,6 +107,7 @@ func (h *Handler) HandleSignal(msg *pb.DesktopSignalMessage, send func(*pb.Agent
 			},
 		})
 	case "candidate":
+		fmt.Printf("[desktop] Processing ICE candidate for session %s\n", sessionID)
 		if err := sess.AddICECandidate(msg.GetPayload()); err != nil {
 			fmt.Fprintf(os.Stderr, "desktop: AddICECandidate for %s: %v\n", sessionID, err)
 		}
