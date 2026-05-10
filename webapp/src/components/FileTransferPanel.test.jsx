@@ -8,6 +8,11 @@ describe('FileTransferPanel', () => {
     expect(screen.getByText(/drop a file here/i)).toBeInTheDocument()
   })
 
+  it('renders download input', () => {
+    render(<FileTransferPanel sendFile={vi.fn()} requestDownload={vi.fn()} />)
+    expect(screen.getByPlaceholderText(/path to download/i)).toBeInTheDocument()
+  })
+
   it('shows uploading name after drop', () => {
     const sendFile = vi.fn()
     render(<FileTransferPanel sendFile={sendFile} requestDownload={vi.fn()} />)

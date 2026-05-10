@@ -5,6 +5,10 @@ import { useRefreshMutation } from './api/pulseApi'
 import { setCredentials, setInitialized } from './store/authSlice'
 import ProtectedRoute from './components/ProtectedRoute'
 import LoginPage from './pages/LoginPage'
+import RegisterPage from './pages/RegisterPage'
+import EnrolmentPage from './pages/EnrolmentPage'
+import ScriptsPage from './pages/ScriptsPage'
+import SoftwarePage from './pages/SoftwarePage'
 import EndpointsPage from './pages/EndpointsPage'
 import EndpointDetailPage from './pages/EndpointDetailPage'
 import TerminalPage from './pages/TerminalPage'
@@ -31,12 +35,17 @@ export default function App() {
       <Bootstrap>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
-          <Route element={<ProtectedRoute />}>
+          <Route path="/register" element={<RegisterPage />} />
+          <Route element={<ProtectedRoute />}> 
+            <Route path="/enrolment" element={<EnrolmentPage />} />
+            <Route path="/scripts" element={<ScriptsPage />} />
+            <Route path="/software" element={<SoftwarePage />} />
             <Route path="/endpoints" element={<EndpointsPage />} />
             <Route path="/endpoints/:id" element={<EndpointDetailPage />} />
             <Route path="/endpoints/:id/shell" element={<TerminalPage />} />
             <Route path="/endpoints/:id/desktop" element={<DesktopPage />} />
           </Route>
+          <Route path="/" element={<Navigate to="/endpoints" replace />} />
           <Route path="*" element={<Navigate to="/endpoints" replace />} />
         </Routes>
       </Bootstrap>

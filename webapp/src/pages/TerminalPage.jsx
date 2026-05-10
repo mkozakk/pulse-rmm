@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import { useSelector } from 'react-redux'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
+import AppShell from '../components/AppShell'
 
 const WS_BASE = import.meta.env.VITE_WS_BASE ?? 'ws://localhost:8080'
 
@@ -68,27 +69,27 @@ export default function TerminalPage() {
   }, [id, token])
 
   return (
-    <div className="terminal-page">
-      <header className="page-header terminal-header">
-        <Link to={`/endpoints/${id}`}>← Back</Link>
-        <h1>Terminal — {id.slice(0, 8)}</h1>
-        {!closed && (
-          <button onClick={() => wsRef.current?.close(1000)}>Close</button>
+    <AppShell
+      title={`Terminal — ${id.slice(0, 8)}`}
+      subtitle="Interactive shell streamed over the control plane."
+      actions={!closed && <button onClick={() => wsRef.current?.close(1000)}>Close</button>}
+    >
+      <div className="terminal-page">
+        <Link className="page-backlink" to={`/endpoints/${id}`}>← Back to endpoint</Link>
+
+        <div
+          ref={termRef}
+          role="region"
+          aria-label="terminal"
+          className="terminal-container"
+        />
+
+        {closed && (
+          <p className="terminal-closed">
+            Session closed. <Link to={`/endpoints/${id}`}>Return to endpoint</Link>
+          </p>
         )}
-      </header>
-
-      <div
-        ref={termRef}
-        role="region"
-        aria-label="terminal"
-        className="terminal-container"
-      />
-
-      {closed && (
-        <p className="terminal-closed">
-          Session closed. <Link to={`/endpoints/${id}`}>Back to endpoint</Link>
-        </p>
-      )}
-    </div>
+      </div>
+    </AppShell>
   )
 }

@@ -66,6 +66,11 @@ describe('TerminalPage', () => {
     expect(screen.getByRole('region', { name: /terminal/i })).toBeInTheDocument()
   })
 
+  it('shows shell title', () => {
+    renderPage()
+    expect(screen.getByText(/terminal — abc-123/i)).toBeInTheDocument()
+  })
+
   it('writes output when WS sends 0x01 frame', () => {
     renderPage()
     const term = Terminal.mock.instances[0]
