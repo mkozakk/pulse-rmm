@@ -6,25 +6,20 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"image"
 	"io"
 	"log"
 	"os"
 	"os/exec"
 	"time"
 
-	"github.com/jezek/xgb"
-	"github.com/jezek/xgb/xproto"
-	"github.com/pion/mediadevices/pkg/codec/vpx"
-	"github.com/pion/mediadevices/pkg/prop"
 	"github.com/pion/webrtc/v4"
 	"github.com/pion/webrtc/v4/pkg/media"
 	"github.com/pion/webrtc/v4/pkg/media/h264reader"
 )
 
 func checkPlatform() error {
-	if os.Getenv("WAYLAND_DISPLAY") != "" {
-		return ErrWaylandNotSupported
+	if os.Getenv("WAYLAND_DISPLAY") == "" && os.Getenv("DISPLAY") == "" {
+		return errors.New("no display available (DISPLAY and WAYLAND_DISPLAY both unset)")
 	}
 	return nil
 }
@@ -33,18 +28,241 @@ func startCapture(sess *DesktopSession, ctx context.Context) error {
 	if err := checkPlatform(); err != nil {
 		return err
 	}
+	if os.Getenv("WAYLAND_DISPLAY") != "" {
+		return startKmsCapture(sess, ctx)
+	}
 	display := os.Getenv("DISPLAY")
-	if display == "" {
-		return errors.New("no X11 display (DISPLAY not set)")
+	codec := selectBestH264Codec(sess.log, display)
+	if codec == "" {
+		return fmt.Errorf("no H264 encoder available — install ffmpeg with libx264, h264_vaapi, or h264_nvenc support")
+	}
+	return startH264Capture(sess, ctx, display, codec)
+}
+
+// --- kmsgrab (Wayland) ---
+
+func startKmsCapture(sess *DesktopSession, ctx context.Context) error {
+	sess.log.Println("Wayland detected, starting kmsgrab capture")
+
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		return fmt.Errorf("ffmpeg not found — required for Wayland capture")
 	}
 
-	codec := selectBestH264Codec(sess.log, display)
-	if codec != "" {
-		return startH264Capture(sess, ctx, display, codec)
+	codec := selectBestKmsCodec(sess.log)
+	if codec == "" {
+		return fmt.Errorf("kmsgrab: no suitable codec — ensure agent is in 'video' group and VAAPI is available (/dev/dri/renderD128)")
 	}
-	sess.log.Println("no H264 encoder available, falling back to VP9")
-	return startVP9Capture(sess, ctx)
+
+	track, err := webrtc.NewTrackLocalStaticSample(webrtc.RTPCodecCapability{
+		MimeType:    webrtc.MimeTypeH264,
+		ClockRate:   90000,
+		SDPFmtpLine: "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01f",
+	}, "video", "desktop")
+	if err != nil {
+		return fmt.Errorf("creating H264 video track: %w", err)
+	}
+	if err := sess.addVideoTrack(track); err != nil {
+		return fmt.Errorf("adding video track: %w", err)
+	}
+
+	sess.log.Printf("kmsgrab: using codec %s", codec)
+
+	args := []string{
+		"-fflags", "+nobuffer",
+		"-flags", "+low_delay",
+	}
+	if codec == "h264_vaapi" {
+		args = append(args, "-vaapi_device", "/dev/dri/renderD128")
+	}
+	args = append(args,
+		"-device", "/dev/dri/card0",
+		"-f", "kmsgrab",
+		"-framerate", "30",
+		"-i", "-",
+		"-c:v", codec,
+		"-b:v", "8000k",
+		"-maxrate", "10000k",
+		"-bufsize", "10000k",
+		"-r", "30",
+		"-g", "30",
+	)
+	switch codec {
+	case "h264_vaapi":
+		args = append(args,
+			"-vf", "hwmap=derive_device=vaapi,scale_vaapi=format=nv12",
+			"-profile:v", "constrained_baseline",
+			"-level", "3.1",
+		)
+	case "libx264":
+		args = append(args,
+			"-vf", "hwmap=derive_device=vaapi,hwdownload,format=bgr0,format=yuv420p",
+			"-preset", "veryfast",
+			"-tune", "zerolatency",
+			"-profile:v", "baseline",
+			"-level", "3.1",
+			"-pix_fmt", "yuv420p",
+			"-x264-params", "slices=1:sliced-threads=0",
+		)
+	}
+	args = append(args,
+		"-bsf:v", "dump_extra",
+		"-f", "h264",
+		"pipe:1",
+	)
+
+	cmd := exec.CommandContext(ctx, "ffmpeg", args...)
+
+	var ffmpegLog io.Writer = os.Stderr
+	if sess.logFile != nil {
+		ffmpegLog = io.MultiWriter(os.Stderr, sess.logFile)
+	}
+	cmd.Stderr = ffmpegLog
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return fmt.Errorf("creating stdout pipe: %w", err)
+	}
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("starting ffmpeg kmsgrab: %w", err)
+	}
+
+	killFFmpeg := func() {
+		if cmd.Process != nil {
+			_ = cmd.Process.Kill()
+		}
+	}
+
+	sess.log.Println("kmsgrab capture started")
+
+	go func() {
+		<-ctx.Done()
+		killFFmpeg()
+		_ = stdout.Close()
+	}()
+
+	go func() {
+		defer func() {
+			killFFmpeg()
+			_ = stdout.Close()
+			_ = cmd.Wait()
+			sess.log.Println("kmsgrab capture stopped")
+		}()
+
+		startTime := time.Now()
+		h264r, err := h264reader.NewReader(stdout)
+		if err != nil {
+			sess.log.Printf("h264reader init error: %v", err)
+			return
+		}
+
+		frameCount := 0
+		const frameDur = time.Second / 30
+		startCode := []byte{0x00, 0x00, 0x00, 0x01}
+		var au []byte
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+
+			nal, err := h264r.NextNAL()
+			if err != nil {
+				if errors.Is(err, io.EOF) {
+					return
+				}
+				if frameCount == 0 {
+					sess.log.Printf("kmsgrab: no frames after %v: %v", time.Since(startTime), err)
+				}
+				return
+			}
+
+			if len(nal.Data) == 0 {
+				continue
+			}
+
+			au = append(au, startCode...)
+			au = append(au, nal.Data...)
+
+			if nal.UnitType != h264reader.NalUnitTypeCodedSliceNonIdr &&
+				nal.UnitType != h264reader.NalUnitTypeCodedSliceIdr {
+				continue
+			}
+
+			if err := track.WriteSample(media.Sample{Data: au, Duration: frameDur}); err != nil {
+				sess.log.Printf("WriteSample error: %v", err)
+				return
+			}
+			au = au[:0]
+
+			frameCount++
+			if frameCount == 1 {
+				sess.log.Printf("kmsgrab: first frame after %v", time.Since(startTime))
+			}
+			if frameCount%30 == 0 {
+				sess.log.Printf("kmsgrab: %d frames sent", frameCount)
+			}
+		}
+	}()
+
+	return nil
 }
+
+func selectBestKmsCodec(logger *log.Logger) string {
+	if tryKmsCodec("h264_vaapi") {
+		logger.Println("kmsgrab: hardware codec h264_vaapi available")
+		return "h264_vaapi"
+	}
+	logger.Println("kmsgrab: h264_vaapi unavailable")
+	if tryKmsCodec("libx264") {
+		logger.Println("kmsgrab: using libx264 (software, via VAAPI bridge)")
+		return "libx264"
+	}
+	logger.Println("kmsgrab: libx264 unavailable")
+	return ""
+}
+
+func tryKmsCodec(codec string) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	args := []string{"-hide_banner", "-loglevel", "error"}
+	if codec == "h264_vaapi" {
+		args = append(args, "-vaapi_device", "/dev/dri/renderD128")
+	}
+	args = append(args,
+		"-device", "/dev/dri/card0",
+		"-f", "kmsgrab",
+		"-framerate", "5",
+		"-i", "-",
+		"-c:v", codec,
+	)
+	switch codec {
+	case "h264_vaapi":
+		args = append(args,
+			"-vf", "hwmap=derive_device=vaapi,scale_vaapi=format=nv12",
+			"-profile:v", "constrained_baseline",
+			"-level", "3.1",
+		)
+	case "libx264":
+		args = append(args,
+			"-vf", "hwmap=derive_device=vaapi,hwdownload,format=bgr0,format=yuv420p",
+			"-preset", "veryfast",
+			"-profile:v", "baseline",
+			"-level", "3.1",
+			"-pix_fmt", "yuv420p",
+		)
+	}
+	args = append(args, "-frames:v", "5", "-f", "null", "/dev/null")
+
+	cmd := exec.CommandContext(ctx, "ffmpeg", args...)
+	cmd.Stderr = io.Discard
+	cmd.Stdout = io.Discard
+	return cmd.Run() == nil
+}
+
+// --- x11grab + H264 ---
 
 func selectBestH264Codec(logger *log.Logger, display string) string {
 	if _, err := exec.LookPath("ffmpeg"); err != nil {
@@ -298,124 +516,3 @@ func startH264Capture(sess *DesktopSession, ctx context.Context, display, codec 
 	return nil
 }
 
-func startVP9Capture(sess *DesktopSession, ctx context.Context) error {
-	sess.log.Printf("connecting to X11 display %s", os.Getenv("DISPLAY"))
-	conn, err := xgb.NewConn()
-	if err != nil {
-		return fmt.Errorf("connecting to X11: %w", err)
-	}
-
-	setup := xproto.Setup(conn)
-	screen := setup.DefaultScreen(conn)
-	root := screen.Root
-	w := int(screen.WidthInPixels)
-	h := int(screen.HeightInPixels)
-	sess.log.Printf("screen size: %dx%d", w, h)
-
-	sess.log.Println("testing XGetImage...")
-	testCh := make(chan error, 1)
-	go func() {
-		_, e := xproto.GetImage(conn, xproto.ImageFormatZPixmap, xproto.Drawable(root), 0, 0, uint16(w), uint16(h), 0xffffffff).Reply()
-		testCh <- e
-	}()
-	select {
-	case err := <-testCh:
-		if err != nil {
-			conn.Close()
-			return fmt.Errorf("XGetImage test failed: %w", err)
-		}
-	case <-time.After(5 * time.Second):
-		conn.Close()
-		return errors.New("XGetImage timed out — X server may not be accessible (check XAUTHORITY)")
-	}
-	sess.log.Println("XGetImage OK, setting up VP9 encoder")
-
-	vpxParams, err := vpx.NewVP9Params()
-	if err != nil {
-		conn.Close()
-		return fmt.Errorf("creating VP9 params: %w", err)
-	}
-	vpxParams.BitRate = 2_500_000
-
-	reader := &x11Reader{conn: conn, root: root, w: w, h: h, limiter: time.NewTicker(time.Second / 30).C}
-	encoder, err := vpxParams.BuildVideoEncoder(reader, prop.Media{
-		Video: prop.Video{Width: w, Height: h, FrameRate: 30},
-	})
-	if err != nil {
-		conn.Close()
-		return fmt.Errorf("building VP9 encoder: %w", err)
-	}
-
-	track, err := webrtc.NewTrackLocalStaticSample(webrtc.RTPCodecCapability{
-		MimeType:  webrtc.MimeTypeVP9,
-		ClockRate: 90000,
-	}, "video", "desktop")
-	if err != nil {
-		encoder.Close()
-		conn.Close()
-		return fmt.Errorf("creating video track: %w", err)
-	}
-
-	if err := sess.addVideoTrack(track); err != nil {
-		encoder.Close()
-		conn.Close()
-		return fmt.Errorf("adding video track: %w", err)
-	}
-
-	go func() {
-		<-ctx.Done()
-		conn.Close()
-	}()
-
-	go func() {
-		defer encoder.Close()
-		const frameDur = time.Second / 30
-		for {
-			pkt, release, err := encoder.Read()
-			if err != nil {
-				return
-			}
-			if err := track.WriteSample(media.Sample{
-				Data:     pkt,
-				Duration: frameDur,
-			}); err != nil {
-				release()
-				return
-			}
-			release()
-		}
-	}()
-
-	sess.log.Println("VP9 capture started")
-	return nil
-}
-
-// x11Reader implements prop.VideoReader by capturing the root window via XGetImage.
-// No XShm required — works on VMs and remote X sessions.
-type x11Reader struct {
-	conn    *xgb.Conn
-	root    xproto.Window
-	w, h    int
-	limiter <-chan time.Time
-}
-
-func (r *x11Reader) Read() (img image.Image, release func(), err error) {
-	<-r.limiter
-	reply, err := xproto.GetImage(r.conn, xproto.ImageFormatZPixmap, xproto.Drawable(r.root),
-		0, 0, uint16(r.w), uint16(r.h), 0xffffffff).Reply()
-	if err != nil {
-		return nil, func() {}, fmt.Errorf("XGetImage: %w", err)
-	}
-
-	// X11 ZPixmap is BGRA (or BGRX). Convert to RGBA for the VP9 encoder.
-	out := image.NewNRGBA(image.Rect(0, 0, r.w, r.h))
-	src := reply.Data
-	dst := out.Pix
-	for i := 0; i+3 < len(src) && i+3 < len(dst); i += 4 {
-		dst[i+0] = src[i+2] // R ← B
-		dst[i+1] = src[i+1] // G
-		dst[i+2] = src[i+0] // B ← R
-		dst[i+3] = 0xff      // A
-	}
-	return out, func() {}, nil
-}
