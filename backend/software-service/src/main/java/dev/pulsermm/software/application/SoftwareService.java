@@ -37,17 +37,20 @@ public class SoftwareService {
         logger.info("Deleted and flushed existing items for endpoint={}", endpointId);
 
         var softwareItems = items.stream()
-                .map(item -> new SoftwareItem(
-                        UUID.randomUUID(),
-                        endpointId,
-                        item.name(),
-                        item.appId(),
-                        item.version(),
-                        item.updateTo(),
-                        item.isStore(),
-                        item.source(),
-                        LocalDateTime.now()
-                ))
+                .map(item -> {
+                    String finalAppId = (item.appId() != null && !item.appId().isBlank()) ? item.appId() : item.name();
+                    return new SoftwareItem(
+                            UUID.randomUUID(),
+                            endpointId,
+                            item.name(),
+                            finalAppId,
+                            item.version(),
+                            item.updateTo(),
+                            item.isStore(),
+                            item.source(),
+                            LocalDateTime.now()
+                    );
+                })
                 .toList();
 
         logger.info("Saving {} items for endpoint={}", softwareItems.size(), endpointId);
