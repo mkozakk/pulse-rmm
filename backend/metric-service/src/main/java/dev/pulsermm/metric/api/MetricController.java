@@ -45,10 +45,21 @@ public class MetricController {
 
         List<Map<String, Object>> rows = metricService.queryMetrics(id, from, to, type);
         List<MetricPointResponse> result = rows.stream()
-            .map(row -> new MetricPointResponse(
-                ((java.sql.Timestamp) row.get("sampled_at")).toInstant(),
-                ((Number) row.get("value")).doubleValue()
-            ))
+            .map(row -> {
+                Object sampledAt = row.get("sampled_at");
+                Instant instant;
+                if (sampledAt instanceof java.sql.Timestamp ts) {
+                    instant = ts.toInstant();
+                } else if (sampledAt instanceof java.time.OffsetDateTime odt) {
+                    instant = odt.toInstant();
+                } else {
+                    instant = Instant.parse(sampledAt.toString());
+                }
+                return new MetricPointResponse(
+                    instant,
+                    ((Number) row.get("value")).doubleValue()
+                );
+            })
             .toList();
 
         return ResponseEntity.ok(result);
