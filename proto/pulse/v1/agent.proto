@@ -57,9 +57,12 @@ message MetricBatch {
 message Ack {}
 
 message SoftwareItem {
-  string name    = 1;
-  string version = 2;
-  string source  = 3;
+  string name      = 1;
+  string version   = 2;
+  string source    = 3;
+  string id        = 4;
+  string update_to = 5;
+  bool   is_store  = 6;
 }
 
 message SoftwareList {

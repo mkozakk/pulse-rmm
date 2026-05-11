@@ -41,7 +41,10 @@ public class SoftwareService {
                         UUID.randomUUID(),
                         endpointId,
                         item.name(),
+                        item.appId(),
                         item.version(),
+                        item.updateTo(),
+                        item.isStore(),
                         item.source(),
                         LocalDateTime.now()
                 ))
@@ -59,14 +62,14 @@ public class SoftwareService {
     }
 
     @Transactional
-    public SoftwareCommand createCommand(UUID endpointId, String action, String packageName, String packageVersion) {
+    public SoftwareCommand createCommand(UUID endpointId, String action, String packageName, String appId, String packageVersion) {
         var cmdId = UUID.randomUUID();
-        var cmd = new SoftwareCommand(cmdId, endpointId, action, packageName, packageVersion);
+        var cmd = new SoftwareCommand(cmdId, endpointId, action, packageName, appId, packageVersion);
         softwareCommandRepository.save(cmd);
         org.slf4j.LoggerFactory.getLogger(SoftwareService.class).info(
-            "Created software command: id={}, endpoint={}, action={}, package={}",
-            cmdId, endpointId, action, packageName);
-        gatewayClient.dispatchSoftwareCommand(endpointId, cmdId.toString(), action, packageName, packageVersion);
+            "Created software command: id={}, endpoint={}, action={}, package={}, appId={}",
+            cmdId, endpointId, action, packageName, appId);
+        gatewayClient.dispatchSoftwareCommand(endpointId, cmdId.toString(), action, packageName, appId, packageVersion);
         return cmd;
     }
 
@@ -82,5 +85,5 @@ public class SoftwareService {
         return softwareCommandRepository.findById(commandId).orElseThrow();
     }
 
-    public record SoftwareItemDTO(String name, String version, String source) {}
+    public record SoftwareItemDTO(String name, String appId, String version, String updateTo, Boolean isStore, String source) {}
 }

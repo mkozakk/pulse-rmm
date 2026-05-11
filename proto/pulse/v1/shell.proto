@@ -52,6 +52,7 @@ message SoftwareCommand {
   string action      = 2;
   string name        = 3;
   string version     = 4;
+  string id          = 5;
 }
 message ScriptCommand {
   string command_id  = 1;

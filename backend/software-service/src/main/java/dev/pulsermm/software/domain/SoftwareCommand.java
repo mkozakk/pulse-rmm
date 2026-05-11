@@ -19,6 +19,9 @@ public class SoftwareCommand {
     @Column(nullable = false)
     private String packageName;
 
+    @Column(name = "app_id")
+    private String appId;
+
     private String packageVersion;
 
     @Column(nullable = false)
@@ -36,11 +39,12 @@ public class SoftwareCommand {
 
     protected SoftwareCommand() {}
 
-    public SoftwareCommand(UUID id, UUID endpointId, String action, String packageName, String packageVersion) {
+    public SoftwareCommand(UUID id, UUID endpointId, String action, String packageName, String appId, String packageVersion) {
         this.id = id;
         this.endpointId = endpointId;
         this.action = action;
         this.packageName = packageName;
+        this.appId = appId;
         this.packageVersion = packageVersion;
         this.status = "pending";
         this.createdAt = LocalDateTime.now();
@@ -63,6 +67,7 @@ public class SoftwareCommand {
     public UUID endpointId() { return endpointId; }
     public String action() { return action; }
     public String packageName() { return packageName; }
+    public String appId() { return appId; }
     public String packageVersion() { return packageVersion; }
     public String status() { return status; }
     public Integer exitCode() { return exitCode; }

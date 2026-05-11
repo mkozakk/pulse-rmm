@@ -26,7 +26,7 @@ public class SoftwareCommandDispatcher {
         this.softwareServiceUrl = softwareServiceUrl;
     }
 
-    public void dispatch(UUID endpointId, String commandId, String action, String name, String version) {
+    public void dispatch(UUID endpointId, String commandId, String action, String name, String appId, String version) {
         logger.info("SoftwareCommandDispatcher.dispatch() called: endpoint={}, command={}, action={}", endpointId, commandId, action);
         var agent = agentRegistry.get(endpointId);
         if (agent.isEmpty()) {
@@ -39,6 +39,7 @@ public class SoftwareCommandDispatcher {
                 .setCommandId(commandId)
                 .setAction(action)
                 .setName(name)
+                .setId(appId != null ? appId : "")
                 .setVersion(version != null ? version : "")
                 .build();
 
