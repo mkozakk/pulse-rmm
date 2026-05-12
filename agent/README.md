@@ -53,8 +53,11 @@ When an admin clicks "Run Script" in the web UI:
 
 ### 3. Remote Desktop
 1. Backend sends a `StartDesktopSession` command over the Control Stream.
-2. The agent's `desktop.Handler` intercepts it.
-3. The agent and the browser begin exchanging SDP and ICE Candidates (WebRTC connection data) via the Control Stream.
-4. Once the WebRTC peer connection is established (often via STUN/TURN relays), a direct UDP-based media stream begins.
-5. The agent continuously reads the OS screen buffer, encodes it to H.264, and streams the video track.
-6. Mouse clicks from the browser come through a WebRTC DataChannel, which the agent converts into fake OS-level inputs.
+2. The agent's `desktop.Handler` intercepts it, creates a Pion PeerConnection (with STUN + TURN ICE servers), starts ffmpeg capture, and sends `session_ready`.
+3. The frontend opens a WebSocket to the API Gateway, receives `session_ready`, creates its own RTCPeerConnection, and sends an SDP offer over the WebSocket.
+4. The Gateway relays signaling messages (offer, answer, ICE candidates) between the browser WebSocket and the agent's gRPC stream.
+5. ICE candidates flow bidirectionally via Trickle ICE (queued on the agent if the remote description isn't set yet, flushed on `SetRemoteDescription`).
+6. Once the WebRTC peer connection is established (via STUN host candidates or TURN relay), ffmpeg-encoded H.264 video streams over a dedicated video track.
+7. Mouse/keyboard events from the browser arrive through a WebRTC DataChannel (`input`); the agent translates them into native OS input events.
+8. File upload/download travels over a separate `file-transfer` DataChannel with path traversal protection.
+9. Session end is triggered by the frontend (DELETE `/api/sessions/{id}`) or by the `OnPeerConnectionClosed` callback. Stale `HandleStartSession` commands (from orphaned sessions) are rejected via the `endedBeforeStart` map.
