@@ -3,6 +3,7 @@ package dev.pulsermm.alert.application;
 import dev.pulsermm.alert.api.dto.CreateAlertRuleRequest;
 import dev.pulsermm.alert.domain.AlertRule;
 import dev.pulsermm.alert.infrastructure.persistence.AlertRuleRepository;
+import dev.pulsermm.common.audit.Auditable;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -17,6 +18,7 @@ public class AlertRuleService {
         this.ruleRepository = ruleRepository;
     }
 
+    @Auditable(action = "alert_rule.create", permission = "alert:manage")
     public AlertRule create(CreateAlertRuleRequest request, UUID createdBy) {
         var rule = new AlertRule(
             request.name(),
@@ -35,6 +37,7 @@ public class AlertRuleService {
         return ruleRepository.findAll();
     }
 
+    @Auditable(action = "alert_rule.delete", permission = "alert:manage")
     public void delete(UUID id) {
         if (!ruleRepository.existsById(id)) {
             throw new AlertRuleNotFoundException(id);

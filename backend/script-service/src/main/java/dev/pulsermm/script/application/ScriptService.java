@@ -1,5 +1,6 @@
 package dev.pulsermm.script.application;
 
+import dev.pulsermm.common.audit.Auditable;
 import dev.pulsermm.script.api.dto.CreateScriptRequest;
 import dev.pulsermm.script.domain.Script;
 import dev.pulsermm.script.domain.ScriptRun;
@@ -54,6 +55,7 @@ public class ScriptService {
         this.scriptServiceBaseUrl = scriptServiceBaseUrl;
     }
 
+    @Auditable(action = "script.create", permission = "script:adhoc")
     public Script createScript(CreateScriptRequest request, UUID createdBy) {
         var script = new Script(request.name(), request.body(), createdBy);
         return scriptRepository.save(script);
@@ -74,6 +76,7 @@ public class ScriptService {
         };
     }
 
+    @Auditable(action = "script.approve", permission = "script:approve")
     public Script approveScript(UUID scriptId) {
         var script = getScriptById(scriptId);
         if (script.isApproved()) {
@@ -83,6 +86,7 @@ public class ScriptService {
         return scriptRepository.save(script);
     }
 
+    @Auditable(action = "script.run", permission = "script:run", capturePayload = false)
     public ScriptRunData runScript(UUID scriptId, java.util.List<String> endpointIds,
                                    java.util.Map<String, String> secrets, UUID initiatedBy) {
         var script = getScriptById(scriptId);

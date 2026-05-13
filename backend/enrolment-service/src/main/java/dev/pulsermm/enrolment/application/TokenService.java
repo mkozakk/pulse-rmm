@@ -4,6 +4,7 @@ import dev.pulsermm.enrolment.domain.EnrolmentToken;
 import dev.pulsermm.enrolment.domain.Group;
 import dev.pulsermm.enrolment.infrastructure.EnrolmentTokenRepository;
 import dev.pulsermm.enrolment.infrastructure.GroupRepository;
+import dev.pulsermm.common.audit.Auditable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,6 +22,7 @@ public class TokenService {
         this.groupRepository = groupRepository;
     }
 
+    @Auditable(action = "enrolment_token.create", permission = "enrolment:manage")
     public EnrolmentToken createToken(UUID groupId, int ttlHours) {
         Group group = groupRepository.findById(groupId)
             .orElseThrow(() -> new IllegalArgumentException("Group not found: " + groupId));

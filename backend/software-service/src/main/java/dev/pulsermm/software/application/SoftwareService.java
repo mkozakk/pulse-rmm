@@ -1,5 +1,7 @@
 package dev.pulsermm.software.application;
 
+import dev.pulsermm.common.audit.Auditable;
+import dev.pulsermm.common.audit.EndpointId;
 import dev.pulsermm.software.domain.SoftwareCommand;
 import dev.pulsermm.software.domain.SoftwareItem;
 import dev.pulsermm.software.infrastructure.GatewayClient;
@@ -64,8 +66,9 @@ public class SoftwareService {
         return softwareItemRepository.findByEndpointId(endpointId);
     }
 
+    @Auditable(action = "software.command", permission = "software:manage")
     @Transactional
-    public SoftwareCommand createCommand(UUID endpointId, String action, String packageName, String appId, String packageVersion) {
+    public SoftwareCommand createCommand(@EndpointId UUID endpointId, String action, String packageName, String appId, String packageVersion) {
         var cmdId = UUID.randomUUID();
         var cmd = new SoftwareCommand(cmdId, endpointId, action, packageName, appId, packageVersion);
         softwareCommandRepository.save(cmd);

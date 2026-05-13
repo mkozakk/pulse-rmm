@@ -26,6 +26,11 @@ spring:
     password: ${POSTGRES_PASSWORD:postgres}
     hikari:
       maximum-pool-size: 20
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
 
 pulse:
   jwt:
