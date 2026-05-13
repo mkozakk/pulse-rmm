@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom'
+import NotificationBell from './NotificationBell'
 
 export default function AppShell({ children, title, subtitle, actions }) {
   return (
@@ -22,6 +23,9 @@ export default function AppShell({ children, title, subtitle, actions }) {
           <NavLink to="/endpoints" className={({ isActive }) => isActive ? 'app-shell-link active' : 'app-shell-link'}>
             Endpoints
           </NavLink>
+          <NavLink to="/alerts" className={({ isActive }) => isActive ? 'app-shell-link active' : 'app-shell-link'}>
+            Alerts
+          </NavLink>
         </nav>
 
         <p className="app-shell-note">Metrics, shell, and desktop live here.</p>
@@ -34,7 +38,10 @@ export default function AppShell({ children, title, subtitle, actions }) {
             <h1>{title}</h1>
             {subtitle && <p className="app-shell-subtitle">{subtitle}</p>}
           </div>
-          <div className="app-shell-actions">{actions}</div>
+          <div className="app-shell-actions">
+            {actions}
+            <NotificationBell />
+          </div>
         </header>
 
         {children}

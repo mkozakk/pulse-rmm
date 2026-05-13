@@ -161,6 +161,23 @@ export const pulseApi = createApi({
     }),
     endSession: builder.mutation({
       query: (id) => ({ url: `/sessions/${id}`, method: 'DELETE' })
+    }),
+    getAlertRules: builder.query({
+      query: () => '/alert-rules',
+      keepUnusedDataFor: 0
+    }),
+    createAlertRule: builder.mutation({
+      query: (body) => ({ url: '/alert-rules', method: 'POST', body })
+    }),
+    deleteAlertRule: builder.mutation({
+      query: (id) => ({ url: `/alert-rules/${id}`, method: 'DELETE' })
+    }),
+    getAlerts: builder.query({
+      query: (status = 'open') => `/alerts?status=${status}`,
+      keepUnusedDataFor: 0
+    }),
+    ackAlert: builder.mutation({
+      query: (id) => ({ url: `/alerts/${id}/ack`, method: 'POST' })
     })
   })
 })
@@ -194,5 +211,10 @@ export const {
   useGetMetricsQuery,
   useCreateSessionMutation,
   useGetSessionQuery,
-  useEndSessionMutation
+  useEndSessionMutation,
+  useGetAlertRulesQuery,
+  useCreateAlertRuleMutation,
+  useDeleteAlertRuleMutation,
+  useGetAlertsQuery,
+  useAckAlertMutation
 } = pulseApi
