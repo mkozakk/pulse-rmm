@@ -57,6 +57,7 @@ public class SecurityConfig {
             )
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterAfter(new StructurePermissionFilter(permissionGuard), JwtAuthFilter.class)
+            .addFilterAfter(new AlertPermissionFilter(permissionGuard), StructurePermissionFilter.class)
             .csrf(csrf -> csrf.disable());
         return http.build();
     }
