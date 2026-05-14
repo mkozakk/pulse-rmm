@@ -1,6 +1,7 @@
 package dev.pulsermm.audit.infrastructure.config;
 
 import dev.pulsermm.audit.api.JwtAuthFilter;
+import jakarta.servlet.DispatcherType;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -53,6 +54,7 @@ public class SecurityConfig {
                         })
                 )
                 .authorizeHttpRequests(auth -> auth
+                        .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR).permitAll()
                         .requestMatchers("/actuator/health", "/actuator/info", "/v3/api-docs", "/swagger-ui/**").permitAll()
                         .requestMatchers("/api/**").fullyAuthenticated()
                         .anyRequest().permitAll()
