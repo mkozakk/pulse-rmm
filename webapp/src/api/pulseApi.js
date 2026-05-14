@@ -191,6 +191,19 @@ export const pulseApi = createApi({
         return `/audit?${params}`
       },
       keepUnusedDataFor: 0
+    }),
+    listAgentVersions: builder.query({
+      query: () => '/agent-versions',
+      keepUnusedDataFor: 0
+    }),
+    publishAgentVersion: builder.mutation({
+      query: (formData) => ({ url: '/agent-versions', method: 'POST', body: formData })
+    }),
+    setCurrentAgentVersion: builder.mutation({
+      query: (id) => ({ url: `/agent-versions/${id}/current`, method: 'PUT' })
+    }),
+    deleteAgentVersion: builder.mutation({
+      query: (id) => ({ url: `/agent-versions/${id}`, method: 'DELETE' })
     })
   })
 })
@@ -230,5 +243,9 @@ export const {
   useDeleteAlertRuleMutation,
   useGetAlertsQuery,
   useAckAlertMutation,
-  useGetAuditLogQuery
+  useGetAuditLogQuery,
+  useListAgentVersionsQuery,
+  usePublishAgentVersionMutation,
+  useSetCurrentAgentVersionMutation,
+  useDeleteAgentVersionMutation
 } = pulseApi
