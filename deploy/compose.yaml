@@ -25,6 +25,10 @@ services:
       AUDIT_SERVICE_URL: http://audit-service:8088
       JWT_SECRET: ${JWT_SECRET}
       INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
     ports:
       - "8080:8080"
       - "9090:9090"
