@@ -9,6 +9,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface WebhookDeliveryRepository extends JpaRepository<WebhookDelivery, UUID> {
@@ -18,6 +19,9 @@ public interface WebhookDeliveryRepository extends JpaRepository<WebhookDelivery
     Page<WebhookDelivery> findByWebhookIdAndStatusOrderByCreatedAtDesc(UUID webhookId, String status, Pageable pageable);
 
     Page<WebhookDelivery> findByStatusOrderByCreatedAtDesc(String status, Pageable pageable);
+
+    @Query("SELECT d FROM WebhookDelivery d JOIN FETCH d.webhook WHERE d.id = :id")
+    Optional<WebhookDelivery> findByIdWithWebhook(@Param("id") UUID id);
 
     @Query("SELECT d FROM WebhookDelivery d JOIN FETCH d.webhook WHERE d.status IN ('pending', 'retrying') AND (d.nextRetryAt IS NULL OR d.nextRetryAt <= :now)")
     List<WebhookDelivery> findRetryable(@Param("now") Instant now);
