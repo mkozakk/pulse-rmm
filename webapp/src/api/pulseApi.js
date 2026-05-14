@@ -204,6 +204,35 @@ export const pulseApi = createApi({
     }),
     deleteAgentVersion: builder.mutation({
       query: (id) => ({ url: `/agent-versions/${id}`, method: 'DELETE' })
+    }),
+    listWebhooks: builder.query({
+      query: () => '/webhooks',
+      keepUnusedDataFor: 0
+    }),
+    createWebhook: builder.mutation({
+      query: (body) => ({ url: '/webhooks', method: 'POST', body })
+    }),
+    updateWebhook: builder.mutation({
+      query: ({ id, ...body }) => ({ url: `/webhooks/${id}`, method: 'PUT', body })
+    }),
+    deleteWebhook: builder.mutation({
+      query: (id) => ({ url: `/webhooks/${id}`, method: 'DELETE' })
+    }),
+    listDeliveries: builder.query({
+      query: ({ webhookId, status, limit = 50 }) => {
+        const params = new URLSearchParams({ limit })
+        if (status) params.set('status', status)
+        return `/webhooks/${webhookId}/deliveries?${params}`
+      },
+      keepUnusedDataFor: 0
+    }),
+    getDelivery: builder.query({
+      query: (deliveryId) => `/webhooks/deliveries/${deliveryId}`,
+      keepUnusedDataFor: 0
+    }),
+    listDeadLetter: builder.query({
+      query: (limit = 100) => `/webhooks/deliveries/dead-letter?limit=${limit}`,
+      keepUnusedDataFor: 0
     })
   })
 })
@@ -247,5 +276,12 @@ export const {
   useListAgentVersionsQuery,
   usePublishAgentVersionMutation,
   useSetCurrentAgentVersionMutation,
-  useDeleteAgentVersionMutation
+  useDeleteAgentVersionMutation,
+  useListWebhooksQuery,
+  useCreateWebhookMutation,
+  useUpdateWebhookMutation,
+  useDeleteWebhookMutation,
+  useListDeliveriesQuery,
+  useGetDeliveryQuery,
+  useListDeadLetterQuery
 } = pulseApi
