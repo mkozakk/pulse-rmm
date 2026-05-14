@@ -18,7 +18,7 @@ e2e:
 	@echo "Cleaning up from previous run..."
 	$(E2E_COMPOSE) down -v 2>/dev/null || true
 	@echo "Building changed services..."
-	$(E2E_COMPOSE) build --pull=false $(COMPOSE_OUTPUT)
+	$(E2E_COMPOSE) build --force-rm --pull=false $(COMPOSE_OUTPUT)
 	@echo "Starting stack..."
 	$(E2E_COMPOSE) up --pull=never -d $(COMPOSE_OUTPUT)
 	@echo "Waiting for gateway..."
