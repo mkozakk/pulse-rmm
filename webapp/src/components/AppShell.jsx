@@ -26,6 +26,9 @@ export default function AppShell({ children, title, subtitle, actions }) {
           <NavLink to="/alerts" className={({ isActive }) => isActive ? 'app-shell-link active' : 'app-shell-link'}>
             Alerts
           </NavLink>
+          <NavLink to="/audit" className={({ isActive }) => isActive ? 'app-shell-link active' : 'app-shell-link'}>
+            Audit Log
+          </NavLink>
         </nav>
 
         <p className="app-shell-note">Metrics, shell, and desktop live here.</p>
