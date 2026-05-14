@@ -23,6 +23,7 @@ services:
       REMOTE_SERVICE_URL: http://remote-service:8092
       ALERT_SERVICE_URL: http://alert-service:8087
       AUDIT_SERVICE_URL: http://audit-service:8088
+      AGENT_UPDATE_SERVICE_URL: http://agent-update-service:8089
       JWT_SECRET: ${JWT_SECRET}
       INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
       RABBITMQ_HOST: rabbitmq
@@ -37,7 +38,7 @@ services:
       interval: 5s
       timeout: 2s
       retries: 5
-      start_period: 5s
+      start_period: 40s
     depends_on:
       identity-service:
         condition: service_healthy
@@ -79,7 +80,7 @@ services:
       interval: 5s
       timeout: 2s
       retries: 5
-      start_period: 5s
+      start_period: 40s
     depends_on:
       <<: *app-deps
 
@@ -97,6 +98,7 @@ services:
       RABBITMQ_PORT: 5672
       RABBITMQ_USER: ${RABBITMQ_USER}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      PULSE_API_URL: ${PULSE_API_URL}
     ports:
       - "8081:8081"
       - "9091:9091"
@@ -105,7 +107,7 @@ services:
       interval: 5s
       timeout: 2s
       retries: 5
-      start_period: 5s
+      start_period: 40s
     depends_on:
       <<: *app-deps
 
@@ -131,7 +133,7 @@ services:
       interval: 5s
       timeout: 2s
       retries: 5
-      start_period: 5s
+      start_period: 40s
     depends_on:
       <<: *app-deps
 
@@ -160,7 +162,7 @@ services:
       interval: 5s
       timeout: 2s
       retries: 5
-      start_period: 5s
+      start_period: 40s
     depends_on:
       postgres:
         condition: service_healthy
@@ -189,7 +191,7 @@ services:
       interval: 5s
       timeout: 2s
       retries: 5
-      start_period: 5s
+      start_period: 40s
     depends_on:
       <<: *app-deps
 
@@ -219,7 +221,7 @@ services:
       interval: 5s
       timeout: 2s
       retries: 5
-      start_period: 5s
+      start_period: 40s
     depends_on:
       <<: *app-deps
 
@@ -245,7 +247,7 @@ services:
       interval: 5s
       timeout: 2s
       retries: 5
-      start_period: 5s
+      start_period: 40s
     depends_on:
       postgres:
         condition: service_healthy
@@ -272,7 +274,36 @@ services:
       interval: 5s
       timeout: 2s
       retries: 5
-      start_period: 5s
+      start_period: 40s
+    depends_on:
+      <<: *app-deps
+
+  agent-update-service:
+    build:
+      context: ..
+      dockerfile: backend/agent-update-service/Dockerfile
+    environment:
+      SERVICE_PORT: 8089
+      POSTGRES_HOST: postgres
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      JWT_SECRET: ${JWT_SECRET}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+    ports:
+      - "8089:8089"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8089/actuator/health"]
+      interval: 5s
+      timeout: 2s
+      retries: 5
+      start_period: 40s
     depends_on:
       <<: *app-deps
 
