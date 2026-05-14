@@ -64,6 +64,22 @@ spring:
             uri: ${AUDIT_SERVICE_URL:http://localhost:8088}
             predicates:
               - Path=/api/audit/**
+          - id: agent-versions
+            uri: ${AGENT_UPDATE_SERVICE_URL:http://localhost:8089}
+            predicates:
+              - Path=/api/agent-versions/**
+          - id: agent-updates-check
+            uri: ${AGENT_UPDATE_SERVICE_URL:http://localhost:8089}
+            predicates:
+              - Path=/api/updates/**
+          - id: install-packages
+            uri: ${AGENT_UPDATE_SERVICE_URL:http://localhost:8089}
+            predicates:
+              - Path=/install/pulse-agent.deb,/install/pulse-agent.rpm
+          - id: install-scripts
+            uri: ${ENROLMENT_SERVICE_URL:http://localhost:8081}
+            predicates:
+              - Path=/install/**
 
 pulse:
   jwt:
@@ -109,6 +125,8 @@ springdoc:
         url: http://localhost:8087/v3/api-docs
       - name: Audit
         url: http://localhost:8088/v3/api-docs
+      - name: Agent Updates
+        url: http://localhost:8089/v3/api-docs
     urls-primary-name: Identity
     tags-sorter: alpha
     operations-sorter: alpha
