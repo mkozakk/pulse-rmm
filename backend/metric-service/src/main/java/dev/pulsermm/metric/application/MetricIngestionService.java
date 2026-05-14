@@ -1,5 +1,7 @@
 package dev.pulsermm.metric.application;
 
+import dev.pulsermm.common.events.DomainEvent;
+import dev.pulsermm.common.events.DomainEventPublisher;
 import dev.pulsermm.metric.domain.EndpointHeartbeat;
 import dev.pulsermm.metric.infrastructure.EndpointHeartbeatRepository;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -16,10 +18,13 @@ public class MetricIngestionService {
 
     private final EndpointHeartbeatRepository heartbeatRepo;
     private final JdbcTemplate jdbc;
+    private final DomainEventPublisher domainEventPublisher;
 
-    public MetricIngestionService(EndpointHeartbeatRepository heartbeatRepo, JdbcTemplate jdbc) {
+    public MetricIngestionService(EndpointHeartbeatRepository heartbeatRepo, JdbcTemplate jdbc,
+                                   DomainEventPublisher domainEventPublisher) {
         this.heartbeatRepo = heartbeatRepo;
         this.jdbc = jdbc;
+        this.domainEventPublisher = domainEventPublisher;
     }
 
     @Transactional
@@ -27,8 +32,13 @@ public class MetricIngestionService {
         Instant now = Instant.now();
         heartbeatRepo.findById(endpointId).ifPresentOrElse(
             h -> {
+                boolean wasOffline = "offline".equals(h.getStatus());
                 h.setLastSeen(now);
                 h.setStatus("online");
+                if (wasOffline) {
+                    domainEventPublisher.publish(DomainEvent.of("endpoint.online",
+                        Map.of("endpointId", endpointId.toString())));
+                }
             },
             () -> heartbeatRepo.save(new EndpointHeartbeat(endpointId, now, "online"))
         );
