@@ -4,12 +4,11 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
 	pb "github.com/pulsermm/pulse-rmm/agent/gen/pulse/v1"
 	"github.com/pulsermm/pulse-rmm/agent/desktop"
+	"github.com/pulsermm/pulse-rmm/agent/internal/config"
 	"github.com/pulsermm/pulse-rmm/agent/internal/control"
 	"github.com/pulsermm/pulse-rmm/agent/internal/enrolment"
 	"github.com/pulsermm/pulse-rmm/agent/internal/metrics"
@@ -17,30 +16,76 @@ import (
 	"github.com/pulsermm/pulse-rmm/agent/internal/shell"
 	"github.com/pulsermm/pulse-rmm/agent/internal/software"
 	"github.com/pulsermm/pulse-rmm/agent/internal/store"
+	"github.com/pulsermm/pulse-rmm/agent/internal/svc"
+	"github.com/pulsermm/pulse-rmm/agent/internal/update"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
+// Version is overridden at build time with -ldflags "-X main.Version=x.y.z"
+var Version = "dev"
+
 func main() {
-	token := os.Getenv("PULSE_TOKEN")
-	if token == "" {
-		fmt.Fprintf(os.Stderr, "Usage: PULSE_TOKEN=<token> [PULSE_SERVER=host:port] [PULSE_METRIC_SERVER=host:port] %s\n", os.Args[0])
+	args := os.Args[1:]
+
+	switch {
+	case len(args) >= 2 && args[0] == "service":
+		runServiceCmd(args[1])
+	case len(args) == 1 && args[0] == "run":
+		runViaServiceManager()
+	case len(args) == 0 || (len(args) == 1 && args[0] == "run"):
+		runViaServiceManager()
+	default:
+		fmt.Fprintf(os.Stderr, "Usage: %s [run | service install|uninstall|status]\n", os.Args[0])
+		os.Exit(1)
+	}
+}
+
+// runServiceCmd handles the "service <action>" subcommands.
+func runServiceCmd(action string) {
+	var err error
+	switch action {
+	case "install":
+		err = svc.Install()
+	case "uninstall":
+		err = svc.Uninstall()
+	case "status":
+		err = svc.Status()
+	default:
+		fmt.Fprintf(os.Stderr, "Unknown service action %q. Use: install, uninstall, status\n", action)
+		os.Exit(1)
+	}
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+// runViaServiceManager hands control to kardianos/service which handles both
+// interactive runs and proper service lifecycle (systemd / Windows SCM).
+func runViaServiceManager() {
+	if err := svc.Run(runAgent); err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+// runAgent is the main agent logic. ctx is cancelled when the service is
+// asked to stop (SIGTERM, systemd stop, SCM stop).
+func runAgent(ctx context.Context) {
+	cfgPath := config.DefaultPath()
+	cfg, err := config.Load(cfgPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error loading config from %s: %v\n", cfgPath, err)
+		fmt.Fprintf(os.Stderr, "Create %s with at minimum:\n  api_url: <backend address>\n  enrolment_token: <token>\n", cfgPath)
 		os.Exit(1)
 	}
 
-	grpcAddr := os.Getenv("PULSE_SERVER")
+	store.Init(cfg.DataDir)
+
+	grpcAddr := cfg.GRPCAddr
 	if grpcAddr == "" {
-		grpcAddr = "localhost:9091"
-	}
-
-	metricAddr := os.Getenv("PULSE_METRIC_SERVER")
-	if metricAddr == "" {
-		metricAddr = "localhost:9092"
-	}
-
-	gatewayAddr := os.Getenv("PULSE_GATEWAY")
-	if gatewayAddr == "" {
-		gatewayAddr = "localhost:9090"
+		grpcAddr = "localhost:9090"
 	}
 
 	privKey, err := store.LoadOrGenerateKey()
@@ -51,7 +96,11 @@ func main() {
 
 	endpointID, err := store.LoadEndpointID()
 	if err != nil {
-		endpointID, err = enrolment.Enrol(context.Background(), token, grpcAddr, privKey)
+		if cfg.EnrolmentToken == "" {
+			fmt.Fprintf(os.Stderr, "Error: no endpoint identity found and no enrolment_token in config\n")
+			os.Exit(1)
+		}
+		endpointID, err = enrolment.Enrol(ctx, cfg.EnrolmentToken, grpcAddr, privKey)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
@@ -61,40 +110,59 @@ func main() {
 			os.Exit(1)
 		}
 		fmt.Printf("Enrolled: %s\n", endpointID)
+		if err := cfg.RemoveToken(); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: could not remove token from config: %v\n", err)
+		}
 	} else {
+		if cfg.EnrolmentToken != "" {
+			fmt.Fprintf(os.Stderr, "Warning: enrolment_token in config is stale (already enrolled); removing it\n")
+			_ = cfg.RemoveToken()
+		}
 		fmt.Printf("Already enrolled: %s\n", endpointID)
 	}
 
-	metricClient, err := metrics.NewClient(grpcAddr, metricAddr)
+	metricClient, err := metrics.NewClient(grpcAddr, grpcAddr)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
 	defer metricClient.Close()
 
-	gatewayConn, err := grpc.NewClient(gatewayAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	gatewayConn, err := grpc.NewClient(grpcAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error dialing gateway for agent service: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error dialing gateway: %v\n", err)
 		os.Exit(1)
 	}
 	defer gatewayConn.Close()
 	agentClient := pb.NewAgentServiceClient(gatewayConn)
 
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer cancel()
+	// heartbeatOK is closed on the first successful heartbeat so the post-update
+	// verifier knows the new binary is healthy.
+	heartbeatOK := make(chan struct{})
 
-	fmt.Println("[main] Starting goroutines")
-	go runHeartbeat(ctx, metricClient, endpointID)
-	fmt.Println("[main] Started heartbeat")
+	// Check whether we just finished an autoupdate swap.
+	if pending, _ := update.LoadPending(cfg.DataDir); pending != nil {
+		binPath, _ := os.Executable()
+		go update.VerifyOrRollback(ctx, pending, binPath, cfg.DataDir,
+			heartbeatOK, svc.Restart, cfg.APIURL, endpointID)
+	}
+
+	updater := &update.Updater{
+		APIURL:         cfg.APIURL,
+		DataDir:        cfg.DataDir,
+		CurrentVersion: Version,
+		RestartFn:      svc.Restart,
+	}
+
+	fmt.Println("[agent] Starting goroutines")
+	go runHeartbeat(ctx, metricClient, endpointID, heartbeatOK)
 	go runMetrics(ctx, metricClient, endpointID)
-	fmt.Println("[main] Started metrics")
 	go runSoftwareScan(ctx, endpointID, agentClient)
-	fmt.Println("[main] Started software scan")
-	go runControlStream(ctx, endpointID, gatewayAddr, agentClient)
-	fmt.Println("[main] Started control stream")
+	go runControlStream(ctx, endpointID, grpcAddr, agentClient)
+	go updater.Start(ctx)
 
 	<-ctx.Done()
-	fmt.Println("Shutting down")
+	fmt.Println("[agent] Shutting down")
 }
 
 func runControlStream(ctx context.Context, endpointID, gatewayAddr string, agentClient pb.AgentServiceClient) {
@@ -176,9 +244,10 @@ func dispatchCmd(mgr *shell.Manager, deskHandler *desktop.Handler, cmd *pb.Gatew
 	}
 }
 
-func runHeartbeat(ctx context.Context, client *metrics.Client, endpointID string) {
+func runHeartbeat(ctx context.Context, client *metrics.Client, endpointID string, okOnce chan struct{}) {
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
+	signalled := false
 
 	for {
 		select {
@@ -187,6 +256,9 @@ func runHeartbeat(ctx context.Context, client *metrics.Client, endpointID string
 		case <-ticker.C:
 			if err := client.Heartbeat(ctx, endpointID); err != nil {
 				fmt.Fprintf(os.Stderr, "heartbeat error: %v\n", err)
+			} else if !signalled {
+				close(okOnce)
+				signalled = true
 			}
 		}
 	}
@@ -244,7 +316,6 @@ func pushSoftwareList(ctx context.Context, endpointID string, client pb.AgentSer
 	fmt.Printf("[agent] Scanned %d software items\n", len(items))
 	if len(items) > 0 {
 		fmt.Printf("[agent] Sample items: %s, %s, ...\n", items[0].Name, items[1].Name)
-		// Check if hello is in the list
 		for _, item := range items {
 			if item.Name == "hello" {
 				fmt.Printf("[agent] ✓ FOUND HELLO IN SCAN: version=%s\n", item.Version)
@@ -280,7 +351,6 @@ func pushSoftwareList(ctx context.Context, endpointID string, client pb.AgentSer
 func executeSoftwareCommand(cmd *pb.SoftwareCommand, outCh chan<- *pb.AgentEvent, agentClient pb.AgentServiceClient, endpointID string) {
 	fmt.Printf("[agent] Executing software command: action=%s, name=%s, version=%s\n", cmd.Action, cmd.Name, cmd.Version)
 
-	// Scan before
 	itemsBefore, err := software.Scan()
 	if err != nil {
 		fmt.Printf("[agent] ERROR scanning before: %v\n", err)
@@ -301,7 +371,6 @@ func executeSoftwareCommand(cmd *pb.SoftwareCommand, outCh chan<- *pb.AgentEvent
 	fmt.Printf("[agent] Command executed: exitCode=%d\n", exitCode)
 	fmt.Printf("[agent] Command output:\n%s\n", output)
 
-	// Scan after
 	itemsAfter, err := software.Scan()
 	if err != nil {
 		fmt.Printf("[agent] ERROR scanning after: %v\n", err)

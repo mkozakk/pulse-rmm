@@ -1,0 +1,18 @@
+name: pulse-agent
+arch: amd64
+platform: linux
+version: ${VERSION}
+maintainer: Pulse RMM <noreply@pulse-rmm.dev>
+description: Pulse RMM endpoint agent
+homepage: https://github.com/pulsermm/pulse-rmm
+license: MIT
+
+contents:
+  - src: ./dist/pulse-agent-linux-amd64
+    dst: /usr/local/bin/pulse-agent
+    file_info:
+      mode: 0755
+
+scripts:
+  postinstall: ./packaging/scripts/postinstall.sh
+  preremove: ./packaging/scripts/preremove.sh

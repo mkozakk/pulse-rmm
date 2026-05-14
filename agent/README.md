@@ -61,3 +61,88 @@ When an admin clicks "Run Script" in the web UI:
 7. Mouse/keyboard events from the browser arrive through a WebRTC DataChannel (`input`); the agent translates them into native OS input events.
 8. File upload/download travels over a separate `file-transfer` DataChannel with path traversal protection.
 9. Session end is triggered by the frontend (DELETE `/api/sessions/{id}`) or by the `OnPeerConnectionClosed` callback. Stale `HandleStartSession` commands (from orphaned sessions) are rejected via the `endedBeforeStart` map.
+
+## Building & Packaging
+
+### Prerequisites
+
+| tool | install |
+|------|---------|
+| Go 1.22+ | https://go.dev/dl |
+| nfpm | `go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest` |
+| makensis | `sudo dnf install nsis` (Fedora) / `sudo apt install nsis` (Debian) — Windows installer only |
+
+### Build targets
+
+```bash
+# Compile Linux and Windows binaries into dist/
+make build
+
+# Build .deb (Ubuntu/Debian)
+make pkg-deb
+
+# Build .rpm (Fedora/RHEL)
+make pkg-rpm
+
+# Build Windows installer .exe — requires makensis
+make pkg-exe
+
+# Explicit version (defaults to git describe)
+make pkg-deb VERSION=1.2.3
+```
+
+Output lands in `agent/dist/`:
+- `pulse-agent-linux-amd64`
+- `pulse-agent-windows-amd64.exe`
+- `pulse-agent_<version>_amd64.deb`
+- `pulse-agent-<version>-1.x86_64.rpm`
+- `pulse-agent-installer.exe` (Windows, requires makensis)
+
+### Installing a package
+
+Upload the built `.deb` or `.rpm` via **Agent Versions** in the webapp so that the one-liner install script can fetch it.
+
+**Manual install on Linux (dev/test only):**
+```bash
+# Write config first
+sudo mkdir -p /etc/pulse-agent
+sudo tee /etc/pulse-agent/config.yaml <<EOF
+api_url: http://localhost:8080
+enrolment_token: <token-uuid>
+data_dir: /var/lib/pulse-agent
+log_level: info
+EOF
+sudo chmod 0600 /etc/pulse-agent/config.yaml
+
+# Install the package
+sudo dpkg -i dist/pulse-agent_<version>_amd64.deb   # Debian/Ubuntu
+sudo rpm -i  dist/pulse-agent-<version>-1.x86_64.rpm # Fedora/RHEL
+
+# Verify service is running
+systemctl status pulse-agent
+```
+
+**Manual install on Windows (dev/test only):**
+```powershell
+# Silent install
+.\pulse-agent-installer.exe /S /DAPI_URL=http://localhost:8080 /DTOKEN=<token-uuid>
+
+# Or double-click the installer for the GUI wizard (UAC prompt appears)
+```
+
+### Known limitations
+
+- Binaries are **unsigned**: Windows users see a SmartScreen warning; Linux packages have no GPG signature. Production deployments should sign before distributing.
+- macOS is out of scope (`plan.md`).
+- The Windows installer requires [NSIS 3.x](https://nsis.sourceforge.io/) to build; the cross-compilation from Linux produces the binary but NSIS itself runs on Windows or under Wine.
+
+### Manual VM acceptance tests
+
+After installing via one-liner or package on a clean VM:
+
+1. `systemctl status pulse-agent` → **active (running)**
+2. Reboot → service comes back up automatically
+3. Check the webapp Endpoints page — new endpoint appears within ~30 s
+4. `sudo pulse-agent service uninstall` → service removed; binary stays; `/var/lib/pulse-agent` stays (identity preserved)
+
+Windows equivalent: check `services.msc` for **Pulse RMM Agent**, status Running, startup Automatic.
