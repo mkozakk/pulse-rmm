@@ -85,9 +85,7 @@ export function useDesktopSession(endpointId) {
         } else if (msg.type === 'candidate') {
           await pc.addIceCandidate(JSON.parse(msg.payload))
         } else if (msg.type === 'error') {
-          if (msg.code === 'wayland_not_supported') {
-            setError('wayland_not_supported')
-          }
+          setError(msg.code || 'unknown')
           setStatus('error')
         }
       }

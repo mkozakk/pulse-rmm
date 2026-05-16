@@ -69,6 +69,24 @@ describe('DesktopPage', () => {
   it('shows wayland error message', () => {
     mockSession({ status: 'error', error: 'wayland_not_supported' })
     renderPage()
-    expect(screen.getByText(/screen share prompt/i)).toBeInTheDocument()
+    expect(screen.getByText(/wayland session without portal/i)).toBeInTheDocument()
+  })
+
+  it('shows consent denied message', () => {
+    mockSession({ status: 'error', error: 'wayland_consent_denied' })
+    renderPage()
+    expect(screen.getByText(/declined the screen-share prompt/i)).toBeInTheDocument()
+  })
+
+  it('shows portal missing message', () => {
+    mockSession({ status: 'error', error: 'wayland_portal_missing' })
+    renderPage()
+    expect(screen.getByText(/xdg-desktop-portal/i)).toBeInTheDocument()
+  })
+
+  it('falls back to generic message for unknown error codes', () => {
+    mockSession({ status: 'error', error: 'something_else' })
+    renderPage()
+    expect(screen.getByText(/something_else/)).toBeInTheDocument()
   })
 })
