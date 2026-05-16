@@ -59,6 +59,7 @@ desktop.ini
 
 deploy/data/
 deploy/volumes/
+deploy/certs/
 
 backend/cookies.txt
 
