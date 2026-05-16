@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Pulse RMM Desktop Helper
+Comment=Remote desktop capture helper for the Pulse RMM agent
+Exec=/usr/local/bin/pulse-agent --desktop-helper
+NoDisplay=true
+X-GNOME-Autostart-enabled=true

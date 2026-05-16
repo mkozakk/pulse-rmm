@@ -10,6 +10,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -17,6 +18,11 @@ import (
 	"github.com/pion/webrtc/v4/pkg/media"
 	"github.com/pion/webrtc/v4/pkg/media/h264reader"
 )
+
+type frameCounter struct{ n atomic.Int64 }
+
+func (f *frameCounter) set(v int)  { f.n.Store(int64(v)) }
+func (f *frameCounter) get() int64 { return f.n.Load() }
 
 func checkPlatform() error {
 	_, err := exec.LookPath("ffmpeg")
@@ -31,7 +37,7 @@ func startCapture(sess *DesktopSession, ctx context.Context) error {
 	track, err := webrtc.NewTrackLocalStaticSample(webrtc.RTPCodecCapability{
 		MimeType:    webrtc.MimeTypeH264,
 		ClockRate:   90000,
-		SDPFmtpLine: "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01f",
+		SDPFmtpLine: "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e02a",
 	}, "video", "desktop")
 	if err != nil {
 		return fmt.Errorf("creating H264 video track: %w", err)
@@ -59,27 +65,27 @@ func startCapture(sess *DesktopSession, ctx context.Context) error {
 		"-pix_fmt", "yuv420p",
 	}
 
-	// Force Baseline 3.1 profile to match SDP profile-level-id=42001f.
+	// Force Baseline 4.2 profile to match SDP profile-level-id=42e02a.
 	// Chrome silently drops frames if negotiated profile != actual SPS profile.
 	switch codec {
 	case "h264_nvenc":
 		ffmpegArgs = append(ffmpegArgs,
 			"-preset", "fast",
 			"-profile:v", "baseline",
-			"-level", "3.1",
+			"-level", "4.2",
 		)
 	case "h264_qsv":
 		ffmpegArgs = append(ffmpegArgs,
 			"-preset", "veryfast",
 			"-profile:v", "baseline",
-			"-level", "3.1",
+			"-level", "4.2",
 		)
 	case "libx264":
 		ffmpegArgs = append(ffmpegArgs,
 			"-preset", "veryfast",
 			"-tune", "zerolatency",
 			"-profile:v", "baseline",
-			"-level", "3.1",
+			"-level", "4.2",
 			// Force single slice per frame. Default zerolatency tune enables
 			// sliced-threads which splits a frame across slices/NALs; our AU
 			// emitter terminates on the first slice NAL and drops the rest.
@@ -96,6 +102,7 @@ func startCapture(sess *DesktopSession, ctx context.Context) error {
 	)
 
 	cmd := exec.CommandContext(ctx, "ffmpeg", ffmpegArgs...)
+	sess.log.Printf("ffmpeg cmdline: ffmpeg %v", ffmpegArgs)
 
 	var ffmpegLog io.Writer = os.Stderr
 	if sess.logFile != nil {
@@ -118,20 +125,42 @@ func startCapture(sess *DesktopSession, ctx context.Context) error {
 		}
 	}
 
-	sess.log.Println("H264 capture started (FFmpeg + gdigrab)")
+	sess.log.Printf("H264 capture started (FFmpeg + gdigrab), pid=%d", cmd.Process.Pid)
 
 	go func() {
 		<-ctx.Done()
+		sess.log.Printf("ctx cancelled, killing ffmpeg pid=%d", cmd.Process.Pid)
 		killFFmpeg()
 		_ = stdout.Close()
+	}()
+
+	// Watchdog: log frame production status every 5s. If after 10s no frame, dump a clear diagnostic.
+	frameCounter := &frameCounter{}
+	go func() {
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+		warned := false
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				n := frameCounter.get()
+				sess.log.Printf("watchdog: frames produced so far = %d", n)
+				if n == 0 && !warned {
+					sess.log.Printf("WARNING: no video frames produced after 5s. Common cause on Windows: agent runs as SYSTEM service in Session 0 and gdigrab cannot see the user's desktop. Check ffmpeg stderr lines above for capture errors.")
+					warned = true
+				}
+			}
+		}
 	}()
 
 	go func() {
 		defer func() {
 			killFFmpeg()
 			_ = stdout.Close()
-			_ = cmd.Wait()
-			sess.log.Println("capture stopped")
+			waitErr := cmd.Wait()
+			sess.log.Printf("capture stopped (ffmpeg exit: %v)", waitErr)
 		}()
 
 		sess.log.Println("Waiting for H264 stream...")
@@ -190,8 +219,9 @@ func startCapture(sess *DesktopSession, ctx context.Context) error {
 			au = au[:0]
 
 			frameCount++
+			frameCounter.set(frameCount)
 			if frameCount == 1 {
-				sess.log.Printf("First frame after %v", time.Since(startTime))
+				sess.log.Printf("First frame after %v (size=%d bytes)", time.Since(startTime), len(au))
 			}
 			if frameCount%30 == 0 {
 				sess.log.Printf("%d H264 frames sent", frameCount)
@@ -235,7 +265,7 @@ func tryH264Codec(codec string) bool {
 	}
 	args = append(args,
 		"-profile:v", "baseline",
-		"-level", "3.1",
+		"-level", "4.2",
 		"-g", "30",
 		"-pix_fmt", "yuv420p",
 		"-frames:v", "5",

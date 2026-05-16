@@ -13,6 +13,41 @@ contents:
     file_info:
       mode: 0755
 
+  - src: ./packaging/pulse-agent-desktop.desktop
+    dst: /etc/xdg/autostart/pulse-agent-desktop.desktop
+    file_info:
+      mode: 0644
+
+  - src: ./packaging/99-pulse-agent-uinput.rules
+    dst: /etc/udev/rules.d/99-pulse-agent-uinput.rules
+    file_info:
+      mode: 0644
+
 scripts:
   postinstall: ./packaging/scripts/postinstall.sh
   preremove: ./packaging/scripts/preremove.sh
+
+# Per-format dependencies. ffmpeg is the screen-capture pipeline; on Wayland
+# we also need an xdg-desktop-portal backend (the frontend dispatches to one
+# of -gnome / -gtk / -kde at runtime). We hard-depend on the frontend only;
+# backends are Recommended so apt/dnf pulls a usable set by default, but a
+# minimal install still succeeds — the user's existing DE will already have
+# the right backend. The install.sh template installs all three backends
+# explicitly for portability across desktops.
+overrides:
+  deb:
+    depends:
+      - ffmpeg
+      - xdg-desktop-portal
+    recommends:
+      - xdg-desktop-portal-gnome
+      - xdg-desktop-portal-gtk
+      - xdg-desktop-portal-kde
+  rpm:
+    depends:
+      - ffmpeg-free
+      - xdg-desktop-portal
+    recommends:
+      - xdg-desktop-portal-gnome
+      - xdg-desktop-portal-gtk
+      - xdg-desktop-portal-kde

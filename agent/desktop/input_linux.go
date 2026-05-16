@@ -5,6 +5,9 @@ package desktop
 import (
 	"fmt"
 	"os"
+	"os/exec"
+	"regexp"
+	"strconv"
 
 	"github.com/bendahl/uinput"
 	"github.com/jezek/xgb"
@@ -134,44 +137,82 @@ func (x *x11Injector) Close() error {
 // and `video` group (for kmsgrab screen capture).
 
 type uinputInjector struct {
-	kb    uinput.Keyboard
-	mouse uinput.Mouse
-	lastX int
-	lastY int
+	kb       uinput.Keyboard
+	mouse    uinput.Mouse
+	touchpad uinput.TouchPad
+	screenW  int32
+	screenH  int32
 }
 
 func newUinputInjector() (InputInjector, error) {
+	if _, err := os.Stat("/dev/uinput"); err != nil {
+		return nil, fmt.Errorf("/dev/uinput missing — kernel uinput module not loaded (run: sudo modprobe uinput): %w", err)
+	}
 	kb, err := uinput.CreateKeyboard("/dev/uinput", []byte("Pulse RMM Keyboard"))
 	if err != nil {
-		return nil, fmt.Errorf("creating uinput keyboard (add agent to 'input' group): %w", err)
+		return nil, fmt.Errorf("opening /dev/uinput failed — user must be in 'input' group; re-login after install (current groups inherited at session start): %w", err)
 	}
 	mouse, err := uinput.CreateMouse("/dev/uinput", []byte("Pulse RMM Mouse"))
 	if err != nil {
 		kb.Close()
 		return nil, fmt.Errorf("creating uinput mouse: %w", err)
 	}
-	return &uinputInjector{kb: kb, mouse: mouse}, nil
+	w, h := detectScreenSize()
+	tp, err := uinput.CreateTouchPad("/dev/uinput", []byte("Pulse RMM Pointer"), 0, w-1, 0, h-1)
+	if err != nil {
+		mouse.Close()
+		kb.Close()
+		return nil, fmt.Errorf("creating uinput touchpad: %w", err)
+	}
+	return &uinputInjector{kb: kb, mouse: mouse, touchpad: tp, screenW: w, screenH: h}, nil
+}
+
+// detectScreenSize asks XWayland (always present on Wayland sessions) for the
+// primary display geometry — webapp coords are in capture-space pixels, and
+// the absolute touchpad needs a range that matches so movement is 1:1 with
+// the host cursor. Falls back to 1920x1080 if xrandr is unavailable.
+func detectScreenSize() (int32, int32) {
+	out, err := exec.Command("xrandr", "--query").Output()
+	if err == nil {
+		// First "  1920x1080  60.00*+" line under the first connected output.
+		re := regexp.MustCompile(`(?m)^\s+(\d+)x(\d+)\s+[\d.]+\*`)
+		if m := re.FindStringSubmatch(string(out)); len(m) == 3 {
+			w, _ := strconv.Atoi(m[1])
+			h, _ := strconv.Atoi(m[2])
+			if w > 0 && h > 0 {
+				return int32(w), int32(h)
+			}
+		}
+	}
+	return 1920, 1080
 }
 
 func (u *uinputInjector) MouseMove(x, y int) error {
-	dx := int32(x - u.lastX)
-	dy := int32(y - u.lastY)
-	u.lastX = x
-	u.lastY = y
-	if dx == 0 && dy == 0 {
-		return nil
+	cx := clampInt32(int32(x), 0, u.screenW-1)
+	cy := clampInt32(int32(y), 0, u.screenH-1)
+	return u.touchpad.MoveTo(cx, cy)
+}
+
+func clampInt32(v, lo, hi int32) int32 {
+	if v < lo {
+		return lo
 	}
-	return u.mouse.Move(dx, dy)
+	if v > hi {
+		return hi
+	}
+	return v
 }
 
 func (u *uinputInjector) MouseButton(button int, pressed bool) error {
-	// browser: 0=left, 1=middle, 2=right
+	// browser: 0=left, 1=middle, 2=right. Left/right go through the touchpad
+	// so the click lands at the absolute position we just warped to; middle
+	// falls back to the relative mouse device (libinput merges them).
 	switch button {
 	case 0:
 		if pressed {
-			return u.mouse.LeftPress()
+			return u.touchpad.LeftPress()
 		}
-		return u.mouse.LeftRelease()
+		return u.touchpad.LeftRelease()
 	case 1:
 		if pressed {
 			return u.mouse.MiddlePress()
@@ -179,9 +220,9 @@ func (u *uinputInjector) MouseButton(button int, pressed bool) error {
 		return u.mouse.MiddleRelease()
 	case 2:
 		if pressed {
-			return u.mouse.RightPress()
+			return u.touchpad.RightPress()
 		}
-		return u.mouse.RightRelease()
+		return u.touchpad.RightRelease()
 	}
 	return nil
 }
@@ -217,19 +258,32 @@ func (u *uinputInjector) KeyEvent(keyCode int, pressed bool) error {
 }
 
 func (u *uinputInjector) Close() error {
-	err1 := u.mouse.Close()
-	err2 := u.kb.Close()
+	err1 := u.touchpad.Close()
+	err2 := u.mouse.Close()
+	err3 := u.kb.Close()
 	if err1 != nil {
 		return err1
 	}
-	return err2
+	if err2 != nil {
+		return err2
+	}
+	return err3
 }
 
 // --- factory ---
 
 func newInputInjector() (InputInjector, error) {
-	if os.Getenv("WAYLAND_DISPLAY") != "" {
+	// Wayland check comes first: XWayland is running under Wayland sessions so
+	// DISPLAY is always set, but XTest input lands on XWayland only and won't
+	// reach native Wayland clients. uinput injects at the kernel evdev layer
+	// (libinput → compositor) and reaches every app.
+	if isWaylandSession() {
 		return newUinputInjector()
 	}
-	return newX11Injector()
+	if os.Getenv("DISPLAY") != "" {
+		return newX11Injector()
+	}
+	// No graphical session — system service running kmsgrab. uinput works
+	// without a compositor; requires the running user to be in 'input' group.
+	return newUinputInjector()
 }

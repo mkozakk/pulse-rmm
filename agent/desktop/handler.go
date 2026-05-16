@@ -2,27 +2,26 @@ package desktop
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"sync"
 
-	"github.com/pion/webrtc/v4"
 	pb "github.com/pulsermm/pulse-rmm/agent/gen/pulse/v1"
 )
 
 type Handler struct {
-	mu         sync.Mutex
-	startMu    sync.Mutex
-	sessions   map[string]*DesktopSession
-	cancels    map[string]context.CancelFunc
+	mu               sync.Mutex
+	startMu          sync.Mutex
+	sessions         map[string]desktopSession
+	cancels          map[string]context.CancelFunc
 	endedBeforeStart map[string]struct{}
 }
 
 func NewHandler() *Handler {
 	return &Handler{
-		sessions:   make(map[string]*DesktopSession),
-		cancels:    make(map[string]context.CancelFunc),
+		sessions:         make(map[string]desktopSession),
+		cancels:          make(map[string]context.CancelFunc),
 		endedBeforeStart: make(map[string]struct{}),
 	}
 }
@@ -57,55 +56,21 @@ func (h *Handler) HandleStartSession(cmd *pb.StartDesktopSessionCommand, send fu
 	}
 	h.mu.Unlock()
 
-	sess, err := NewSession(sessionID, cmd.GetTurnUrls(), cmd.GetTurnSecret())
+	ctx, cancel := context.WithCancel(context.Background())
+
+	sess, err := startPlatformSession(sessionID, cmd.GetTurnUrls(), cmd.GetTurnSecret(), ctx, send)
 	if err != nil {
-		fmt.Printf("[desktop] Failed to create session: %v\n", err)
-		sendSessionReady(send, sessionID, fmt.Sprintf("failed to create session: %v", err))
+		cancel()
+		errMsg := mapDesktopError(err)
+		fmt.Printf("[desktop] Session start failed: %v\n", err)
+		sendSessionReady(send, sessionID, errMsg)
 		return
 	}
-
-	ctx, cancel := context.WithCancel(context.Background())
 
 	h.mu.Lock()
 	h.sessions[sessionID] = sess
 	h.cancels[sessionID] = cancel
 	h.mu.Unlock()
-
-	// Implement Trickle ICE: send generated candidates to frontend
-	sess.pc.OnICECandidate(func(c *webrtc.ICECandidate) {
-		if c == nil {
-			return
-		}
-		b, err := json.Marshal(c.ToJSON())
-		if err != nil {
-			return
-		}
-		send(&pb.AgentEvent{
-			Payload: &pb.AgentEvent_DesktopSignal{
-				DesktopSignal: &pb.DesktopSignalMessage{
-					SessionId: sessionID,
-					Type:      "candidate",
-					Payload:   string(b),
-				},
-			},
-		})
-	})
-
-	if err := startCapture(sess, ctx); err != nil {
-		h.mu.Lock()
-		delete(h.sessions, sessionID)
-		delete(h.cancels, sessionID)
-		h.mu.Unlock()
-		cancel()
-		sess.Close()
-		errMsg := err.Error()
-		if err == ErrWaylandNotSupported {
-			errMsg = "wayland_not_supported"
-		}
-		fmt.Printf("[desktop] Capture failed: %v\n", err)
-		sendSessionReady(send, sessionID, errMsg)
-		return
-	}
 
 	sess.OnPeerConnectionClosed(func() {
 		fmt.Printf("[desktop] peer connection closed, terminating session %s\n", sessionID)
@@ -199,6 +164,32 @@ func (h *Handler) HandleEndSession(cmd *pb.EndDesktopSessionCommand) {
 		h.endedBeforeStart = make(map[string]struct{})
 	}
 	h.mu.Unlock()
+}
+
+// mapDesktopError reduces an error from the capture pipeline to a stable
+// code the webapp can switch on. Anything we don't recognise falls through
+// as the raw error string.
+func mapDesktopError(err error) string {
+	switch {
+	case errors.Is(err, ErrWaylandNotSupported):
+		return "wayland_not_supported"
+	case errors.Is(err, ErrNoActiveUserSession):
+		return "no_user_session"
+	}
+	// Wayland portal errors are constructed with errors.New so their identity
+	// is preserved across wrapping — see portal_screencast_linux.go.
+	for _, sentinel := range []error{
+		errPortalNotInstalled,
+		errConsentDenied,
+		errConsentTimeout,
+		errPortalNoStream,
+		errFFmpegNoPipeWire,
+	} {
+		if errors.Is(err, sentinel) {
+			return sentinel.Error()
+		}
+	}
+	return err.Error()
 }
 
 func sendSessionReady(send func(*pb.AgentEvent), sessionID, errMsg string) {

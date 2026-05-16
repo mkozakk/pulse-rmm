@@ -7,7 +7,6 @@ import (
 	pb "github.com/pulsermm/pulse-rmm/agent/gen/pulse/v1"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 type Client struct {
@@ -17,12 +16,12 @@ type Client struct {
 	metricClient pb.MetricServiceClient
 }
 
-func NewClient(agentAddr, metricAddr string) (*Client, error) {
-	agentConn, err := grpc.NewClient(agentAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+func NewClient(agentAddr, metricAddr string, opts ...grpc.DialOption) (*Client, error) {
+	agentConn, err := grpc.NewClient(agentAddr, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("dialing agent server: %w", err)
 	}
-	metricConn, err := grpc.NewClient(metricAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	metricConn, err := grpc.NewClient(metricAddr, opts...)
 	if err != nil {
 		agentConn.Close()
 		return nil, fmt.Errorf("dialing metric server: %w", err)
