@@ -8,5 +8,9 @@ public record TokenResponse(
     @Schema(description = "Token id (used by agent to enrol)")
     UUID id,
     @Schema(description = "Token expiry timestamp", example = "2026-01-01T00:00:00Z")
-    Instant expiresAt
+    Instant expiresAt,
+    @Schema(description = "Linux one-liner install command")
+    String installSh,
+    @Schema(description = "Windows PowerShell one-liner install command")
+    String installPs1
 ) {}

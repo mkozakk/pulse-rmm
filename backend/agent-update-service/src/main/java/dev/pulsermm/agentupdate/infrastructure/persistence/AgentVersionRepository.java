@@ -13,11 +13,11 @@ public interface AgentVersionRepository extends JpaRepository<AgentVersion, UUID
 
     List<AgentVersion> findAllByOrderByPublishedAtDesc();
 
-    Optional<AgentVersion> findByOsAndArchAndCurrentTrue(String os, String arch);
+    Optional<AgentVersion> findByOsAndArchAndArtifactTypeAndCurrentTrue(String os, String arch, String artifactType);
 
-    boolean existsByVersionAndOsAndArch(String version, String os, String arch);
+    boolean existsByVersionAndOsAndArchAndArtifactType(String version, String os, String arch, String artifactType);
 
     @Modifying
-    @Query("UPDATE AgentVersion v SET v.current = false WHERE v.os = :os AND v.arch = :arch AND v.current = true")
-    void clearCurrentForPlatform(String os, String arch);
+    @Query("UPDATE AgentVersion v SET v.current = false WHERE v.os = :os AND v.arch = :arch AND v.artifactType = :artifactType AND v.current = true")
+    void clearCurrentForPlatform(String os, String arch, String artifactType);
 }

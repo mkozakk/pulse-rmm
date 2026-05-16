@@ -1,0 +1,69 @@
+#Requires -RunAsAdministrator
+$ErrorActionPreference = 'Stop'
+trap {
+    Write-Host ""
+    Write-Host "ERROR: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host $_.ScriptStackTrace -ForegroundColor DarkGray
+    Read-Host "Press Enter to close"
+    exit 1
+}
+
+$apiUrl    = "{{API_URL}}"
+$token     = "{{TOKEN}}"
+$svcName   = "PulseAgent"
+$installDir = "$env:ProgramFiles\PulseAgent"
+$configDir  = "$env:ProgramData\pulse-agent"
+$exePath    = "$installDir\pulse-agent.exe"
+
+# Download binary
+New-Item -ItemType Directory -Force -Path $installDir | Out-Null
+$tmp = "$env:TEMP\pulse-agent.exe"
+Invoke-WebRequest -Uri "$apiUrl/install/pulse-agent-installer.exe" -OutFile $tmp -UseBasicParsing
+
+# Verify checksum
+$expected = (Invoke-WebRequest -Uri "$apiUrl/api/agent-versions/checksum?os=windows&arch=amd64&artifactType=exe" -UseBasicParsing).Content.Trim()
+if ($expected) {
+    $actual = (Get-FileHash $tmp -Algorithm SHA256).Hash.ToLower()
+    if ($actual -ne $expected) {
+        Remove-Item $tmp
+        throw "Checksum mismatch — aborting install"
+    }
+}
+
+# Stop and remove existing service if present
+$existing = Get-Service $svcName -ErrorAction SilentlyContinue
+if ($existing) {
+    Stop-Service $svcName -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Seconds 2
+    sc.exe delete $svcName | Out-Null
+    Start-Sleep -Seconds 1
+}
+
+# Place binary
+Copy-Item $tmp $exePath -Force
+Remove-Item $tmp
+
+# Write config
+New-Item -ItemType Directory -Force -Path $configDir | Out-Null
+@"
+api_url: $apiUrl
+enrolment_token: $token
+data_dir: $configDir\data
+log_level: info
+"@ | Set-Content "$configDir\config.yaml" -Encoding UTF8
+
+$dataDir = "$configDir\data"
+New-Item -ItemType Directory -Force -Path $dataDir | Out-Null
+
+# Register service and start
+New-Service -Name $svcName `
+            -BinaryPathName "`"$exePath`"" `
+            -DisplayName "Pulse RMM Agent" `
+            -Description "Pulse RMM endpoint agent" `
+            -StartupType Automatic | Out-Null
+Start-Service $svcName
+
+Write-Host ""
+Write-Host "pulse-agent installed and started."
+Write-Host "  Status:  Get-Service $svcName"
+Write-Host "  Logs:    Get-EventLog -LogName Application -Source pulse-agent -Newest 20"

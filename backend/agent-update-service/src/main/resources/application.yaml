@@ -1,6 +1,10 @@
 spring:
   application:
     name: agent-update-service
+  servlet:
+    multipart:
+      max-file-size: -1
+      max-request-size: -1
   threads:
     virtual:
       enabled: true
@@ -33,6 +37,8 @@ spring:
 pulse:
   jwt:
     secret: ${JWT_SECRET:change-me-in-production-set-JWT_SECRET-env-var}
+  api:
+    url: ${API_URL:http://localhost:8080}
   minio:
     endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
     access-key: ${MINIO_ACCESS_KEY:minioadmin}

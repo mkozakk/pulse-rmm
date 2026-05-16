@@ -10,6 +10,7 @@ public record AgentVersionResponse(
         String version,
         String os,
         String arch,
+        String artifactType,
         String sha256,
         long sizeBytes,
         boolean current,
@@ -18,6 +19,7 @@ public record AgentVersionResponse(
     public static AgentVersionResponse from(AgentVersion v) {
         return new AgentVersionResponse(
                 v.getId(), v.getVersion(), v.getOs(), v.getArch(),
-                v.getSha256(), v.getSizeBytes(), v.isCurrent(), v.getPublishedAt());
+                v.getArtifactType(), v.getSha256(), v.getSizeBytes(),
+                v.isCurrent(), v.getPublishedAt());
     }
 }
