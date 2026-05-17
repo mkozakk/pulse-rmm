@@ -1,6 +1,6 @@
 //go:build linux
 
-package desktop
+package capture
 
 import (
 	"context"
@@ -17,41 +17,35 @@ import (
 	"github.com/pion/webrtc/v4/pkg/media/h264reader"
 )
 
-// startCapture dispatches to the right capture backend. isWaylandSession()
-// checks env + probes XDG_RUNTIME_DIR/wayland-* on disk, because xdg
-// autostart doesn't reliably export Wayland env vars across DEs. When the
-// probe finds a socket it backfills the env so ffmpeg/portal calls inherit
-// working values.
-//
-// Under Wayland DISPLAY is also set (XWayland), so a plain "$DISPLAY != ''"
-// check would incorrectly pick x11grab and capture the empty XWayland root.
-func startCapture(sess *DesktopSession, ctx context.Context) error {
-	sess.log.Printf("capture env: %s", describeSessionEnv())
-	if isWaylandSession() {
-		sess.log.Println("dispatching capture: pipewire (Wayland)")
-		return startPipeWireCapture(sess, ctx)
+// Start dispatches to the right capture backend for the current Linux session.
+// Under Wayland it uses PipeWire; under X11 it uses x11grab via ffmpeg.
+func Start(ctx context.Context, t Target) error {
+	t.Logger.Printf("capture env: %s", DescribeSessionEnv())
+	if IsWaylandSession() {
+		t.Logger.Println("dispatching capture: pipewire (Wayland)")
+		return startPipeWireCapture(ctx, t)
 	}
 	if os.Getenv("DISPLAY") == "" {
 		return errors.New("no Wayland session detected and DISPLAY not set — helper has no graphical session to capture")
 	}
-	sess.log.Println("dispatching capture: x11grab")
-	return startX11Capture(sess, ctx)
+	t.Logger.Println("dispatching capture: x11grab")
+	return startX11Capture(ctx, t)
 }
 
-func startX11Capture(sess *DesktopSession, ctx context.Context) error {
+func startX11Capture(ctx context.Context, t Target) error {
 	display := os.Getenv("DISPLAY")
-	codec := selectBestH264Codec(sess.log, display)
+	codec := selectBestH264Codec(t.Logger, display)
 	if codec == "" {
 		return fmt.Errorf("no H264 encoder available — install ffmpeg with libx264, h264_vaapi, or h264_nvenc support")
 	}
-	return startH264Capture(sess, ctx, display, codec)
+	return startH264Capture(ctx, t, display, codec)
 }
 
-// --- kmsgrab (Wayland) ---
-
-func startKmsCapture(sess *DesktopSession, ctx context.Context) error {
+// StartKMS is the kmsgrab path used when the system service runs as root with
+// no user session. Platform code calls this directly instead of Start.
+func StartKMS(ctx context.Context, t Target) error {
 	sessionType := os.Getenv("XDG_SESSION_TYPE")
-	sess.log.Printf("starting kmsgrab capture (XDG_SESSION_TYPE=%q)", sessionType)
+	t.Logger.Printf("starting kmsgrab capture (XDG_SESSION_TYPE=%q)", sessionType)
 
 	if sessionType == "wayland" {
 		return fmt.Errorf("wayland session detected — kmsgrab cannot capture under a Wayland compositor (it holds DRM master); PipeWire portal support is not yet implemented")
@@ -61,7 +55,7 @@ func startKmsCapture(sess *DesktopSession, ctx context.Context) error {
 		return fmt.Errorf("ffmpeg not found — required for kmsgrab capture")
 	}
 
-	codec := selectBestKmsCodec(sess.log)
+	codec := selectBestKmsCodec(t.Logger)
 	if codec == "" {
 		return fmt.Errorf("kmsgrab: no suitable codec — ensure agent is in 'video' group and VAAPI is available (/dev/dri/renderD128)")
 	}
@@ -74,11 +68,11 @@ func startKmsCapture(sess *DesktopSession, ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("creating H264 video track: %w", err)
 	}
-	if err := sess.addVideoTrack(track); err != nil {
+	if err := t.AddTrack(track); err != nil {
 		return fmt.Errorf("adding video track: %w", err)
 	}
 
-	sess.log.Printf("kmsgrab: using codec %s", codec)
+	t.Logger.Printf("kmsgrab: using codec %s", codec)
 
 	args := []string{
 		"-fflags", "+nobuffer",
@@ -125,8 +119,8 @@ func startKmsCapture(sess *DesktopSession, ctx context.Context) error {
 	cmd := exec.CommandContext(ctx, "ffmpeg", args...)
 
 	var ffmpegLog io.Writer = os.Stderr
-	if sess.logFile != nil {
-		ffmpegLog = io.MultiWriter(os.Stderr, sess.logFile)
+	if t.LogFile != nil {
+		ffmpegLog = io.MultiWriter(os.Stderr, t.LogFile)
 	}
 	cmd.Stderr = ffmpegLog
 
@@ -144,7 +138,7 @@ func startKmsCapture(sess *DesktopSession, ctx context.Context) error {
 		}
 	}
 
-	sess.log.Println("kmsgrab capture started")
+	t.Logger.Println("kmsgrab capture started")
 
 	go func() {
 		<-ctx.Done()
@@ -157,13 +151,13 @@ func startKmsCapture(sess *DesktopSession, ctx context.Context) error {
 			killFFmpeg()
 			_ = stdout.Close()
 			_ = cmd.Wait()
-			sess.log.Println("kmsgrab capture stopped")
+			t.Logger.Println("kmsgrab capture stopped")
 		}()
 
 		startTime := time.Now()
 		h264r, err := h264reader.NewReader(stdout)
 		if err != nil {
-			sess.log.Printf("h264reader init error: %v", err)
+			t.Logger.Printf("h264reader init error: %v", err)
 			return
 		}
 
@@ -185,7 +179,7 @@ func startKmsCapture(sess *DesktopSession, ctx context.Context) error {
 					return
 				}
 				if frameCount == 0 {
-					sess.log.Printf("kmsgrab: no frames after %v: %v", time.Since(startTime), err)
+					t.Logger.Printf("kmsgrab: no frames after %v: %v", time.Since(startTime), err)
 				}
 				return
 			}
@@ -203,17 +197,17 @@ func startKmsCapture(sess *DesktopSession, ctx context.Context) error {
 			}
 
 			if err := track.WriteSample(media.Sample{Data: au, Duration: frameDur}); err != nil {
-				sess.log.Printf("WriteSample error: %v", err)
+				t.Logger.Printf("WriteSample error: %v", err)
 				return
 			}
 			au = au[:0]
 
 			frameCount++
 			if frameCount == 1 {
-				sess.log.Printf("kmsgrab: first frame after %v", time.Since(startTime))
+				t.Logger.Printf("kmsgrab: first frame after %v", time.Since(startTime))
 			}
 			if frameCount%30 == 0 {
-				sess.log.Printf("kmsgrab: %d frames sent", frameCount)
+				t.Logger.Printf("kmsgrab: %d frames sent", frameCount)
 			}
 		}
 	}()
@@ -275,8 +269,6 @@ func tryKmsCodec(codec string) bool {
 	cmd.Stdout = io.Discard
 	return cmd.Run() == nil
 }
-
-// --- x11grab + H264 ---
 
 func selectBestH264Codec(logger *log.Logger, display string) string {
 	if _, err := exec.LookPath("ffmpeg"); err != nil {
@@ -354,7 +346,7 @@ func tryH264Codec(codec, display string) bool {
 	return cmd.Run() == nil
 }
 
-func startH264Capture(sess *DesktopSession, ctx context.Context, display, codec string) error {
+func startH264Capture(ctx context.Context, t Target, display, codec string) error {
 	track, err := webrtc.NewTrackLocalStaticSample(webrtc.RTPCodecCapability{
 		MimeType:    webrtc.MimeTypeH264,
 		ClockRate:   90000,
@@ -364,11 +356,11 @@ func startH264Capture(sess *DesktopSession, ctx context.Context, display, codec 
 		return fmt.Errorf("creating H264 video track: %w", err)
 	}
 
-	if err := sess.addVideoTrack(track); err != nil {
+	if err := t.AddTrack(track); err != nil {
 		return fmt.Errorf("adding video track: %w", err)
 	}
 
-	sess.log.Printf("Using H264 codec: %s", codec)
+	t.Logger.Printf("Using H264 codec: %s", codec)
 
 	args := []string{
 		"-fflags", "+nobuffer",
@@ -427,8 +419,8 @@ func startH264Capture(sess *DesktopSession, ctx context.Context, display, codec 
 	cmd := exec.CommandContext(ctx, "ffmpeg", args...)
 
 	var ffmpegLog io.Writer = os.Stderr
-	if sess.logFile != nil {
-		ffmpegLog = io.MultiWriter(os.Stderr, sess.logFile)
+	if t.LogFile != nil {
+		ffmpegLog = io.MultiWriter(os.Stderr, t.LogFile)
 	}
 	cmd.Stderr = ffmpegLog
 
@@ -447,7 +439,7 @@ func startH264Capture(sess *DesktopSession, ctx context.Context, display, codec 
 		}
 	}
 
-	sess.log.Println("H264 capture started (FFmpeg + x11grab)")
+	t.Logger.Println("H264 capture started (FFmpeg + x11grab)")
 
 	go func() {
 		<-ctx.Done()
@@ -460,15 +452,15 @@ func startH264Capture(sess *DesktopSession, ctx context.Context, display, codec 
 			killFFmpeg()
 			_ = stdout.Close()
 			_ = cmd.Wait()
-			sess.log.Println("capture stopped")
+			t.Logger.Println("capture stopped")
 		}()
 
-		sess.log.Println("Waiting for H264 stream...")
+		t.Logger.Println("Waiting for H264 stream...")
 		startTime := time.Now()
 
 		h264r, err := h264reader.NewReader(stdout)
 		if err != nil {
-			sess.log.Printf("h264reader init error: %v", err)
+			t.Logger.Printf("h264reader init error: %v", err)
 			return
 		}
 
@@ -491,7 +483,7 @@ func startH264Capture(sess *DesktopSession, ctx context.Context, display, codec 
 					return
 				}
 				if frameCount == 0 {
-					sess.log.Printf("No frames produced after %v: %v", time.Since(startTime), err)
+					t.Logger.Printf("No frames produced after %v: %v", time.Since(startTime), err)
 				}
 				return
 			}
@@ -512,21 +504,20 @@ func startH264Capture(sess *DesktopSession, ctx context.Context, display, codec 
 				Data:     au,
 				Duration: frameDur,
 			}); err != nil {
-				sess.log.Printf("WriteSample error: %v", err)
+				t.Logger.Printf("WriteSample error: %v", err)
 				return
 			}
 			au = au[:0]
 
 			frameCount++
 			if frameCount == 1 {
-				sess.log.Printf("First frame after %v", time.Since(startTime))
+				t.Logger.Printf("First frame after %v", time.Since(startTime))
 			}
 			if frameCount%30 == 0 {
-				sess.log.Printf("%d H264 frames sent", frameCount)
+				t.Logger.Printf("%d H264 frames sent", frameCount)
 			}
 		}
 	}()
 
 	return nil
 }
-

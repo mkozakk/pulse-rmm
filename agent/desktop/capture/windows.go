@@ -1,6 +1,6 @@
 //go:build windows
 
-package desktop
+package capture
 
 import (
 	"context"
@@ -32,8 +32,8 @@ func checkPlatform() error {
 	return nil
 }
 
-func startCapture(sess *DesktopSession, ctx context.Context) error {
-	// Create H264 video track
+// Start captures the Windows desktop via gdigrab and streams H264 over WebRTC.
+func Start(ctx context.Context, t Target) error {
 	track, err := webrtc.NewTrackLocalStaticSample(webrtc.RTPCodecCapability{
 		MimeType:    webrtc.MimeTypeH264,
 		ClockRate:   90000,
@@ -43,14 +43,13 @@ func startCapture(sess *DesktopSession, ctx context.Context) error {
 		return fmt.Errorf("creating H264 video track: %w", err)
 	}
 
-	if err := sess.addVideoTrack(track); err != nil {
+	if err := t.AddTrack(track); err != nil {
 		return fmt.Errorf("adding video track: %w", err)
 	}
 
-	codec := selectBestH264Codec(sess.log)
-	sess.log.Printf("Using H264 codec: %s", codec)
+	codec := selectBestH264Codec(t.Logger)
+	t.Logger.Printf("Using H264 codec: %s", codec)
 
-	// Build FFmpeg command for H264
 	ffmpegArgs := []string{
 		"-fflags", "+nobuffer",
 		"-flags", "+low_delay",
@@ -61,7 +60,7 @@ func startCapture(sess *DesktopSession, ctx context.Context) error {
 		"-maxrate", "10000k",
 		"-bufsize", "10000k",
 		"-r", "30",
-		"-g", "30",                // Force keyframe every 30 frames (CRITICAL for Chrome)
+		"-g", "30",     // Force keyframe every 30 frames (CRITICAL for Chrome)
 		"-pix_fmt", "yuv420p",
 	}
 
@@ -102,11 +101,11 @@ func startCapture(sess *DesktopSession, ctx context.Context) error {
 	)
 
 	cmd := exec.CommandContext(ctx, "ffmpeg", ffmpegArgs...)
-	sess.log.Printf("ffmpeg cmdline: ffmpeg %v", ffmpegArgs)
+	t.Logger.Printf("ffmpeg cmdline: ffmpeg %v", ffmpegArgs)
 
 	var ffmpegLog io.Writer = os.Stderr
-	if sess.logFile != nil {
-		ffmpegLog = io.MultiWriter(os.Stderr, sess.logFile)
+	if t.LogFile != nil {
+		ffmpegLog = io.MultiWriter(os.Stderr, t.LogFile)
 	}
 	cmd.Stderr = ffmpegLog
 
@@ -125,17 +124,17 @@ func startCapture(sess *DesktopSession, ctx context.Context) error {
 		}
 	}
 
-	sess.log.Printf("H264 capture started (FFmpeg + gdigrab), pid=%d", cmd.Process.Pid)
+	t.Logger.Printf("H264 capture started (FFmpeg + gdigrab), pid=%d", cmd.Process.Pid)
 
 	go func() {
 		<-ctx.Done()
-		sess.log.Printf("ctx cancelled, killing ffmpeg pid=%d", cmd.Process.Pid)
+		t.Logger.Printf("ctx cancelled, killing ffmpeg pid=%d", cmd.Process.Pid)
 		killFFmpeg()
 		_ = stdout.Close()
 	}()
 
-	// Watchdog: log frame production status every 5s. If after 10s no frame, dump a clear diagnostic.
-	frameCounter := &frameCounter{}
+	// Watchdog: log frame production status every 5s.
+	fc := &frameCounter{}
 	go func() {
 		ticker := time.NewTicker(5 * time.Second)
 		defer ticker.Stop()
@@ -145,10 +144,10 @@ func startCapture(sess *DesktopSession, ctx context.Context) error {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				n := frameCounter.get()
-				sess.log.Printf("watchdog: frames produced so far = %d", n)
+				n := fc.get()
+				t.Logger.Printf("watchdog: frames produced so far = %d", n)
 				if n == 0 && !warned {
-					sess.log.Printf("WARNING: no video frames produced after 5s. Common cause on Windows: agent runs as SYSTEM service in Session 0 and gdigrab cannot see the user's desktop. Check ffmpeg stderr lines above for capture errors.")
+					t.Logger.Printf("WARNING: no video frames produced after 5s. Common cause on Windows: agent runs as SYSTEM service in Session 0 and gdigrab cannot see the user's desktop. Check ffmpeg stderr lines above for capture errors.")
 					warned = true
 				}
 			}
@@ -160,15 +159,15 @@ func startCapture(sess *DesktopSession, ctx context.Context) error {
 			killFFmpeg()
 			_ = stdout.Close()
 			waitErr := cmd.Wait()
-			sess.log.Printf("capture stopped (ffmpeg exit: %v)", waitErr)
+			t.Logger.Printf("capture stopped (ffmpeg exit: %v)", waitErr)
 		}()
 
-		sess.log.Println("Waiting for H264 stream...")
+		t.Logger.Println("Waiting for H264 stream...")
 		startTime := time.Now()
 
 		h264r, err := h264reader.NewReader(stdout)
 		if err != nil {
-			sess.log.Printf("h264reader init error: %v", err)
+			t.Logger.Printf("h264reader init error: %v", err)
 			return
 		}
 
@@ -191,7 +190,7 @@ func startCapture(sess *DesktopSession, ctx context.Context) error {
 					return
 				}
 				if frameCount == 0 {
-					sess.log.Printf("No frames produced after %v: %v", time.Since(startTime), err)
+					t.Logger.Printf("No frames produced after %v: %v", time.Since(startTime), err)
 				}
 				return
 			}
@@ -213,18 +212,18 @@ func startCapture(sess *DesktopSession, ctx context.Context) error {
 				Data:     au,
 				Duration: frameDur,
 			}); err != nil {
-				sess.log.Printf("WriteSample error: %v", err)
+				t.Logger.Printf("WriteSample error: %v", err)
 				return
 			}
 			au = au[:0]
 
 			frameCount++
-			frameCounter.set(frameCount)
+			fc.set(frameCount)
 			if frameCount == 1 {
-				sess.log.Printf("First frame after %v (size=%d bytes)", time.Since(startTime), len(au))
+				t.Logger.Printf("First frame after %v (size=%d bytes)", time.Since(startTime), len(au))
 			}
 			if frameCount%30 == 0 {
-				sess.log.Printf("%d H264 frames sent", frameCount)
+				t.Logger.Printf("%d H264 frames sent", frameCount)
 			}
 		}
 	}()
@@ -244,7 +243,6 @@ func selectBestH264Codec(logger *log.Logger) string {
 	return "libx264"
 }
 
-// tryH264Codec tests if a specific H264 encoder is available
 func tryH264Codec(codec string) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -275,7 +273,6 @@ func tryH264Codec(codec string) bool {
 	)
 
 	cmd := exec.CommandContext(ctx, "ffmpeg", args...)
-
 	cmd.Stderr = io.Discard
 	cmd.Stdout = io.Discard
 	return cmd.Run() == nil
@@ -287,14 +284,14 @@ var (
 )
 
 var (
-	procCreateCompatibleDC   = gdi32.NewProc("CreateCompatibleDC")
+	procCreateCompatibleDC     = gdi32.NewProc("CreateCompatibleDC")
 	procCreateCompatibleBitmap = gdi32.NewProc("CreateCompatibleBitmap")
-	procDeleteObject         = gdi32.NewProc("DeleteObject")
-	procDeleteDC             = gdi32.NewProc("DeleteDC")
+	procDeleteObject           = gdi32.NewProc("DeleteObject")
+	procDeleteDC               = gdi32.NewProc("DeleteDC")
 )
 
 const (
-	SRCCOPY       = 0x00CC0020
+	SRCCOPY        = 0x00CC0020
 	DIB_RGB_COLORS = 0
-	BI_RGB        = 0
+	BI_RGB         = 0
 )

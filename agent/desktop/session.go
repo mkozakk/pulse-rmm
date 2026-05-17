@@ -16,28 +16,19 @@ import (
 	"time"
 
 	"github.com/pion/webrtc/v4"
+	"github.com/pulsermm/pulse-rmm/agent/desktop/input"
+	"github.com/pulsermm/pulse-rmm/agent/desktop/transfer"
 )
 
 var ErrWaylandNotSupported = errors.New("wayland is not supported")
 
 var ErrNoActiveUserSession = errors.New("no active user session: remote desktop requires a logged-in user")
 
-// Wayland portal error sentinels. Defined here (not in portal_screencast_linux.go)
-// so handler.go can reference them on every build target. The strings are the
-// stable codes the webapp switches on; do not rename without updating the UI.
-var (
-	errPortalNotInstalled = errors.New("wayland_portal_missing")
-	errConsentDenied      = errors.New("wayland_consent_denied")
-	errConsentTimeout     = errors.New("wayland_consent_timeout")
-	errPortalNoStream     = errors.New("wayland_no_stream")
-	errFFmpegNoPipeWire   = errors.New("wayland_ffmpeg_no_pipewire")
-)
-
 type DesktopSession struct {
 	sessionID   string
 	pc          *webrtc.PeerConnection
 	videoTrack  webrtc.TrackLocal
-	injector    InputInjector
+	injector    input.InputInjector
 	rateLimiter *rateLimiter
 	log         *log.Logger
 	logFile     *os.File
@@ -156,10 +147,10 @@ func NewSession(sessionID string, turnURLs []string, turnSecret string) (*Deskto
 		return nil, fmt.Errorf("creating peer connection: %w", err)
 	}
 
-	injector, err := newInputInjector()
+	injector, err := input.New()
 	if err != nil {
 		logger.Printf("input injector unavailable: %v", err)
-		injector = &noopInjector{}
+		injector = input.Noop()
 	}
 
 	sess := &DesktopSession{
@@ -193,7 +184,7 @@ func (s *DesktopSession) registerDataChannelHandler() {
 			if err != nil {
 				homeDir = os.TempDir()
 			}
-			ft := newFileTransferHandler(
+			ft := transfer.New(
 				func(text string) error { return dc.SendText(text) },
 				func(data []byte) error { return dc.Send(data) },
 				"/tmp/pulse-uploads",

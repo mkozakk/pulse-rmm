@@ -1,6 +1,6 @@
 //go:build windows
 
-package desktop
+package input
 
 import (
 	"fmt"
@@ -9,8 +9,8 @@ import (
 )
 
 var (
-	user32    = syscall.NewLazyDLL("user32.dll")
-	sendInput = user32.NewProc("SendInput")
+	user32           = syscall.NewLazyDLL("user32.dll")
+	sendInput        = user32.NewProc("SendInput")
 	getSystemMetrics = user32.NewProc("GetSystemMetrics")
 )
 
@@ -62,7 +62,8 @@ type input struct {
 
 type windowsInjector struct{}
 
-func newInputInjector() (InputInjector, error) {
+// New returns a Windows SendInput-based injector.
+func New() (InputInjector, error) {
 	return &windowsInjector{}, nil
 }
 

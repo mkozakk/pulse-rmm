@@ -1,6 +1,6 @@
 //go:build linux
 
-package desktop
+package capture
 
 import (
 	"os"
@@ -13,7 +13,7 @@ import (
 func TestIsWaylandSessionFromEnv(t *testing.T) {
 	t.Setenv("XDG_SESSION_TYPE", "wayland")
 	t.Setenv("WAYLAND_DISPLAY", "wayland-0")
-	require.True(t, isWaylandSession())
+	require.True(t, IsWaylandSession())
 }
 
 func TestIsWaylandSessionFromSocketProbe(t *testing.T) {
@@ -24,7 +24,7 @@ func TestIsWaylandSessionFromSocketProbe(t *testing.T) {
 	t.Setenv("XDG_SESSION_TYPE", "")
 	t.Setenv("WAYLAND_DISPLAY", "")
 
-	require.True(t, isWaylandSession())
+	require.True(t, IsWaylandSession())
 	require.Equal(t, "wayland-1", os.Getenv("WAYLAND_DISPLAY"))
 	require.Equal(t, "wayland", os.Getenv("XDG_SESSION_TYPE"))
 }
@@ -33,5 +33,5 @@ func TestIsWaylandSessionFalseWhenNothingPresent(t *testing.T) {
 	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
 	t.Setenv("XDG_SESSION_TYPE", "")
 	t.Setenv("WAYLAND_DISPLAY", "")
-	require.False(t, isWaylandSession())
+	require.False(t, IsWaylandSession())
 }

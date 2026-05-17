@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	pb "github.com/pulsermm/pulse-rmm/agent/gen/pulse/v1"
+	"github.com/pulsermm/pulse-rmm/agent/desktop/capture"
 )
 
 type Handler struct {
@@ -179,11 +180,11 @@ func mapDesktopError(err error) string {
 	// Wayland portal errors are constructed with errors.New so their identity
 	// is preserved across wrapping — see portal_screencast_linux.go.
 	for _, sentinel := range []error{
-		errPortalNotInstalled,
-		errConsentDenied,
-		errConsentTimeout,
-		errPortalNoStream,
-		errFFmpegNoPipeWire,
+		capture.ErrPortalNotInstalled,
+		capture.ErrConsentDenied,
+		capture.ErrConsentTimeout,
+		capture.ErrPortalNoStream,
+		capture.ErrFFmpegNoPipeWire,
 	} {
 		if errors.Is(err, sentinel) {
 			return sentinel.Error()

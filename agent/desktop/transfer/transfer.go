@@ -1,4 +1,4 @@
-package desktop
+package transfer
 
 import (
 	"encoding/json"
@@ -12,7 +12,7 @@ import (
 
 const uploadChunkSize = 64 * 1024
 
-type FileTransferHandler struct {
+type Handler struct {
 	send       func(string) error
 	sendBinary func([]byte) error
 	uploadDir  string
@@ -21,13 +21,13 @@ type FileTransferHandler struct {
 	uploadFile *os.File
 }
 
-func newFileTransferHandler(
+func New(
 	send func(string) error,
 	sendBinary func([]byte) error,
 	uploadDir string,
 	homeDir string,
-) *FileTransferHandler {
-	return &FileTransferHandler{
+) *Handler {
+	return &Handler{
 		send:       send,
 		sendBinary: sendBinary,
 		uploadDir:  uploadDir,
@@ -35,11 +35,11 @@ func newFileTransferHandler(
 	}
 }
 
-func (h *FileTransferHandler) HandleDataChannel(dc *webrtc.DataChannel) {
+func (h *Handler) HandleDataChannel(dc *webrtc.DataChannel) {
 	dc.OnMessage(h.handleMessage)
 }
 
-func (h *FileTransferHandler) handleMessage(msg webrtc.DataChannelMessage) {
+func (h *Handler) handleMessage(msg webrtc.DataChannelMessage) {
 	if msg.IsString {
 		h.handleControl(msg.Data)
 	} else {
@@ -54,7 +54,7 @@ type ftMsg struct {
 	Path string `json:"path,omitempty"`
 }
 
-func (h *FileTransferHandler) handleControl(data []byte) {
+func (h *Handler) handleControl(data []byte) {
 	var m ftMsg
 	if err := json.Unmarshal(data, &m); err != nil {
 		h.sendErr("invalid message")
@@ -70,7 +70,7 @@ func (h *FileTransferHandler) handleControl(data []byte) {
 	}
 }
 
-func (h *FileTransferHandler) handleUploadStart(m ftMsg) {
+func (h *Handler) handleUploadStart(m ftMsg) {
 	if err := os.MkdirAll(h.uploadDir, 0755); err != nil {
 		h.sendErr("cannot create upload directory")
 		return
@@ -84,14 +84,14 @@ func (h *FileTransferHandler) handleUploadStart(m ftMsg) {
 	h.uploadFile = f
 }
 
-func (h *FileTransferHandler) handleBinary(data []byte) {
+func (h *Handler) handleBinary(data []byte) {
 	if h.uploadFile == nil {
 		return
 	}
 	h.uploadFile.Write(data) //nolint:errcheck
 }
 
-func (h *FileTransferHandler) handleUploadDone() {
+func (h *Handler) handleUploadDone() {
 	if h.uploadFile == nil {
 		return
 	}
@@ -103,7 +103,7 @@ func (h *FileTransferHandler) handleUploadDone() {
 	h.send(string(resp)) //nolint:errcheck
 }
 
-func (h *FileTransferHandler) handleDownloadRequest(m ftMsg) {
+func (h *Handler) handleDownloadRequest(m ftMsg) {
 	if filepath.IsAbs(m.Path) {
 		h.sendErr("absolute paths not allowed")
 		return
@@ -155,7 +155,7 @@ func (h *FileTransferHandler) handleDownloadRequest(m ftMsg) {
 	h.send(string(done)) //nolint:errcheck
 }
 
-func (h *FileTransferHandler) sendErr(msg string) {
+func (h *Handler) sendErr(msg string) {
 	resp, _ := json.Marshal(map[string]string{"type": "error", "message": msg})
 	h.send(string(resp)) //nolint:errcheck
 }

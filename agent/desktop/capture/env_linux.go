@@ -1,6 +1,6 @@
 //go:build linux
 
-package desktop
+package capture
 
 import (
 	"fmt"
@@ -32,12 +32,12 @@ func runtimeDir() string {
 	return fmt.Sprintf("/run/user/%d", os.Getuid())
 }
 
-// isWaylandSession returns true if we're inside a Wayland session. Env first,
+// IsWaylandSession returns true if we're inside a Wayland session. Env first,
 // then a socket probe. When the probe finds a socket but env is unset, it
 // backfills WAYLAND_DISPLAY, XDG_SESSION_TYPE, and DBUS_SESSION_BUS_ADDRESS
 // so child processes (ffmpeg pipewiregrab, the portal client) inherit
 // working values.
-func isWaylandSession() bool {
+func IsWaylandSession() bool {
 	if os.Getenv("XDG_SESSION_TYPE") == "wayland" || os.Getenv("WAYLAND_DISPLAY") != "" {
 		ensureSessionBus()
 		return true
@@ -66,9 +66,9 @@ func ensureSessionBus() {
 	}
 }
 
-// describeSessionEnv returns a single-line summary of the env signals that
+// DescribeSessionEnv returns a single-line summary of the env signals that
 // drive capture/input dispatch. Logged at helper startup and session start.
-func describeSessionEnv() string {
+func DescribeSessionEnv() string {
 	return fmt.Sprintf(
 		"XDG_SESSION_TYPE=%q WAYLAND_DISPLAY=%q DISPLAY=%q DBUS_SESSION_BUS_ADDRESS=%q XDG_RUNTIME_DIR=%q wayland_socket=%q",
 		os.Getenv("XDG_SESSION_TYPE"),
