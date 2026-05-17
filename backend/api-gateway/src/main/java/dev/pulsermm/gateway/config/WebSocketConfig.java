@@ -31,10 +31,10 @@ public class WebSocketConfig implements WebSocketConfigurer {
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
         registry.addHandler(shellHandler, "/ws/shell/{endpointId}")
             .addInterceptors(shellInterceptor)
-            .setAllowedOrigins("http://localhost:5173");
+            .setAllowedOriginPatterns("*");
 
         registry.addHandler(desktopHandler, "/ws/sessions/*/signal")
             .addInterceptors(desktopInterceptor)
-            .setAllowedOrigins("http://localhost:5173");
+            .setAllowedOriginPatterns("*");
     }
 }

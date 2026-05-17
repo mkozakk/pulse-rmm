@@ -9,9 +9,9 @@ pytestmark = pytest.mark.fast
 DUMMY_BINARY = b"ELF fake agent binary content for testing"
 
 
-def _publish(session, version="1.0.0", os_name="linux", arch="amd64"):
+def _publish(session, version="1.0.0", os_name="linux", arch="amd64", artifact_type="tar.gz"):
     files = {"file": ("pulse-agent", io.BytesIO(DUMMY_BINARY), "application/octet-stream")}
-    data = {"version": version, "os": os_name, "arch": arch}
+    data = {"version": version, "os": os_name, "arch": arch, "artifactType": artifact_type}
     r = session.post(f"{BASE_URL}/api/agent-versions", files=files, data=data)
     return r
 
@@ -106,10 +106,17 @@ def test_delete_current_version_blocked(admin_session):
     r = admin_session.delete(f"{BASE_URL}/api/agent-versions/{v_id}")
     assert r.status_code == 409
 
+    # cleanup: mark a "dev" version current so the agent won't auto-update,
+    # then delete 6.0.0 which is now non-current
+    r_dev = _publish(admin_session, version="dev")
+    dev_id = r_dev.json()["id"]
+    admin_session.put(f"{BASE_URL}/api/agent-versions/{dev_id}/current")
+    admin_session.delete(f"{BASE_URL}/api/agent-versions/{v_id}")
 
-def test_unauthenticated_returns_401(admin_session):
+
+def test_unauthenticated_returns_403(admin_session):
     r = requests.get(f"{BASE_URL}/api/agent-versions")
-    assert r.status_code == 401
+    assert r.status_code == 403
 
     # /api/updates/check is public — agents call it without a user JWT
     r = requests.get(f"{BASE_URL}/api/updates/check",

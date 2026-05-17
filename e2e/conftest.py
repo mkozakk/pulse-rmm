@@ -1,5 +1,6 @@
 import os
 import subprocess
+import tempfile
 import time
 
 import pytest
@@ -23,15 +24,23 @@ def _wait_for_gateway(timeout=90):
 
 def _wait_for_enrolment(container_id, timeout=20):
     deadline = time.time() + timeout
-    logs = ""
+    log_content = ""
     while time.time() < deadline:
-        result = subprocess.run(["podman", "logs", container_id], capture_output=True, text=True)
-        logs = result.stdout
-        for line in logs.splitlines():
+        result = subprocess.run(
+            ["podman", "exec", container_id, "cat", "/var/lib/pulse-agent/logs/agent.log"],
+            capture_output=True, text=True,
+        )
+        log_content = result.stdout
+        for line in log_content.splitlines():
             if line.startswith("Enrolled: ") or line.startswith("Already enrolled: "):
                 return line.split(": ", 1)[1].strip()
         time.sleep(1)
-    raise RuntimeError(f"Agent did not enrol within {timeout}s.\ncontainer stdout:\n{logs}")
+    container_logs = subprocess.run(["podman", "logs", container_id], capture_output=True, text=True)
+    raise RuntimeError(
+        f"Agent did not enrol within {timeout}s.\n"
+        f"agent.log:\n{log_content}\n"
+        f"container stderr:\n{container_logs.stderr}"
+    )
 
 
 def poll_until(fn, timeout=10, interval=0.5):
@@ -154,16 +163,24 @@ def enrolled_agent(admin_session):
     enrolment_token = token_r.json()["id"]
     print(f"[setup] created enrolment token: {enrolment_token}")
 
+    cfg_content = (
+        f"api_url: http://localhost:8080\n"
+        f"grpc_addr: 127.0.0.1:9090\n"
+        f"enrolment_token: {enrolment_token}\n"
+        f"data_dir: /var/lib/pulse-agent\n"
+    )
+    cfg_file = tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False)
+    cfg_file.write(cfg_content)
+    cfg_file.close()
+    os.chmod(cfg_file.name, 0o644)
+
     print(f"[setup] starting agent container ({AGENT_IMAGE})...")
     result = subprocess.run(
         [
             "podman", "run", "-d",
             "--log-driver=k8s-file",
-            "--network", E2E_NETWORK,
-            "-e", f"PULSE_TOKEN={enrolment_token}",
-            "-e", "PULSE_SERVER=enrolment-service:9091",
-            "-e", "PULSE_METRIC_SERVER=metric-service:9092",
-            "-e", "PULSE_GATEWAY=api-gateway:9090",
+            "--network=host",
+            "-v", f"{cfg_file.name}:/etc/pulse-agent/config.yaml:ro,z",
             AGENT_IMAGE,
         ],
         capture_output=True, text=True, check=True,
