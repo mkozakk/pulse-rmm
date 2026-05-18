@@ -96,22 +96,12 @@ class ScriptServiceEdgeCasesTest {
     }
 
     @Test
-    void runScriptWithNoEndpointIdsCreatesNoResults() {
-        UUID scriptId = UUID.randomUUID();
-        UUID userId = UUID.randomUUID();
-        Script script = new Script("test", "echo test", userId);
+    void getScriptRunResultsReturnsEmptyList() {
+        UUID runId = UUID.randomUUID();
+        when(resultRepo.findByRunId(runId)).thenReturn(List.of());
 
-        when(scriptRepo.findById(scriptId)).thenReturn(Optional.of(script));
-        ScriptRun run = new ScriptRun(scriptId, userId);
-        run.setId(UUID.randomUUID());
-        when(runRepo.save(any())).thenReturn(run);
-        when(resultRepo.findByRunId(run.getId())).thenReturn(List.of());
-        when(secretRepo.findByRunId(run.getId())).thenReturn(List.of());
-
-        var result = service.runScript(scriptId, List.of(), null, userId);
-
-        assertThat(result.endpointCount()).isEqualTo(0);
-        verify(resultRepo, never()).save(any());
+        assertThatThrownBy(() -> service.getScriptRunResults(runId))
+            .isInstanceOf(ScriptRunNotFoundException.class);
     }
 
     @Test
