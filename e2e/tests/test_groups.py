@@ -1,19 +1,8 @@
-import pytest
 import requests
 
 from config import BASE_URL
 
-pytestmark = pytest.mark.fast
-
-
-def test_create_group_requires_auth():
-    r = requests.post(f"{BASE_URL}/api/groups", json={"name": "NoAuth", "parentId": None})
-    assert r.status_code in (401, 403)
-
-
-def test_list_groups_requires_auth():
-    r = requests.get(f"{BASE_URL}/api/groups")
-    assert r.status_code in (401, 403)
+# Auth enforcement tests consolidated in test_auth_enforcement.py
 
 
 def test_create_and_list_groups(admin_session):

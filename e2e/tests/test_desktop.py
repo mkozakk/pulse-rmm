@@ -49,26 +49,8 @@ def test_turn_server_reachable():
 
 
 # ---------------------------------------------------------------------------
-# Session REST API — auth enforcement
+# Auth enforcement tests consolidated in test_auth_enforcement.py
 # ---------------------------------------------------------------------------
-
-def test_create_session_requires_auth(enrolled_agent):
-    r = requests.post(
-        f"{BASE_URL}/api/sessions",
-        json={"endpoint_id": enrolled_agent, "type": "desktop"},
-    )
-    assert r.status_code in (401, 403)
-
-
-def test_get_session_requires_auth():
-    r = requests.get(f"{BASE_URL}/api/sessions/00000000-0000-0000-0000-000000000000")
-    assert r.status_code in (401, 403)
-
-
-def test_end_session_requires_auth():
-    r = requests.delete(f"{BASE_URL}/api/sessions/00000000-0000-0000-0000-000000000000")
-    assert r.status_code in (401, 403)
-
 
 # ---------------------------------------------------------------------------
 # Session REST API — happy path (admin has remote:desktop:control)
@@ -135,24 +117,8 @@ def test_end_session_twice_is_idempotent(admin_session, enrolled_agent):
 
 
 # ---------------------------------------------------------------------------
-# WebSocket signaling — auth enforcement
+# WebSocket signaling — auth enforcement and session validation
 # ---------------------------------------------------------------------------
-
-def test_signaling_ws_requires_auth(enrolled_agent):
-    """Connecting to the signaling WebSocket without a token should be rejected."""
-    ws = websocket.WebSocket()
-    ws.settimeout(5)
-    try:
-        ws.connect(f"ws://localhost:8080/ws/sessions/fake-session-id/signal")
-        pytest.fail("connection should have been rejected without a token")
-    except Exception:
-        pass
-    finally:
-        try:
-            ws.close()
-        except Exception:
-            pass
-
 
 def test_signaling_ws_invalid_session_rejected(admin_session):
     """Connecting with a valid token but a non-existent session_id should be rejected."""
