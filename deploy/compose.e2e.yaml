@@ -5,10 +5,6 @@
 # Teardown: podman compose -f deploy/compose.yaml -f deploy/compose.e2e.yaml down -v
 
 services:
-  webapp:
-    profiles:
-      - skip
-
   postgres:
     volumes:
       - postgres_e2e_data:/var/lib/postgresql/data

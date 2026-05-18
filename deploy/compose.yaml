@@ -273,17 +273,6 @@ services:
       api-gateway:
         condition: service_healthy
 
-  webapp:
-    profiles: ["webapp"]
-    build:
-      context: ..
-      dockerfile: webapp/Dockerfile
-    ports:
-      - "5173:5173"
-    depends_on:
-      api-gateway:
-        condition: service_started
-
   postgres:
     image: docker.io/timescale/timescaledb:2.14.1-pg16
     command: postgres -c max_connections=200
