@@ -267,6 +267,5 @@ def auth_test_endpoints():
         ("POST", "/api/enrolment/tokens"),
         ("GET", "/api/groups"),
         ("POST", "/api/groups"),
-        ("POST", "/api/shell/sessions"),
         ("PUT", "/api/endpoints/fake-id/tags"),
     ]
