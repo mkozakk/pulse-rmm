@@ -1,0 +1,67 @@
+syntax = "proto3";
+
+package pulse.v1;
+
+option java_multiple_files = true;
+option java_outer_classname = "FileProto";
+option java_package = "dev.pulsermm.proto.v1";
+option go_package = "github.com/pulsermm/pulse-rmm/agent/gen/pulse/v1;pulsev1";
+
+// Sent on the bidi stream from gateway -> agent.
+message ListDirCommand {
+  string request_id = 1;
+  string path       = 2; // empty -> list filesystem roots (drives on Windows)
+}
+
+message FileDownloadCommand {
+  string transfer_id = 1;
+  string path        = 2; // file on agent to read and stream to backend
+}
+
+message FileUploadCommand {
+  string transfer_id = 1;
+  string dest_path   = 2; // file on agent to write
+}
+
+// Sent on the bidi stream from agent -> gateway.
+message DirEntry {
+  string name      = 1;
+  string path      = 2; // absolute path
+  bool   is_dir    = 3;
+  int64  size      = 4;
+  int64  modified  = 5; // unix millis
+}
+
+message ListDirResult {
+  string request_id = 1;
+  string path       = 2;
+  repeated DirEntry entries = 3;
+  string error      = 4;
+}
+
+message FileTransferDone {
+  string transfer_id = 1;
+  int64  bytes       = 2;
+  string error       = 3;
+}
+
+// FileService carries the byte streams. Agent is the gRPC client.
+service FileService {
+  // Agent streams bytes up to backend (used when webapp downloads from agent).
+  rpc Upload(stream FileChunk) returns (FileTransferAck);
+  // Agent receives bytes from backend (used when webapp uploads to agent).
+  rpc Download(FileDownloadRequest) returns (stream FileChunk);
+}
+
+message FileChunk {
+  string transfer_id = 1; // set on first message
+  bytes  data        = 2;
+}
+
+message FileTransferAck {
+  int64 bytes = 1;
+}
+
+message FileDownloadRequest {
+  string transfer_id = 1;
+}
