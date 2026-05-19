@@ -56,7 +56,7 @@ public class InstallScriptController {
             return ResponseEntity.notFound().build();
         }
 
-        var token = tokenRepository.findByIdAndRevokedFalseAndExpiresAtAfter(id, Instant.now());
+        var token = tokenRepository.findLive(id, Instant.now());
         if (token.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
