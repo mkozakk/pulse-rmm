@@ -2,7 +2,11 @@ package enrolment
 
 import (
 	"context"
-	"crypto/ed25519"
+	"crypto"
+	"crypto/rand"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
 	"fmt"
 	"os"
 	"runtime"
@@ -10,22 +14,36 @@ import (
 	pb "github.com/pulsermm/pulse-rmm/agent/gen/pulse/v1"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/credentials"
 )
 
-func Enrol(ctx context.Context, token string, grpcAddr string, apiURL string, privKey ed25519.PrivateKey) (string, error) {
-	conn, err := grpc.NewClient(grpcAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+type Result struct {
+	EndpointID string
+	CertPEM    []byte
+	CABundle   []byte
+}
+
+func Enrol(ctx context.Context, token string, grpcAddr string, apiURL string, privKey crypto.Signer, creds credentials.TransportCredentials) (Result, error) {
+	conn, err := grpc.NewClient(grpcAddr, grpc.WithTransportCredentials(creds))
 	if err != nil {
-		return "", fmt.Errorf("dialing grpc: %w", err)
+		return Result{}, fmt.Errorf("dialing grpc: %w", err)
 	}
 	defer conn.Close()
 
-	pubKey := privKey.Public().(ed25519.PublicKey)
+	pubKey, err := x509.MarshalPKIXPublicKey(privKey.Public())
+	if err != nil {
+		return Result{}, fmt.Errorf("marshalling public key: %w", err)
+	}
 	client := pb.NewAgentServiceClient(conn)
 
 	hostname, err := os.Hostname()
 	if err != nil {
-		return "", fmt.Errorf("getting hostname: %w", err)
+		return Result{}, fmt.Errorf("getting hostname: %w", err)
+	}
+
+	csrPem, err := buildCsr(privKey, hostname)
+	if err != nil {
+		return Result{}, fmt.Errorf("building csr: %w", err)
 	}
 
 	resp, err := client.Enrol(ctx, &pb.EnrolRequest{
@@ -34,10 +52,27 @@ func Enrol(ctx context.Context, token string, grpcAddr string, apiURL string, pr
 		Hostname:  hostname,
 		Os:        runtime.GOOS,
 		Arch:      runtime.GOARCH,
+		CsrPem:    string(csrPem),
 	})
 	if err != nil {
-		return "", fmt.Errorf("enrol rpc: %w", err)
+		return Result{}, fmt.Errorf("enrol rpc: %w", err)
 	}
 
-	return resp.EndpointId, nil
+	return Result{
+		EndpointID: resp.EndpointId,
+		CertPEM:    resp.ClientCertPem,
+		CABundle:   resp.CaCertPem,
+	}, nil
+}
+
+func buildCsr(priv crypto.Signer, hostname string) ([]byte, error) {
+	tmpl := &x509.CertificateRequest{
+		Subject:            pkix.Name{CommonName: "pending-" + hostname},
+		SignatureAlgorithm: x509.SHA256WithRSA,
+	}
+	der, err := x509.CreateCertificateRequest(rand.Reader, tmpl, priv)
+	if err != nil {
+		return nil, fmt.Errorf("creating csr: %w", err)
+	}
+	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: der}), nil
 }
