@@ -26,6 +26,7 @@
         <module>alert-service</module>
         <module>audit-service</module>
         <module>integration-service</module>
+        <module>ca-service</module>
     </modules>
 
     <properties>
