@@ -12,6 +12,7 @@ service AgentService {
   rpc Enrol(EnrolRequest) returns (EnrolResponse);
   rpc Heartbeat(HeartbeatRequest) returns (HeartbeatOk);
   rpc PushSoftwareList(SoftwareList) returns (Ack);
+  rpc RenewCert(RenewCertRequest) returns (RenewCertResponse);
 }
 
 service MetricService {
@@ -30,6 +31,7 @@ message EnrolRequest {
   string hostname   = 3;
   string os         = 4;
   string arch       = 5;
+  string csr_pem    = 6;
 }
 
 message EnrolResponse {
@@ -57,6 +59,15 @@ message MetricBatch {
 }
 
 message Ack {}
+
+message RenewCertRequest {
+  string csr_pem = 1;
+}
+
+message RenewCertResponse {
+  bytes client_cert_pem = 1;
+  bytes ca_cert_pem     = 2;
+}
 
 message SoftwareItem {
   string name      = 1;
