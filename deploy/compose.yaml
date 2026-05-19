@@ -33,6 +33,10 @@ services:
       RABBITMQ_PORT: 5672
       RABBITMQ_USER: ${RABBITMQ_USER}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      PULSE_MTLS_ENABLED: ${PULSE_MTLS_ENABLED:-false}
+      PULSE_CA_URL: http://ca-service:8089
+    volumes:
+      - api_gateway_tls:/var/lib/api-gateway/tls
     networks:
       - gateway
       - private
@@ -44,6 +48,8 @@ services:
       start_period: 40s
     depends_on:
       <<: *app-deps
+      ca-service:
+        condition: service_healthy
       identity-service:
         condition: service_healthy
       endpoint-service:
@@ -98,6 +104,8 @@ services:
       INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
       IDENTITY_SERVICE_URL: http://identity-service:8083
       GATEWAY_URL: http://api-gateway:8080
+      PULSE_CA_ENABLED: "true"
+      PULSE_CA_URL: http://ca-service:8089
       TURN_SECRET: ${TURN_SECRET}
       TURN_URLS: ${TURN_URLS}
       RABBITMQ_HOST: rabbitmq
@@ -253,6 +261,27 @@ services:
     depends_on:
       <<: *app-deps
 
+  ca-service:
+    build:
+      context: ..
+      dockerfile: backend/ca-service/Dockerfile
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      CA_ROOT_KEY_SECRET: ${CA_ROOT_KEY_SECRET}
+    networks:
+      - private
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8089/actuator/health"]
+      interval: 5s
+      timeout: 2s
+      retries: 5
+      start_period: 40s
+    depends_on:
+      <<: *app-deps
+
   coturn:
     image: docker.io/coturn/coturn:4.6.2
     command: >-
@@ -374,3 +403,4 @@ volumes:
   redis_data:
   minio_data:
   rabbitmq_data:
+  api_gateway_tls:
