@@ -146,7 +146,7 @@ def admin_session(registered_user):
 
 @pytest.fixture(scope="session")
 def enrolled_agent(admin_session):
-    """Create a group, enrolment token, start agent container, and enroll it."""
+    """Create a group, enrolment token, fetch install script, and enroll agent."""
     group_r = admin_session.post(
         f"{BASE_URL}/api/groups",
         json={"name": "E2eAgentGroup", "parentId": None},
@@ -163,39 +163,50 @@ def enrolled_agent(admin_session):
     enrolment_token = token_r.json()["id"]
     print(f"[setup] created enrolment token: {enrolment_token}")
 
-    cfg_content = (
-        f"api_url: http://localhost:8080\n"
-        f"grpc_addr: 127.0.0.1:9090\n"
-        f"enrolment_token: {enrolment_token}\n"
-        f"data_dir: /var/lib/pulse-agent\n"
-    )
-    cfg_file = tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False)
-    cfg_file.write(cfg_content)
-    cfg_file.close()
-    os.chmod(cfg_file.name, 0o644)
+    # Fetch the install script (with token substituted)
+    print(f"[setup] fetching install script...")
+    script_r = requests.get(f"{BASE_URL}/install/{enrolment_token}.sh")
+    assert script_r.status_code == 200, f"Failed to get install script: {script_r.status_code}"
+    install_script = script_r.text
+    print(f"[setup] got install script ({len(install_script)} bytes)")
 
-    print(f"[setup] starting agent container ({AGENT_IMAGE})...")
-    result = subprocess.run(
+    # Fix the API URL for the agent container (internal service name instead of localhost)
+    # The script has localhost:8081 but containers on the same network reach nginx by service name
+    install_script = install_script.replace(
+        'PULSE_API_URL="http://localhost:8081"',
+        'PULSE_API_URL="http://nginx"'
+    )
+    print(f"[setup] adjusted API URL for container network")
+
+    # Get agent container ID
+    inspect_result = subprocess.run(
         [
-            "podman", "run", "-d",
-            "--log-driver=k8s-file",
-            "--network=host",
-            "-v", f"{cfg_file.name}:/etc/pulse-agent/config.yaml:ro,z",
-            AGENT_IMAGE,
+            "podman", "compose",
+            "-f", "deploy/compose.yaml",
+            "-f", "deploy/compose.e2e.yaml",
+            "--project-name", "pulse-e2e",
+            "ps", "-q", "agent-e2e"
         ],
         capture_output=True, text=True, check=True,
     )
-    container_id = result.stdout.strip()
-    print(f"[setup] container started: {container_id[:12]}")
+    container_id = inspect_result.stdout.strip()
+    if not container_id:
+        raise RuntimeError("Agent container not found. Run 'make e2e' first.")
+    print(f"[setup] agent container: {container_id[:12]}")
+
+    # Execute full install script in agent container
+    print(f"[setup] executing enrollment/install script in agent...")
+    subprocess.run(
+        ["podman", "exec", container_id, "bash", "-c", install_script],
+        check=True
+    )
 
     try:
         endpoint_id = _wait_for_enrolment(container_id)
         print(f"[setup] agent enrolled as endpoint: {endpoint_id}")
         yield endpoint_id
     finally:
-        print(f"\n[teardown] keeping agent container {container_id[:12]} for inspection...")
-        # Don't stop the container - keep it for debugging
-        # subprocess.run(["podman", "stop", container_id], capture_output=True)
+        print(f"\n[teardown] agent cleanup (container left for debugging)...")
 
 @pytest.fixture(params=[
     ("POST", "/api/scripts"),
