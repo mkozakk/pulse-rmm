@@ -30,8 +30,8 @@ public class InternalEnrolController {
         this.endpointRepository = endpointRepository;
     }
 
-    record EnrolRequest(String token, String publicKey, String hostname, String os, String arch) {}
-    record EnrolResponse(String endpointId) {}
+    record EnrolRequest(String token, String publicKey, String hostname, String os, String arch, String csrPem) {}
+    record EnrolResponse(String endpointId, String certPem, String caBundlePem) {}
 
     @PostMapping("/enrol")
     public ResponseEntity<?> enrol(@RequestBody EnrolRequest req) {
@@ -39,9 +39,9 @@ public class InternalEnrolController {
             UUID tokenId = UUID.fromString(req.token());
             byte[] publicKey = Base64.getDecoder().decode(req.publicKey());
 
-            UUID endpointId = enrolService.enrol(tokenId, publicKey, req.hostname(), req.os(), req.arch());
+            var result = enrolService.enrolWithCsr(tokenId, publicKey, req.hostname(), req.os(), req.arch(), req.csrPem());
 
-            return ResponseEntity.ok(new EnrolResponse(endpointId.toString()));
+            return ResponseEntity.ok(new EnrolResponse(result.endpointId().toString(), result.certPem(), result.caBundlePem()));
         } catch (InvalidTokenException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
         } catch (IllegalArgumentException e) {
