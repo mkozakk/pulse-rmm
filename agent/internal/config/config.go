@@ -15,6 +15,7 @@ type Config struct {
 	EnrolmentToken string `yaml:"enrolment_token,omitempty"`
 	DataDir        string `yaml:"data_dir"`
 	LogLevel       string `yaml:"log_level"`
+	TLSEnabled     bool   `yaml:"tls_enabled,omitempty"`
 
 	// path this config was loaded from, for Save()
 	path string
