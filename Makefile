@@ -41,13 +41,11 @@ e2e:
 	@echo "Starting stack..."
 	$(E2E_COMPOSE) up -d
 	@echo "Waiting for gateway..."
-	@timeout 60 bash -c 'until curl -sf http://localhost:8081/actuator/health >/dev/null 2>&1; do sleep 0.5; done'
+	@timeout 60 bash -c 'until curl -sf http://localhost:9080/actuator/health >/dev/null 2>&1; do sleep 0.5; done'
 	@echo "Running tests..."
-	cd e2e && set -a && . ../deploy/.env.e2e && set +a && python -m pytest tests/ -v --logs
-	@echo "Stopping containers..."
-	$(E2E_COMPOSE) down -v
-	@echo "Cleaning dangling images..."
-	podman image prune -f
+	@set -e; \
+	trap 'echo "Stopping containers..."; $(E2E_COMPOSE) down -v; podman image prune -f' EXIT; \
+	(cd e2e && set -a && . ../deploy/.env.e2e && set +a && python -m pytest tests/ -v --logs)
 
 e2e-up:
 	$(E2E_COMPOSE) up --pull=never -d
