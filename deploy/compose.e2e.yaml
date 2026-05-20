@@ -1,38 +1,66 @@
 # Override for e2e runs:
-# - Uses different ports so dev and e2e stacks can run simultaneously
+# - Shifts all host-exposed ports by +1000 so dev (8080/8081/...) and e2e (9080/9081/...)
+#   stacks can run simultaneously
+# - Backend service ports stay internal in e2e (tests go through nginx on 9080)
 # - Uses isolated volumes so e2e doesn't affect dev data
 #
 # Usage:  podman compose -f deploy/compose.yaml -f deploy/compose.e2e.yaml up -d
-# Dev runs concurrently on 8080, e2e tests run on 8081
+# Dev API on http://localhost:8080, e2e API on http://localhost:9080
 # Teardown: podman compose -f deploy/compose.yaml -f deploy/compose.e2e.yaml down -v
 
 services:
   coturn:
     ports: !override
-      - "3479:3478/udp"
-      - "3479:3478/tcp"
-      - "49153-49201:49152-49200/udp"
+      - "4478:3478/udp"
+      - "4478:3478/tcp"
+      - "50152-50200:49152-49200/udp"
 
   nginx:
     ports: !override
-      - "8081:80"
-      - "9091:9090"
+      - "9080:80"
+      - "10090:9090"
 
+  # Backend services and dependencies: keep internal (tests use nginx).
+  identity-service:
+    ports: !override []
+  endpoint-service:
+    ports: !override []
+  metric-service:
+    ports: !override []
+  commands-service:
+    ports: !override []
+  alert-service:
+    ports: !override []
+  audit-service:
+    ports: !override []
+  integration-service:
+    ports: !override []
+  ca-service:
+    ports: !override []
   postgres:
+    ports: !override []
     volumes:
       - postgres_e2e_data:/var/lib/postgresql/data
-
   redis:
+    ports: !override []
     volumes:
       - redis_e2e_data:/data
-
   rabbitmq:
+    ports: !override []
     volumes:
       - rabbitmq_e2e_data:/var/lib/rabbitmq
-
   minio:
+    ports: !override []
     volumes:
       - minio_e2e_data:/data
+  loki:
+    ports: !override []
+  tempo:
+    ports: !override []
+  prometheus:
+    ports: !override []
+  grafana:
+    ports: !override []
 
   api-gateway:
     volumes:
