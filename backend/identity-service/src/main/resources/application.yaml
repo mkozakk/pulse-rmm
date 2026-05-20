@@ -57,7 +57,10 @@ management:
   endpoints:
     web:
       exposure:
-        include: health
+        include: health,info,prometheus
+  metrics:
+    tags:
+      service: identity-service
 
 springdoc:
   api-docs:
