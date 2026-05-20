@@ -1,3 +1,7 @@
+x-obs-env: &obs-env
+  SPRING_PROFILES_ACTIVE: loki
+  PULSE_LOKI_URL: http://loki:3100/loki/api/v1/push
+
 x-app-deps: &app-deps
   postgres:
     condition: service_healthy
@@ -19,6 +23,7 @@ services:
       context: ..
       dockerfile: backend/api-gateway/Dockerfile
     environment:
+      <<: *obs-env
       PULSE_COOKIE_SECURE: "false"
       IDENTITY_SERVICE_URL: http://identity-service:8083
       ENDPOINT_SERVICE_URL: http://endpoint-service:8081
@@ -70,6 +75,7 @@ services:
       context: ..
       dockerfile: backend/identity-service/Dockerfile
     environment:
+      <<: *obs-env
       POSTGRES_HOST: postgres
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -96,6 +102,7 @@ services:
       context: ..
       dockerfile: backend/endpoint-service/Dockerfile
     environment:
+      <<: *obs-env
       POSTGRES_HOST: postgres
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -132,6 +139,7 @@ services:
       context: ..
       dockerfile: backend/metric-service/Dockerfile
     environment:
+      <<: *obs-env
       POSTGRES_HOST: postgres
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -157,6 +165,7 @@ services:
       context: ..
       dockerfile: backend/commands-service/Dockerfile
     environment:
+      <<: *obs-env
       SERVICE_PORT: 8084
       POSTGRES_HOST: postgres
       POSTGRES_USER: ${POSTGRES_USER}
@@ -186,6 +195,7 @@ services:
       context: ..
       dockerfile: backend/alert-service/Dockerfile
     environment:
+      <<: *obs-env
       SERVICE_PORT: 8087
       POSTGRES_HOST: postgres
       POSTGRES_USER: ${POSTGRES_USER}
@@ -213,6 +223,7 @@ services:
       context: ..
       dockerfile: backend/audit-service/Dockerfile
     environment:
+      <<: *obs-env
       SERVICE_PORT: 8088
       POSTGRES_HOST: postgres
       POSTGRES_USER: ${POSTGRES_USER}
@@ -239,6 +250,7 @@ services:
       context: ..
       dockerfile: backend/integration-service/Dockerfile
     environment:
+      <<: *obs-env
       SERVICE_PORT: 8091
       POSTGRES_HOST: postgres
       POSTGRES_USER: ${POSTGRES_USER}
@@ -266,6 +278,7 @@ services:
       context: ..
       dockerfile: backend/ca-service/Dockerfile
     environment:
+      <<: *obs-env
       POSTGRES_HOST: postgres
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
