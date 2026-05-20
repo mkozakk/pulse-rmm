@@ -10,6 +10,8 @@ import websocket
 from config import BASE_URL
 from conftest import poll_until
 
+WS_URL = BASE_URL.replace("http://", "ws://").replace("https://", "wss://")
+
 pytestmark = pytest.mark.slow
 
 
@@ -29,17 +31,18 @@ def _create_session(session, endpoint_id):
 # ---------------------------------------------------------------------------
 
 def test_turn_server_reachable():
-    """coturn responds to a STUN Binding Request on UDP 3478."""
+    """coturn responds to a STUN Binding Request on the e2e TURN port."""
     msg_type = 0x0001   # Binding Request
     msg_len = 0
     magic = 0x2112A442
     tx_id = os.urandom(12)
     pkt = struct.pack(">HHI", msg_type, msg_len, magic) + tx_id
 
+    turn_port = int(os.getenv("PULSE_TURN_PORT", "3479"))
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.settimeout(3)
     try:
-        sock.sendto(pkt, ("127.0.0.1", 3478))
+        sock.sendto(pkt, ("127.0.0.1", turn_port))
         data, _ = sock.recvfrom(1024)
     finally:
         sock.close()
@@ -126,7 +129,7 @@ def test_signaling_ws_invalid_session_rejected(admin_session):
     ws.settimeout(5)
     try:
         ws.connect(
-            f"ws://localhost:8080/ws/sessions/00000000-0000-0000-0000-000000000000/signal"
+            f"{WS_URL}/ws/sessions/00000000-0000-0000-0000-000000000000/signal"
             f"?token={admin_session.token}"
         )
         ws.settimeout(3)
@@ -152,7 +155,7 @@ def test_signaling_ws_accepts_valid_session(admin_session, desktop_session):
     ws.settimeout(5)
     try:
         ws.connect(
-            f"ws://localhost:8080/ws/sessions/{session_id}/signal"
+            f"{WS_URL}/ws/sessions/{session_id}/signal"
             f"?token={admin_session.token}"
         )
         ws.settimeout(1)

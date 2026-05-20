@@ -7,32 +7,14 @@
 # Teardown: podman compose -f deploy/compose.yaml -f deploy/compose.e2e.yaml down -v
 
 services:
-  agent-e2e:
-    build:
-      context: ..
-      dockerfile: agent/Dockerfile
-    environment:
-      API_URL: http://nginx
-      GRPC_ADDR: 127.0.0.1:9090
-      TLS_ENABLED: ${PULSE_MTLS_ENABLED:-false}
-    volumes:
-      - agent_e2e_data:/var/lib/pulse-agent
-      - agent_e2e_config:/etc/pulse-agent
-    networks:
-      - public
-    depends_on:
-      nginx:
-        condition: service_healthy
-    restart: unless-stopped
-
   coturn:
-    ports:
+    ports: !override
       - "3479:3478/udp"
       - "3479:3478/tcp"
       - "49153-49201:49152-49200/udp"
 
   nginx:
-    ports:
+    ports: !override
       - "8081:80"
       - "9091:9090"
 
@@ -62,5 +44,3 @@ volumes:
   rabbitmq_e2e_data:
   minio_e2e_data:
   api_gateway_tls_e2e:
-  agent_e2e_data:
-  agent_e2e_config:
