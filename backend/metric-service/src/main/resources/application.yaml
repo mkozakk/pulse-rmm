@@ -24,12 +24,6 @@ spring:
     properties:
       hibernate.jdbc.time_zone: UTC
     open-in-view: false
-  web:
-    cors:
-      allowed-origins: "http://localhost:8080"
-      allowed-methods: GET, POST, PUT, DELETE, OPTIONS
-      allowed-headers: "*"
-      allow-credentials: true
   flyway:
     enabled: true
     locations: classpath:db/migration
@@ -57,4 +51,4 @@ springdoc:
   api-docs:
     path: /v3/api-docs
   swagger-ui:
-    enabled: ${SWAGGER_UI_ENABLED:true}
+    enabled: ${SWAGGER_UI_ENABLED:false}

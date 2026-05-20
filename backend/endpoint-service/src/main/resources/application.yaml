@@ -75,4 +75,4 @@ springdoc:
   api-docs:
     path: /v3/api-docs
   swagger-ui:
-    enabled: ${SWAGGER_UI_ENABLED:true}
+    enabled: ${SWAGGER_UI_ENABLED:false}

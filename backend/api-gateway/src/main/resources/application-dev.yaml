@@ -1,0 +1,31 @@
+logging:
+  level:
+    org.springframework.security: DEBUG
+    org.springframework.web: DEBUG
+    org.springframework.cloud.gateway: DEBUG
+    dev.pulsermm.gateway: DEBUG
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+    urls:
+      - name: Identity
+        url: http://localhost:8083/v3/api-docs
+      - name: Endpoints
+        url: http://localhost:8081/v3/api-docs
+      - name: Metrics
+        url: http://localhost:8082/v3/api-docs
+      - name: Commands
+        url: http://localhost:8084/v3/api-docs
+      - name: Alerts
+        url: http://localhost:8087/v3/api-docs
+      - name: Audit
+        url: http://localhost:8088/v3/api-docs
+      - name: Integrations
+        url: http://localhost:8091/v3/api-docs
+    urls-primary-name: Identity
+    tags-sorter: alpha
+    operations-sorter: alpha
+    disable-swagger-default-url: true
