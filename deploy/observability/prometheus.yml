@@ -22,3 +22,8 @@ scrape_configs:
           - audit-service:8088
           - integration-service:8091
           - ca-service:8089
+    relabel_configs:
+      - source_labels: [__address__]
+        regex: '([^:]+):.*'
+        target_label: service
+        replacement: '$1'
