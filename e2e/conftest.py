@@ -165,8 +165,8 @@ def enrolled_agent(admin_session):
     enrolment_token = token_r.json()["id"]
     print(f"[setup] created enrolment token: {enrolment_token}")
 
-    api_url = os.environ.get("PULSE_API_URL", "http://localhost:8081")
-    grpc_addr = os.environ.get("PULSE_GRPC_ADDR", "127.0.0.1:9091")
+    api_url = os.environ.get("PULSE_API_URL", "http://localhost:9080")
+    grpc_addr = os.environ.get("PULSE_GRPC_ADDR", "127.0.0.1:10090")
     tls_enabled = os.environ.get("PULSE_MTLS_ENABLED", "false").lower() == "true"
     cfg_content = (
         f"api_url: {api_url}\n"
