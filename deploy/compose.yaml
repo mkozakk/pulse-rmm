@@ -1,6 +1,8 @@
 x-obs-env: &obs-env
   SPRING_PROFILES_ACTIVE: loki
   PULSE_LOKI_URL: http://loki:3100/loki/api/v1/push
+  MANAGEMENT_TRACING_SAMPLING_PROBABILITY: "1.0"
+  MANAGEMENT_OTLP_TRACING_ENDPOINT: http://tempo:4318/v1/traces
 
 x-app-deps: &app-deps
   postgres:
@@ -315,6 +317,21 @@ services:
       timeout: 3s
       retries: 5
 
+  tempo:
+    image: docker.io/grafana/tempo:2.6.0
+    command: ["-config.file=/etc/tempo/tempo-config.yml"]
+    volumes:
+      - ./observability/tempo/tempo-config.yml:/etc/tempo/tempo-config.yml:ro,Z
+      - tempo_data:/var/tempo
+    networks:
+      - private
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3200/ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
   loki:
     image: docker.io/grafana/loki:3.2.0
     command: -config.file=/etc/loki/loki-config.yml
@@ -347,6 +364,8 @@ services:
       prometheus:
         condition: service_healthy
       loki:
+        condition: service_healthy
+      tempo:
         condition: service_healthy
 
   coturn:
@@ -474,3 +493,4 @@ volumes:
   prometheus_data:
   loki_data:
   grafana_data:
+  tempo_data:
