@@ -1,6 +1,6 @@
 import os
 
-BASE_URL = os.getenv("PULSE_API_URL", "http://localhost:8080")
+BASE_URL = os.getenv("PULSE_API_URL", "http://localhost:8081")
 ADMIN_USERNAME = "e2e_admin"
 ADMIN_PASSWORD = "e2eadminpassword1"
 

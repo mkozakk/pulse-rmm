@@ -3,11 +3,21 @@
     <springProperty scope="context" name="appName" source="spring.application.name" defaultValue="unknown"/>
     <springProperty scope="context" name="lokiUrl" source="pulse.loki.url" defaultValue="http://loki:3100/loki/api/v1/push"/>
 
-    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
-        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
-            <customFields>{"service":"${appName}"}</customFields>
-        </encoder>
-    </appender>
+    <springProfile name="json">
+        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+                <customFields>{"service":"${appName}"}</customFields>
+            </encoder>
+        </appender>
+    </springProfile>
+
+    <springProfile name="!json">
+        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder>
+                <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+            </encoder>
+        </appender>
+    </springProfile>
 
     <springProfile name="loki">
         <appender name="LOKI" class="com.github.loki4j.logback.Loki4jAppender">

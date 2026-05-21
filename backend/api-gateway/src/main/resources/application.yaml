@@ -90,7 +90,6 @@ pulse:
     url: ${IDENTITY_SERVICE_URL:http://identity-service:8083}
     internal-secret: ${INTERNAL_API_SECRET:change-me-in-production-set-INTERNAL_API_SECRET-env-var}
   mtls:
-    enabled: ${PULSE_MTLS_ENABLED:false}
     cert-dir: ${PULSE_MTLS_CERT_DIR:/var/lib/api-gateway/tls}
     gateway-cn: ${PULSE_MTLS_GATEWAY_CN:api-gateway}
     gateway-sans: ${PULSE_MTLS_GATEWAY_SANS:api-gateway,localhost,127.0.0.1}
