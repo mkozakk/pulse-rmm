@@ -5,11 +5,14 @@ import dev.pulsermm.identity.api.dto.LoginRequest;
 import dev.pulsermm.identity.api.dto.RegisterRequest;
 import dev.pulsermm.identity.api.dto.RegisterResponse;
 import dev.pulsermm.identity.api.dto.TokenResponse;
+import jakarta.servlet.http.Cookie;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -37,14 +40,24 @@ class AuthControllerIT {
         registry.add("spring.datasource.url", postgres::getJdbcUrl);
         registry.add("spring.datasource.username", postgres::getUsername);
         registry.add("spring.datasource.password", postgres::getPassword);
+        registry.add("pulse.jwt.secret", () -> "test-jwt-secret-32-chars-long-ok!");
+        registry.add("pulse.internal.secret", () -> "test-internal-secret");
     }
 
     @Autowired
     private MockMvc mvc;
 
+    @Autowired
+    private JdbcTemplate jdbc;
+
+    @BeforeEach
+    void cleanDb() {
+        jdbc.execute("DELETE FROM identity.users");
+    }
+
     @Test
     void registerFirstUserSucceeds() throws Exception {
-        var request = new RegisterRequest("testuser", "testpass123");
+        var request = new RegisterRequest("testuser", "testpassword123");
 
         var result = mvc.perform(post("/api/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -60,7 +73,7 @@ class AuthControllerIT {
 
     @Test
     void registerDuplicateUserReturnConflict() throws Exception {
-        var request = new RegisterRequest("duplicate", "pass123");
+        var request = new RegisterRequest("duplicate", "password123456");
 
         // First registration succeeds
         mvc.perform(post("/api/auth/register")
@@ -143,13 +156,14 @@ class AuthControllerIT {
             .andExpect(status().isOk())
             .andReturn();
 
-        // Extract refresh token from Set-Cookie
+        // Extract refresh token value from Set-Cookie header
         String setCookie = loginResult.getResponse().getHeader("Set-Cookie");
         assertThat(setCookie).contains("pulse_refresh");
+        String tokenValue = setCookie.split(";")[0].replace("pulse_refresh=", "").trim();
 
         // Refresh token using cookie
         var refreshResult = mvc.perform(post("/api/auth/refresh")
-                .header("Cookie", setCookie))
+                .cookie(new Cookie("pulse_refresh", tokenValue)))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.accessToken").exists())
             .andReturn();
@@ -174,11 +188,11 @@ class AuthControllerIT {
             .andExpect(status().isOk())
             .andReturn();
 
-        String setCookie = loginResult.getResponse().getHeader("Set-Cookie");
+        String tokenValue = loginResult.getResponse().getHeader("Set-Cookie").split(";")[0].replace("pulse_refresh=", "").trim();
 
         // Logout
         mvc.perform(post("/api/auth/logout")
-                .header("Cookie", setCookie))
+                .cookie(new Cookie("pulse_refresh", tokenValue)))
             .andExpect(status().isNoContent())
             .andExpect(header().exists("Set-Cookie"));
     }

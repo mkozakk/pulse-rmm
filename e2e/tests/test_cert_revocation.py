@@ -14,7 +14,6 @@ pytestmark = [pytest.mark.slow, pytest.mark.requires_agent]
 
 
 def _start_agent(token):
-    tls_enabled = os.environ.get("PULSE_MTLS_ENABLED", "true").lower() == "true"
     api_url = os.environ.get("PULSE_API_URL", "http://localhost:8081")
     grpc_addr = os.environ.get("PULSE_GRPC_ADDR", "127.0.0.1:9091")
     cfg = (
@@ -22,7 +21,6 @@ def _start_agent(token):
         f"grpc_addr: {grpc_addr}\n"
         f"enrolment_token: {token}\n"
         f"data_dir: /var/lib/pulse-agent\n"
-        f"tls_enabled: {str(tls_enabled).lower()}\n"
     )
     f = tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False)
     f.write(cfg)

@@ -33,7 +33,6 @@ services:
       RABBITMQ_PORT: 5672
       RABBITMQ_USER: ${RABBITMQ_USER}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
-      PULSE_MTLS_ENABLED: ${PULSE_MTLS_ENABLED:-false}
       PULSE_CA_URL: http://ca-service:8089
     volumes:
       - api_gateway_tls:/var/lib/api-gateway/tls

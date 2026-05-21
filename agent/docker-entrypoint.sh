@@ -12,7 +12,6 @@ api_url: ${API_URL:-http://localhost:8081}
 grpc_addr: ${GRPC_ADDR:-127.0.0.1:9090}
 enrolment_token: ${ENROLMENT_TOKEN}
 data_dir: ${DATA_DIR:-/var/lib/pulse-agent}
-tls_enabled: ${TLS_ENABLED:-false}
 EOF
   else
     echo "[agent] Waiting for config file at $CONFIG_FILE..."
