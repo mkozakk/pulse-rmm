@@ -12,9 +12,10 @@ import (
 // Callers in package desktop fill this from DesktopSession private fields and
 // pass it down so capture can stay in its own package without importing desktop.
 type Target struct {
-	Logger   *log.Logger
-	LogFile  *os.File
-	AddTrack func(webrtc.TrackLocal) error
+	Logger        *log.Logger
+	LogFile       *os.File
+	AddTrack      func(webrtc.TrackLocal) error
+	AddAudioTrack func(webrtc.TrackLocal) error
 }
 
 // Error sentinels for portal/capture failures. The strings are stable codes

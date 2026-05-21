@@ -28,6 +28,7 @@ type DesktopSession struct {
 	sessionID   string
 	pc          *webrtc.PeerConnection
 	videoTrack  webrtc.TrackLocal
+	audioTrack  webrtc.TrackLocal
 	injector    input.InputInjector
 	rateLimiter *rateLimiter
 	log         *log.Logger
@@ -125,6 +126,17 @@ func NewSession(sessionID string, turnURLs []string, turnSecret string) (*Deskto
 		logger.Println("Registering H264 codec for Linux")
 	}
 
+	if err := m.RegisterCodec(webrtc.RTPCodecParameters{
+		RTPCodecCapability: webrtc.RTPCodecCapability{
+			MimeType:  webrtc.MimeTypeOpus,
+			ClockRate: 48000,
+			Channels:  2,
+		},
+		PayloadType: 111,
+	}, webrtc.RTPCodecTypeAudio); err != nil {
+		return nil, fmt.Errorf("registering Opus codec: %w", err)
+	}
+
 	api := webrtc.NewAPI(webrtc.WithMediaEngine(m))
 
 	config := webrtc.Configuration{
@@ -204,6 +216,14 @@ func (s *DesktopSession) addVideoTrack(track webrtc.TrackLocal) error {
 		return err
 	}
 	s.videoTrack = track
+	return nil
+}
+
+func (s *DesktopSession) addAudioTrack(track webrtc.TrackLocal) error {
+	if _, err := s.pc.AddTrack(track); err != nil {
+		return err
+	}
+	s.audioTrack = track
 	return nil
 }
 

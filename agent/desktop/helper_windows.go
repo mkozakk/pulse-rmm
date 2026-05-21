@@ -60,9 +60,18 @@ func RunHelper(addr string) {
 		sendMsg(pipeMsg{Type: "candidate", Candidate: string(b)})
 	})
 
-	if err := capture.Start(ctx, capture.Target{Logger: sess.log, LogFile: sess.logFile, AddTrack: sess.addVideoTrack}); err != nil {
+	target := capture.Target{
+		Logger:        sess.log,
+		LogFile:       sess.logFile,
+		AddTrack:      sess.addVideoTrack,
+		AddAudioTrack: sess.addAudioTrack,
+	}
+	if err := capture.Start(ctx, target); err != nil {
 		sendMsg(pipeMsg{Type: "error", Message: err.Error()})
 		os.Exit(1)
+	}
+	if err := capture.StartAudio(ctx, target); err != nil {
+		sess.log.Printf("audio capture disabled: %v", err)
 	}
 
 	sess.OnPeerConnectionClosed(func() {

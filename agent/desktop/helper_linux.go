@@ -119,10 +119,19 @@ func serveHelperConn(conn net.Conn) {
 		})
 	})
 
-	if err := capture.Start(ctx, capture.Target{Logger: sess.log, LogFile: sess.logFile, AddTrack: sess.addVideoTrack}); err != nil {
+	target := capture.Target{
+		Logger:        sess.log,
+		LogFile:       sess.logFile,
+		AddTrack:      sess.addVideoTrack,
+		AddAudioTrack: sess.addAudioTrack,
+	}
+	if err := capture.Start(ctx, target); err != nil {
 		sess.Close()
 		_ = enc.Encode(helperMsg{Type: "ready", SessionID: sessionID, Error: err.Error()})
 		return
+	}
+	if err := capture.StartAudio(ctx, target); err != nil {
+		sess.log.Printf("audio capture disabled: %v", err)
 	}
 
 	sess.OnPeerConnectionClosed(func() {
