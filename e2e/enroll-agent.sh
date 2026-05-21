@@ -14,7 +14,7 @@ api_url: $API_URL
 grpc_addr: 127.0.0.1:9090
 enrolment_token: $ENROLMENT_TOKEN
 data_dir: /var/lib/pulse-agent
-tls_enabled: ${PULSE_MTLS_ENABLED:-false}
+tls_enabled: ${PULSE_MTLS_ENABLED:-true}
 EOF"
 
 echo "[enroll] Config written, agent will enroll on startup..."
