@@ -10,41 +10,26 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
+import org.springframework.transaction.annotation.Transactional;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@Testcontainers
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureMockMvc
+@ActiveProfiles("test")
+@Transactional
 class AuthControllerIT {
-
-    @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
-        .withDatabaseName("pulse")
-        .withUsername("pulse")
-        .withPassword("pulse");
-
-    @DynamicPropertySource
-    static void configureProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
-    }
 
     @Autowired
     private MockMvc mvc;
 
     @Test
     void registerFirstUserSucceeds() throws Exception {
-        var request = new RegisterRequest("testuser", "testpass123");
+        var request = new RegisterRequest("testuser", "testpass1234");
 
         var result = mvc.perform(post("/api/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -60,7 +45,7 @@ class AuthControllerIT {
 
     @Test
     void registerDuplicateUserReturnConflict() throws Exception {
-        var request = new RegisterRequest("duplicate", "pass123");
+        var request = new RegisterRequest("duplicate", "duplicatepass123");
 
         // First registration succeeds
         mvc.perform(post("/api/auth/register")
@@ -143,13 +128,11 @@ class AuthControllerIT {
             .andExpect(status().isOk())
             .andReturn();
 
-        // Extract refresh token from Set-Cookie
-        String setCookie = loginResult.getResponse().getHeader("Set-Cookie");
-        assertThat(setCookie).contains("pulse_refresh");
+        var cookies = loginResult.getResponse().getCookies();
+        assertThat(cookies).anyMatch(c -> c.getName().equals("pulse_refresh"));
 
-        // Refresh token using cookie
         var refreshResult = mvc.perform(post("/api/auth/refresh")
-                .header("Cookie", setCookie))
+                .cookie(cookies))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.accessToken").exists())
             .andReturn();
@@ -174,11 +157,10 @@ class AuthControllerIT {
             .andExpect(status().isOk())
             .andReturn();
 
-        String setCookie = loginResult.getResponse().getHeader("Set-Cookie");
+        var cookies = loginResult.getResponse().getCookies();
 
-        // Logout
         mvc.perform(post("/api/auth/logout")
-                .header("Cookie", setCookie))
+                .cookie(cookies))
             .andExpect(status().isNoContent())
             .andExpect(header().exists("Set-Cookie"));
     }

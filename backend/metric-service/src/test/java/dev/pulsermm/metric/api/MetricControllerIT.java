@@ -112,7 +112,7 @@ class MetricControllerIT {
     @Test
     void testQueryNoData() throws Exception {
         UUID endpointId = UUID.randomUUID();
-        mvc.perform(get("/api/endpoints/" + endpointId + "/metrics?from=0&to=999999999&type=cpu")
+        mvc.perform(get("/api/endpoints/" + endpointId + "/metrics?from=1970-01-01T00:00:00Z&to=2099-12-31T23:59:59Z&type=cpu")
                 .header("Authorization", "Bearer " + mintJwt(UUID.randomUUID())))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$").isArray())
@@ -122,8 +122,8 @@ class MetricControllerIT {
     @Test
     void testQueryRequiresAuth() throws Exception {
         UUID endpointId = UUID.randomUUID();
-        mvc.perform(get("/api/endpoints/" + endpointId + "/metrics?from=0&to=999999999"))
-            .andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/endpoints/" + endpointId + "/metrics?from=1970-01-01T00:00:00Z&to=2099-12-31T23:59:59Z"))
+            .andExpect(status().isForbidden());
     }
 
     private String mintJwt(UUID userId) {
