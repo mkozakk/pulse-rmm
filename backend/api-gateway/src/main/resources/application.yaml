@@ -27,7 +27,7 @@ spring:
             predicates:
               - Path=/api/auth/**,/api/identity/**
           - id: enrolment
-            uri: ${ENROLMENT_SERVICE_URL:http://localhost:8081}
+            uri: ${ENDPOINT_SERVICE_URL:http://localhost:8081}
             predicates:
               - Path=/api/enrolment/**
           - id: endpoint-metrics
@@ -35,27 +35,27 @@ spring:
             predicates:
               - Path=/api/endpoints/*/metrics
           - id: software
-            uri: ${SOFTWARE_SERVICE_URL:http://localhost:8085}
+            uri: ${COMMANDS_SERVICE_URL:http://localhost:8084}
             predicates:
               - Path=/api/endpoints/*/software/**
           - id: groups
-            uri: ${ENROLMENT_SERVICE_URL:http://localhost:8081}
+            uri: ${ENDPOINT_SERVICE_URL:http://localhost:8081}
             predicates:
               - Path=/api/groups/**
           - id: tag-rules
-            uri: ${ENROLMENT_SERVICE_URL:http://localhost:8081}
+            uri: ${ENDPOINT_SERVICE_URL:http://localhost:8081}
             predicates:
               - Path=/api/tag-rules/**
           - id: endpoints
-            uri: ${ENROLMENT_SERVICE_URL:http://localhost:8081}
+            uri: ${ENDPOINT_SERVICE_URL:http://localhost:8081}
             predicates:
               - Path=/api/endpoints/**
           - id: scripts
-            uri: ${SCRIPT_SERVICE_URL:http://localhost:8084}
+            uri: ${COMMANDS_SERVICE_URL:http://localhost:8084}
             predicates:
               - Path=/api/scripts/**
           - id: sessions
-            uri: ${REMOTE_SERVICE_URL:http://localhost:8092}
+            uri: ${ENDPOINT_SERVICE_URL:http://localhost:8081}
             predicates:
               - Path=/api/sessions/**
           - id: alerts
@@ -67,19 +67,15 @@ spring:
             predicates:
               - Path=/api/audit/**
           - id: agent-versions
-            uri: ${AGENT_UPDATE_SERVICE_URL:http://localhost:8089}
+            uri: ${ENDPOINT_SERVICE_URL:http://localhost:8081}
             predicates:
               - Path=/api/agent-versions/**,/api/updates/**
-          - id: agent-updates-check
-            uri: ${AGENT_UPDATE_SERVICE_URL:http://localhost:8089}
-            predicates:
-              - Path=/api/updates/**
           - id: install-packages
-            uri: ${AGENT_UPDATE_SERVICE_URL:http://localhost:8089}
+            uri: ${ENDPOINT_SERVICE_URL:http://localhost:8081}
             predicates:
-              - Path=/install/pulse-agent.deb,/install/pulse-agent.rpm,/install/pulse-agent.rpm,/install/pulse-agent-linux-amd64.tar.gz,/install/pulse-agent-windows-amd64.zip,/install/pulse-agent-installer.exe
+              - Path=/install/pulse-agent.deb,/install/pulse-agent.rpm,/install/pulse-agent-linux-amd64.tar.gz,/install/pulse-agent-windows-amd64.zip,/install/pulse-agent-installer.exe
           - id: install-scripts
-            uri: ${ENROLMENT_SERVICE_URL:http://localhost:8081}
+            uri: ${ENDPOINT_SERVICE_URL:http://localhost:8081}
             predicates:
               - Path=/install/**
           - id: webhooks
@@ -93,49 +89,26 @@ pulse:
   identity:
     url: ${IDENTITY_SERVICE_URL:http://identity-service:8083}
     internal-secret: ${INTERNAL_API_SECRET:change-me-in-production-set-INTERNAL_API_SECRET-env-var}
-
-logging:
-  level:
-    org.springframework.security: DEBUG
-    org.springframework.web: DEBUG
-    org.springframework.cloud.gateway: DEBUG
-    dev.pulsermm.gateway: DEBUG
+  mtls:
+    cert-dir: ${PULSE_MTLS_CERT_DIR:/var/lib/api-gateway/tls}
+    gateway-cn: ${PULSE_MTLS_GATEWAY_CN:api-gateway}
+    gateway-sans: ${PULSE_MTLS_GATEWAY_SANS:api-gateway,localhost,127.0.0.1}
+  ca:
+    url: ${PULSE_CA_URL:http://ca-service:8089}
 
 management:
   endpoints:
     web:
       exposure:
-        include: health
+        include: health,info,prometheus
+  metrics:
+    tags:
+      service: api-gateway
 
 springdoc:
   api-docs:
-    enabled: true
+    enabled: ${SWAGGER_UI_ENABLED:false}
     path: /v3/api-docs
   swagger-ui:
-    enabled: ${SWAGGER_UI_ENABLED:true}
+    enabled: ${SWAGGER_UI_ENABLED:false}
     path: /swagger-ui.html
-    urls:
-      - name: Identity
-        url: http://localhost:8083/v3/api-docs
-      - name: Enrolment
-        url: http://localhost:8081/v3/api-docs
-      - name: Metrics
-        url: http://localhost:8082/v3/api-docs
-      - name: Scripts
-        url: http://localhost:8084/v3/api-docs
-      - name: Software
-        url: http://localhost:8085/v3/api-docs
-      - name: Remote
-        url: http://localhost:8092/v3/api-docs
-      - name: Alerts
-        url: http://localhost:8087/v3/api-docs
-      - name: Audit
-        url: http://localhost:8088/v3/api-docs
-      - name: Agent Updates
-        url: http://localhost:8089/v3/api-docs
-      - name: Integrations
-        url: http://localhost:8091/v3/api-docs
-    urls-primary-name: Identity
-    tags-sorter: alpha
-    operations-sorter: alpha
-    disable-swagger-default-url: true

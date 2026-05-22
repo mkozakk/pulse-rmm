@@ -7,7 +7,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.3.2</version>
+        <version>3.3.6</version>
         <relativePath/>
     </parent>
 
@@ -20,20 +20,18 @@
         <module>common</module>
         <module>api-gateway</module>
         <module>identity-service</module>
-        <module>enrolment-service</module>
+        <module>endpoint-service</module>
         <module>metric-service</module>
-        <module>script-service</module>
-        <module>software-service</module>
-        <module>remote-service</module>
+        <module>commands-service</module>
         <module>alert-service</module>
         <module>audit-service</module>
-        <module>agent-update-service</module>
         <module>integration-service</module>
+        <module>ca-service</module>
     </modules>
 
     <properties>
         <java.version>21</java.version>
-        <jacoco.version>0.8.12</jacoco.version>
+        <jacoco.version>0.8.13</jacoco.version>
         <maven.surefire.argline>--add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED</maven.surefire.argline>
     </properties>
 
@@ -52,12 +50,12 @@
             <dependency>
                 <groupId>com.github.docker-java</groupId>
                 <artifactId>docker-java-core</artifactId>
-                <version>3.4.0</version>
+                <version>3.7.1</version>
             </dependency>
             <dependency>
                 <groupId>com.github.docker-java</groupId>
                 <artifactId>docker-java-transport-httpclient5</artifactId>
-                <version>3.4.0</version>
+                <version>3.7.1</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

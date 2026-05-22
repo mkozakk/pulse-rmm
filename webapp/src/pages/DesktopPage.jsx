@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useDesktopSession } from '../hooks/useDesktopSession'
 import FileTransferPanel from '../components/FileTransferPanel'
@@ -28,10 +29,18 @@ export default function DesktopPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { videoRef, status, canControl, error, sendFile, requestDownload, endSession } = useDesktopSession(id)
+  const [audioOn, setAudioOn] = useState(false)
 
   async function handleEndSession() {
     await endSession()
     navigate(`/endpoints/${id}`)
+  }
+
+  function toggleAudio() {
+    const v = videoRef.current
+    if (!v) return
+    v.muted = audioOn
+    setAudioOn(!audioOn)
   }
 
   return (
@@ -41,6 +50,9 @@ export default function DesktopPage() {
       actions={(
         <>
           {!canControl && status !== 'idle' && <span className="badge badge-view-only">View Only</span>}
+          {status === 'connected' && (
+            <button onClick={toggleAudio}>{audioOn ? 'Mute' : 'Unmute'}</button>
+          )}
           {status !== 'idle' && <button onClick={handleEndSession}>End Session</button>}
         </>
       )}

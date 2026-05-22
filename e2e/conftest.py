@@ -1,11 +1,14 @@
 import os
 import subprocess
+import tempfile
 import time
 
 import pytest
 import requests
 
 from config import BASE_URL, ADMIN_USERNAME, ADMIN_PASSWORD, AGENT_IMAGE, E2E_NETWORK
+
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def _wait_for_gateway(timeout=90):
@@ -23,15 +26,23 @@ def _wait_for_gateway(timeout=90):
 
 def _wait_for_enrolment(container_id, timeout=20):
     deadline = time.time() + timeout
-    logs = ""
+    log_content = ""
     while time.time() < deadline:
-        result = subprocess.run(["podman", "logs", container_id], capture_output=True, text=True)
-        logs = result.stdout
-        for line in logs.splitlines():
+        result = subprocess.run(
+            ["podman", "exec", container_id, "cat", "/var/lib/pulse-agent/logs/agent.log"],
+            capture_output=True, text=True,
+        )
+        log_content = result.stdout
+        for line in log_content.splitlines():
             if line.startswith("Enrolled: ") or line.startswith("Already enrolled: "):
                 return line.split(": ", 1)[1].strip()
         time.sleep(1)
-    raise RuntimeError(f"Agent did not enrol within {timeout}s.\ncontainer stdout:\n{logs}")
+    container_logs = subprocess.run(["podman", "logs", container_id], capture_output=True, text=True)
+    raise RuntimeError(
+        f"Agent did not enrol within {timeout}s.\n"
+        f"agent.log:\n{log_content}\n"
+        f"container stderr:\n{container_logs.stderr}"
+    )
 
 
 def poll_until(fn, timeout=10, interval=0.5):
@@ -69,7 +80,7 @@ def _get_container_logs(service_name):
         result = subprocess.run(
             ["podman", "compose", "-f", "deploy/compose.yaml", "-f", "deploy/compose.e2e.yaml",
              "--project-name", "pulse-e2e", "logs", service_name],
-            capture_output=True, text=True, timeout=5
+            capture_output=True, text=True, timeout=5, cwd=REPO_ROOT,
         )
         return result.stdout
     except Exception as e:
@@ -154,16 +165,26 @@ def enrolled_agent(admin_session):
     enrolment_token = token_r.json()["id"]
     print(f"[setup] created enrolment token: {enrolment_token}")
 
+    api_url = os.environ.get("PULSE_API_URL", "http://localhost:8081")
+    grpc_addr = os.environ.get("PULSE_GRPC_ADDR", "127.0.0.1:9091")
+    cfg_content = (
+        f"api_url: {api_url}\n"
+        f"grpc_addr: {grpc_addr}\n"
+        f"enrolment_token: {enrolment_token}\n"
+        f"data_dir: /var/lib/pulse-agent\n"
+    )
+    cfg_file = tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False)
+    cfg_file.write(cfg_content)
+    cfg_file.close()
+    os.chmod(cfg_file.name, 0o644)
+
     print(f"[setup] starting agent container ({AGENT_IMAGE})...")
     result = subprocess.run(
         [
             "podman", "run", "-d",
             "--log-driver=k8s-file",
-            "--network", E2E_NETWORK,
-            "-e", f"PULSE_TOKEN={enrolment_token}",
-            "-e", "PULSE_SERVER=enrolment-service:9091",
-            "-e", "PULSE_METRIC_SERVER=metric-service:9092",
-            "-e", "PULSE_GATEWAY=api-gateway:9090",
+            "--network=host",
+            "-v", f"{cfg_file.name}:/etc/pulse-agent/config.yaml:ro,z",
             AGENT_IMAGE,
         ],
         capture_output=True, text=True, check=True,
@@ -176,6 +197,76 @@ def enrolled_agent(admin_session):
         print(f"[setup] agent enrolled as endpoint: {endpoint_id}")
         yield endpoint_id
     finally:
-        print(f"\n[teardown] keeping agent container {container_id[:12]} for inspection...")
-        # Don't stop the container - keep it for debugging
-        # subprocess.run(["podman", "stop", container_id], capture_output=True)
+        print(f"\n[teardown] stopping agent container {container_id[:12]}...")
+        subprocess.run(["podman", "stop", "-t", "1", container_id], capture_output=True)
+        subprocess.run(["podman", "rm", "-f", container_id], capture_output=True)
+
+@pytest.fixture(params=[
+    ("POST", "/api/scripts"),
+    ("GET", "/api/scripts/fake-id"),
+    ("POST", "/api/scripts/fake-id/approve"),
+    ("POST", "/api/scripts/fake-id/run"),
+    ("GET", "/api/scripts/runs/fake-id/results"),
+    ("POST", "/api/sessions"),
+    ("GET", "/api/sessions/fake-id"),
+    ("DELETE", "/api/sessions/fake-id"),
+    ("GET", "/api/identity/rbac/permissions"),
+    ("GET", "/api/identity/rbac/roles"),
+    ("POST", "/api/identity/rbac/roles"),
+    ("GET", "/api/endpoints"),
+    ("POST", "/api/enrolment/tokens"),
+    ("GET", "/api/groups"),
+    ("POST", "/api/groups"),
+    ("POST", "/api/shell/sessions"),
+    ("POST", "/api/tags"),
+])
+def protected_endpoint(request):
+    """Parameterized fixture for all protected endpoints."""
+    method, path = request.param
+    return method, path
+
+
+pytestmark_auth = pytest.mark.parametrize("protected_endpoint", [
+    ("POST", "/api/scripts"),
+    ("GET", "/api/scripts/fake-id"),
+    ("POST", "/api/scripts/fake-id/approve"),
+    ("POST", "/api/scripts/fake-id/run"),
+    ("GET", "/api/scripts/runs/fake-id/results"),
+    ("POST", "/api/sessions"),
+    ("GET", "/api/sessions/fake-id"),
+    ("DELETE", "/api/sessions/fake-id"),
+    ("GET", "/api/identity/rbac/permissions"),
+    ("GET", "/api/identity/rbac/roles"),
+    ("POST", "/api/identity/rbac/roles"),
+    ("GET", "/api/endpoints"),
+    ("POST", "/api/enrolment/tokens"),
+    ("GET", "/api/groups"),
+    ("POST", "/api/groups"),
+    ("POST", "/api/shell/sessions"),
+    ("POST", "/api/tags"),
+])
+
+
+def auth_test_endpoints():
+    """
+    List of (method, path) tuples for protected endpoints.
+    Used in test_auth.py as a parametrized test.
+    """
+    return [
+        ("POST", "/api/scripts"),
+        ("GET", "/api/scripts/fake-id"),
+        ("POST", "/api/scripts/fake-id/approve"),
+        ("POST", "/api/scripts/fake-id/run"),
+        ("GET", "/api/scripts/runs/fake-id/results"),
+        ("POST", "/api/sessions"),
+        ("GET", "/api/sessions/fake-id"),
+        ("DELETE", "/api/sessions/fake-id"),
+        ("GET", "/api/identity/rbac/permissions"),
+        ("GET", "/api/identity/rbac/roles"),
+        ("POST", "/api/identity/rbac/roles"),
+        ("GET", "/api/endpoints"),
+        ("POST", "/api/enrolment/tokens"),
+        ("GET", "/api/groups"),
+        ("POST", "/api/groups"),
+        ("PUT", "/api/endpoints/fake-id/tags"),
+    ]

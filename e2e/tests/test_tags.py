@@ -5,13 +5,7 @@ from config import BASE_URL
 
 pytestmark = [pytest.mark.slow, pytest.mark.requires_agent]
 
-
-def test_set_tags_requires_auth(enrolled_agent):
-    r = requests.put(
-        f"{BASE_URL}/api/endpoints/{enrolled_agent}/tags",
-        json={"tags": [{"key": "env", "value": "e2e"}]},
-    )
-    assert r.status_code in (401, 403)
+# Auth enforcement tests consolidated in test_auth_enforcement.py
 
 
 def test_set_tags_filters_endpoint_list(admin_session, enrolled_agent):

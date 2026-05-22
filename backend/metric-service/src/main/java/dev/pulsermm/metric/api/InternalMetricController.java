@@ -35,8 +35,9 @@ public class InternalMetricController {
     public ResponseEntity<Void> pushMetrics(@RequestBody MetricRequest req) {
         try {
             UUID endpointId = UUID.fromString(req.endpointId());
+            Instant ingestedAt = Instant.now();
             List<MetricSampleInput> samples = req.samples().stream()
-                .map(s -> new MetricSampleInput(s.type(), s.value(), Instant.ofEpochMilli(s.collectedAt())))
+                .map(s -> new MetricSampleInput(s.type(), s.value(), ingestedAt))
                 .toList();
             metricService.pushMetrics(endpointId, samples);
             return ResponseEntity.ok().build();

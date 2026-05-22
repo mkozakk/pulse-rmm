@@ -3,6 +3,11 @@ package dev.pulsermm.audit.api.controller;
 import dev.pulsermm.audit.api.dto.AuditEventResponse;
 import dev.pulsermm.audit.application.AuditExportService;
 import dev.pulsermm.audit.application.AuditQueryService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpHeaders;
@@ -14,6 +19,8 @@ import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBo
 import java.time.Instant;
 import java.util.UUID;
 
+@Tag(name = "Audit", description = "Immutable audit log — query and export compliance records")
+@SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequestMapping("/api/audit")
 public class AuditController {
@@ -26,26 +33,30 @@ public class AuditController {
         this.exportService = exportService;
     }
 
+    @Operation(summary = "List audit events", description = "Returns a paginated list of audit events. All filters are optional and can be combined.")
+    @ApiResponse(responseCode = "200", description = "Audit events returned")
     @GetMapping
     public Page<AuditEventResponse> list(
-            @RequestParam(required = false) UUID user,
-            @RequestParam(required = false) UUID endpoint,
-            @RequestParam(required = false) Instant from,
-            @RequestParam(required = false) Instant to,
+            @Parameter(description = "Filter by user ID") @RequestParam(required = false) UUID user,
+            @Parameter(description = "Filter by endpoint ID") @RequestParam(required = false) UUID endpoint,
+            @Parameter(description = "Start of time range (ISO-8601)") @RequestParam(required = false) Instant from,
+            @Parameter(description = "End of time range (ISO-8601)") @RequestParam(required = false) Instant to,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "50") int size) {
+            @Parameter(description = "Page size, capped at 200") @RequestParam(defaultValue = "50") int size) {
         int cappedSize = Math.min(size, 200);
         return queryService.list(user, endpoint, from, to, PageRequest.of(page, cappedSize))
                 .map(AuditEventResponse::from);
     }
 
+    @Operation(summary = "Export audit events", description = "Streams all matching audit events as a CSV or NDJSON file download. Same filters as the list endpoint.")
+    @ApiResponse(responseCode = "200", description = "File download started (text/csv or application/x-ndjson)")
     @GetMapping("/export")
     public ResponseEntity<StreamingResponseBody> export(
-            @RequestParam(required = false) UUID user,
-            @RequestParam(required = false) UUID endpoint,
-            @RequestParam(required = false) Instant from,
-            @RequestParam(required = false) Instant to,
-            @RequestParam(defaultValue = "csv") String format) {
+            @Parameter(description = "Filter by user ID") @RequestParam(required = false) UUID user,
+            @Parameter(description = "Filter by endpoint ID") @RequestParam(required = false) UUID endpoint,
+            @Parameter(description = "Start of time range (ISO-8601)") @RequestParam(required = false) Instant from,
+            @Parameter(description = "End of time range (ISO-8601)") @RequestParam(required = false) Instant to,
+            @Parameter(description = "Export format: csv or json", example = "csv") @RequestParam(defaultValue = "csv") String format) {
 
         if ("json".equalsIgnoreCase(format)) {
             StreamingResponseBody body = out -> exportService.streamNdjson(user, endpoint, from, to, out);
@@ -62,6 +73,8 @@ public class AuditController {
                 .body(body);
     }
 
+    @Operation(summary = "Delete not allowed", description = "Audit records are immutable — this endpoint always returns 403.")
+    @ApiResponse(responseCode = "403", description = "Deletion of audit records is not permitted")
     @DeleteMapping("/**")
     public ResponseEntity<Void> deleteNotAllowed() {
         return ResponseEntity.status(403).build();

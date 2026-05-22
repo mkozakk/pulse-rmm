@@ -20,7 +20,7 @@ public class SoftwareCommandDispatcher {
 
     public SoftwareCommandDispatcher(AgentRegistry agentRegistry,
                                      PendingCommandRegistry pendingCommandRegistry,
-                                     @Value("${SOFTWARE_SERVICE_URL:http://localhost:8085}") String softwareServiceUrl) {
+                                     @Value("${COMMANDS_SERVICE_URL:http://localhost:8084}") String softwareServiceUrl) {
         this.agentRegistry = agentRegistry;
         this.pendingCommandRegistry = pendingCommandRegistry;
         this.softwareServiceUrl = softwareServiceUrl;

@@ -6,6 +6,11 @@ import dev.pulsermm.integration.api.dto.WebhookDeliveryResponse;
 import dev.pulsermm.integration.api.dto.WebhookDeliveryView;
 import dev.pulsermm.integration.application.WebhookService;
 import dev.pulsermm.integration.infrastructure.persistence.WebhookDeliveryRepository;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,6 +20,8 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.List;
 import java.util.UUID;
 
+@Tag(name = "Webhook Deliveries", description = "Delivery history and dead-letter queue for webhook calls")
+@SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequestMapping("/api/webhooks")
 public class WebhookDeliveryController {
@@ -31,6 +38,9 @@ public class WebhookDeliveryController {
         this.objectMapper = objectMapper;
     }
 
+    @Operation(summary = "List deliveries for a webhook", description = "Returns delivery attempts for the given webhook, optionally filtered by status.")
+    @ApiResponse(responseCode = "200", description = "Deliveries returned")
+    @ApiResponse(responseCode = "404", description = "Webhook not found")
     @GetMapping("/{webhookId}/deliveries")
     @Transactional(readOnly = true)
     public List<WebhookDeliveryView> listDeliveries(
@@ -47,6 +57,8 @@ public class WebhookDeliveryController {
             .toList();
     }
 
+    @Operation(summary = "List dead-letter deliveries", description = "Returns webhook deliveries that exhausted all retry attempts.")
+    @ApiResponse(responseCode = "200", description = "Dead-letter deliveries returned")
     @GetMapping("/deliveries/dead-letter")
     @Transactional(readOnly = true)
     public List<WebhookDeliveryView> listDeadLetter(
@@ -58,6 +70,9 @@ public class WebhookDeliveryController {
             .toList();
     }
 
+    @Operation(summary = "Get a single delivery by ID")
+    @ApiResponse(responseCode = "200", description = "Delivery returned")
+    @ApiResponse(responseCode = "404", description = "Delivery not found")
     @GetMapping("/deliveries/{deliveryId}")
     public WebhookDeliveryResponse getDelivery(@PathVariable UUID deliveryId) {
         var delivery = deliveryRepository.findByIdWithWebhook(deliveryId)

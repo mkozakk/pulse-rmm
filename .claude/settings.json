@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(podman logs *)",
+      "Bash(podman ps *)",
+      "Bash(pkg-config *)"
+    ]
+  }
+}

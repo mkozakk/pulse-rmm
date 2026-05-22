@@ -1,13 +1,22 @@
-# Override for e2e runs. Replaces named volumes with e2e-specific ones so dev
-# volumes (postgres_data etc.) are never touched by e2e teardown.
+# Override for e2e runs:
+# - Uses different ports so dev and e2e stacks can run simultaneously
+# - Uses isolated volumes so e2e doesn't affect dev data
 #
 # Usage:  podman compose -f deploy/compose.yaml -f deploy/compose.e2e.yaml up -d
+# Dev runs concurrently on 8080, e2e tests run on 8081
 # Teardown: podman compose -f deploy/compose.yaml -f deploy/compose.e2e.yaml down -v
 
 services:
-  webapp:
-    profiles:
-      - skip
+  coturn:
+    ports: !override
+      - "3479:3478/udp"
+      - "3479:3478/tcp"
+      - "49210-49258:49152-49200/udp"
+
+  nginx:
+    ports: !override
+      - "8081:80"
+      - "9091:9090"
 
   postgres:
     volumes:
@@ -25,8 +34,13 @@ services:
     volumes:
       - minio_e2e_data:/data
 
+  api-gateway:
+    volumes:
+      - api_gateway_tls_e2e:/var/lib/api-gateway/tls
+
 volumes:
   postgres_e2e_data:
   redis_e2e_data:
   rabbitmq_e2e_data:
   minio_e2e_data:
+  api_gateway_tls_e2e:

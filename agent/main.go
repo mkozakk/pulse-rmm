@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"crypto"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -13,15 +15,16 @@ import (
 	"github.com/pulsermm/pulse-rmm/agent/internal/config"
 	"github.com/pulsermm/pulse-rmm/agent/internal/control"
 	"github.com/pulsermm/pulse-rmm/agent/internal/enrolment"
+	"github.com/pulsermm/pulse-rmm/agent/internal/files"
 	"github.com/pulsermm/pulse-rmm/agent/internal/metrics"
 	"github.com/pulsermm/pulse-rmm/agent/internal/script"
 	"github.com/pulsermm/pulse-rmm/agent/internal/shell"
 	"github.com/pulsermm/pulse-rmm/agent/internal/software"
 	"github.com/pulsermm/pulse-rmm/agent/internal/store"
 	"github.com/pulsermm/pulse-rmm/agent/internal/svc"
+	"github.com/pulsermm/pulse-rmm/agent/internal/tlsconf"
 	"github.com/pulsermm/pulse-rmm/agent/internal/update"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 // Version is overridden at build time with -ldflags "-X main.Version=x.y.z"
@@ -134,14 +137,46 @@ func runAgent(ctx context.Context) {
 			fmt.Fprintf(os.Stderr, "Error: no endpoint identity found and no enrolment_token in config\n")
 			os.Exit(1)
 		}
-		endpointID, err = enrolment.Enrol(ctx, cfg.EnrolmentToken, grpcAddr, cfg.APIURL, privKey)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		enrolCreds, credsErr := tlsconf.AgentClientCreds(store.CertFile, store.CABundleFile, privKey)
+		if credsErr != nil {
+			fmt.Fprintf(os.Stderr, "Error: building enrol tls creds: %v\n", credsErr)
 			os.Exit(1)
 		}
+		var result enrolment.Result
+		backoff := time.Second
+		for attempt := 1; ; attempt++ {
+			result, err = enrolment.Enrol(ctx, cfg.EnrolmentToken, grpcAddr, cfg.APIURL, privKey, enrolCreds)
+			if err == nil {
+				break
+			}
+			if attempt >= 10 {
+				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+				os.Exit(1)
+			}
+			fmt.Fprintf(os.Stderr, "enrol attempt %d failed: %v; retrying in %s\n", attempt, err, backoff)
+			select {
+			case <-time.After(backoff):
+			case <-ctx.Done():
+				return
+			}
+			if backoff < 8*time.Second {
+				backoff *= 2
+			}
+		}
+		endpointID = result.EndpointID
 		if err := store.SaveEndpointID(endpointID); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
+		}
+		if len(result.CertPEM) > 0 {
+			if err := store.SaveCert(result.CertPEM); err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: could not save client cert: %v\n", err)
+			}
+		}
+		if len(result.CABundle) > 0 {
+			if err := store.SaveCABundle(result.CABundle); err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: could not save CA bundle: %v\n", err)
+			}
 		}
 		fmt.Printf("Enrolled: %s\n", endpointID)
 		if err := cfg.RemoveToken(); err != nil {
@@ -155,7 +190,11 @@ func runAgent(ctx context.Context) {
 		fmt.Printf("Already enrolled: %s\n", endpointID)
 	}
 
-	grpcCreds := insecure.NewCredentials()
+	grpcCreds, err := tlsconf.AgentClientCreds(store.CertFile, store.CABundleFile, privKey)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: building tls creds: %v\n", err)
+		os.Exit(1)
+	}
 
 	metricClient, err := metrics.NewClient(grpcAddr, grpcAddr, grpc.WithTransportCredentials(grpcCreds))
 	if err != nil {
@@ -171,6 +210,7 @@ func runAgent(ctx context.Context) {
 	}
 	defer gatewayConn.Close()
 	agentClient := pb.NewAgentServiceClient(gatewayConn)
+	fileClient := pb.NewFileServiceClient(gatewayConn)
 
 	// heartbeatOK is closed on the first successful heartbeat so the post-update
 	// verifier knows the new binary is healthy.
@@ -194,14 +234,15 @@ func runAgent(ctx context.Context) {
 	go runHeartbeat(ctx, metricClient, endpointID, heartbeatOK)
 	go runMetrics(ctx, metricClient, endpointID)
 	go runSoftwareScan(ctx, endpointID, agentClient)
-	go runControlStream(ctx, endpointID, grpcAddr, agentClient, grpc.WithTransportCredentials(grpcCreds))
+	go runControlStream(ctx, endpointID, grpcAddr, agentClient, fileClient, grpc.WithTransportCredentials(grpcCreds))
+	go runCertRenewal(ctx, agentClient, privKey)
 	go updater.Start(ctx)
 
 	<-ctx.Done()
 	fmt.Println("[agent] Shutting down")
 }
 
-func runControlStream(ctx context.Context, endpointID, gatewayAddr string, agentClient pb.AgentServiceClient, connOpt grpc.DialOption) {
+func runControlStream(ctx context.Context, endpointID, gatewayAddr string, agentClient pb.AgentServiceClient, fileClient pb.FileServiceClient, connOpt grpc.DialOption) {
 	inCh := make(chan *pb.GatewayCommand, 16)
 	outCh := make(chan *pb.AgentEvent, 16)
 
@@ -217,7 +258,7 @@ func runControlStream(ctx context.Context, endpointID, gatewayAddr string, agent
 				if !ok {
 					return
 				}
-				dispatchCmd(shellMgr, desktopHandler, cmd, outCh, agentClient, endpointID)
+				dispatchCmd(ctx, shellMgr, desktopHandler, cmd, outCh, agentClient, fileClient, endpointID)
 			case <-ctx.Done():
 				return
 			}
@@ -242,7 +283,7 @@ func runControlStream(ctx context.Context, endpointID, gatewayAddr string, agent
 	}
 }
 
-func dispatchCmd(mgr *shell.Manager, deskHandler *desktop.Handler, cmd *pb.GatewayCommand, outCh chan<- *pb.AgentEvent, agentClient pb.AgentServiceClient, endpointID string) {
+func dispatchCmd(ctx context.Context, mgr *shell.Manager, deskHandler *desktop.Handler, cmd *pb.GatewayCommand, outCh chan<- *pb.AgentEvent, agentClient pb.AgentServiceClient, fileClient pb.FileServiceClient, endpointID string) {
 	send := func(e *pb.AgentEvent) { outCh <- e }
 	switch p := cmd.Payload.(type) {
 	case *pb.GatewayCommand_StartDesktopSession:
@@ -277,6 +318,95 @@ func dispatchCmd(mgr *shell.Manager, deskHandler *desktop.Handler, cmd *pb.Gatew
 		go executeSoftwareCommand(p.SoftwareCommand, outCh, agentClient, endpointID)
 	case *pb.GatewayCommand_ScriptCommand:
 		go executeScriptCommand(p.ScriptCommand, outCh)
+	case *pb.GatewayCommand_ListDir:
+		go handleListDir(p.ListDir, outCh)
+	case *pb.GatewayCommand_FileDownload:
+		go handleFileDownload(ctx, p.FileDownload, fileClient, outCh)
+	case *pb.GatewayCommand_FileUpload:
+		go handleFileUpload(ctx, p.FileUpload, fileClient, outCh)
+	}
+}
+
+func handleListDir(c *pb.ListDirCommand, outCh chan<- *pb.AgentEvent) {
+	entries, err := files.ListDir(c.Path)
+	res := &pb.ListDirResult{RequestId: c.RequestId, Path: c.Path, Entries: entries}
+	if err != nil {
+		res.Error = err.Error()
+	}
+	outCh <- &pb.AgentEvent{Payload: &pb.AgentEvent_ListDirResult{ListDirResult: res}}
+}
+
+func handleFileDownload(ctx context.Context, c *pb.FileDownloadCommand, fc pb.FileServiceClient, outCh chan<- *pb.AgentEvent) {
+	n, err := files.SendFile(ctx, fc, c.TransferId, c.Path)
+	done := &pb.FileTransferDone{TransferId: c.TransferId, Bytes: n}
+	if err != nil {
+		done.Error = err.Error()
+	}
+	outCh <- &pb.AgentEvent{Payload: &pb.AgentEvent_FileTransferDone{FileTransferDone: done}}
+}
+
+func handleFileUpload(ctx context.Context, c *pb.FileUploadCommand, fc pb.FileServiceClient, outCh chan<- *pb.AgentEvent) {
+	n, err := files.ReceiveFile(ctx, fc, c.TransferId, c.DestPath)
+	done := &pb.FileTransferDone{TransferId: c.TransferId, Bytes: n}
+	if err != nil {
+		done.Error = err.Error()
+	}
+	outCh <- &pb.AgentEvent{Payload: &pb.AgentEvent_FileTransferDone{FileTransferDone: done}}
+}
+
+func runCertRenewal(ctx context.Context, client pb.AgentServiceClient, priv interface {
+	Public() crypto.PublicKey
+	Sign(io.Reader, []byte, crypto.SignerOpts) ([]byte, error)
+}) {
+	for ctx.Err() == nil {
+		certPEM, err := os.ReadFile(store.CertFile)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "[renew] no cert on disk (%v); skipping renewal loop\n", err)
+			return
+		}
+		renewAt, err := enrolment.NextRenewAt(certPEM, time.Now())
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "[renew] parsing cert failed: %v; retrying in 1h\n", err)
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(time.Hour):
+				continue
+			}
+		}
+		wait := time.Until(renewAt)
+		if wait < 0 {
+			wait = 0
+		}
+		fmt.Printf("[renew] next renewal at %s (in %s)\n", renewAt.Format(time.RFC3339), wait)
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(wait):
+		}
+
+		newCert, newCA, err := enrolment.RenewCert(ctx, client, priv)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "[renew] renew rpc failed: %v; retrying in 1h\n", err)
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(time.Hour):
+				continue
+			}
+		}
+		if len(newCert) > 0 {
+			if err := store.SaveCert(newCert); err != nil {
+				fmt.Fprintf(os.Stderr, "[renew] saving cert: %v\n", err)
+				continue
+			}
+		}
+		if len(newCA) > 0 {
+			if err := store.SaveCABundle(newCA); err != nil {
+				fmt.Fprintf(os.Stderr, "[renew] saving ca bundle: %v\n", err)
+			}
+		}
+		fmt.Println("[renew] cert renewed; existing connections will pick up new cert on next reconnect")
 	}
 }
 

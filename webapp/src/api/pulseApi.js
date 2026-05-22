@@ -152,6 +152,22 @@ export const pulseApi = createApi({
         `/endpoints/${id}/metrics?from=${from}&to=${to}&type=${type}`,
       keepUnusedDataFor: 0
     }),
+    listFiles: builder.query({
+      query: ({ id, path }) =>
+        `/files/${id}${path ? `?path=${encodeURIComponent(path)}` : ''}`,
+      keepUnusedDataFor: 0
+    }),
+    uploadFile: builder.mutation({
+      query: ({ id, path, file }) => {
+        const form = new FormData()
+        form.append('file', file)
+        return {
+          url: `/files/${id}/upload?path=${encodeURIComponent(path)}`,
+          method: 'POST',
+          body: form
+        }
+      }
+    }),
     createSession: builder.mutation({
       query: (body) => ({ url: '/sessions', method: 'POST', body })
     }),
@@ -264,6 +280,8 @@ export const {
   useRemoveSoftwareMutation,
   useGetEndpointQuery,
   useGetMetricsQuery,
+  useListFilesQuery,
+  useUploadFileMutation,
   useCreateSessionMutation,
   useGetSessionQuery,
   useEndSessionMutation,

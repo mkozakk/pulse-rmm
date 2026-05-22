@@ -1,50 +1,88 @@
 package store
 
 import (
-	"crypto/ed25519"
-	"encoding/pem"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/pulsermm/pulse-rmm/agent/internal/secrets"
 )
+
+const rsaKeyBits = 2048
 
 var (
 	KeyFile      = "/var/lib/pulse-agent/key.pem"
+	SecretsFile  = "/var/lib/pulse-agent/secrets.bin"
 	EndpointFile = "/var/lib/pulse-agent/endpoint.id"
+	CertFile     = "/var/lib/pulse-agent/cert.pem"
+	CABundleFile = "/var/lib/pulse-agent/ca.pem"
 )
 
 // Init sets the file paths derived from dataDir. Call once at startup before
 // any Load/Save calls. Tests override the vars directly instead.
 func Init(dataDir string) {
 	KeyFile = dataDir + "/key.pem"
+	SecretsFile = dataDir + "/secrets.bin"
 	EndpointFile = dataDir + "/endpoint.id"
+	CertFile = dataDir + "/cert.pem"
+	CABundleFile = dataDir + "/ca.pem"
 }
 
-func LoadOrGenerateKey() (ed25519.PrivateKey, error) {
-	keyBytes, err := os.ReadFile(KeyFile)
-	if err == nil {
-		return parsePrivateKey(keyBytes)
+func SaveCert(certPem []byte) error {
+	if err := os.MkdirAll(filepath.Dir(CertFile), 0o700); err != nil {
+		return fmt.Errorf("creating directory: %w", err)
+	}
+	return os.WriteFile(CertFile, certPem, 0o600)
+}
+
+func SaveCABundle(caPem []byte) error {
+	if err := os.MkdirAll(filepath.Dir(CABundleFile), 0o700); err != nil {
+		return fmt.Errorf("creating directory: %w", err)
+	}
+	return os.WriteFile(CABundleFile, caPem, 0o600)
+}
+
+func LoadOrGenerateKey() (*rsa.PrivateKey, error) {
+	key, err := secrets.MachineKey()
+	if err != nil {
+		return nil, fmt.Errorf("deriving machine key: %w", err)
 	}
 
-	if !os.IsNotExist(err) {
-		return nil, fmt.Errorf("reading key: %w", err)
+	if sealed, err := os.ReadFile(SecretsFile); err == nil {
+		plain, err := secrets.Open(sealed, key)
+		if err != nil {
+			return nil, fmt.Errorf("opening sealed key: %w", err)
+		}
+		priv, err := parsePrivateKey(plain)
+		if err == nil {
+			return priv, nil
+		}
+		// Legacy non-RSA blob (e.g. ed25519 from earlier mTLS branch).
+		// Wipe identity so the agent re-enrols with a fresh RSA key.
+		zeroAndRemove(SecretsFile)
+		_ = os.Remove(EndpointFile)
+		_ = os.Remove(CertFile)
+		_ = os.Remove(CABundleFile)
+	} else if !os.IsNotExist(err) {
+		return nil, fmt.Errorf("reading sealed key: %w", err)
 	}
 
-	pubKey, privKey, err := ed25519.GenerateKey(nil)
+	priv, err := rsa.GenerateKey(rand.Reader, rsaKeyBits)
 	if err != nil {
 		return nil, fmt.Errorf("generating key: %w", err)
 	}
-
-	if err := savePrivateKey(privKey); err != nil {
-		return nil, fmt.Errorf("saving key: %w", err)
+	if err := writeSealed(priv, key); err != nil {
+		return nil, fmt.Errorf("sealing new key: %w", err)
 	}
-
-	fmt.Printf("Generated new endpoint key (public: %x)\n", pubKey)
-	return privKey, nil
+	return priv, nil
 }
 
-func GetPublicKey(privKey ed25519.PrivateKey) []byte {
-	return privKey.Public().(ed25519.PublicKey)
+func GetPublicKey(privKey *rsa.PrivateKey) []byte {
+	der, _ := x509.MarshalPKIXPublicKey(&privKey.PublicKey)
+	return der
 }
 
 func SaveEndpointID(endpointID string) error {
@@ -67,39 +105,37 @@ func LoadEndpointID() (string, error) {
 	return string(data), nil
 }
 
-func parsePrivateKey(keyBytes []byte) (ed25519.PrivateKey, error) {
-	block, _ := pem.Decode(keyBytes)
-	if block == nil {
-		return nil, fmt.Errorf("invalid PEM format")
+func parsePrivateKey(der []byte) (*rsa.PrivateKey, error) {
+	k, err := x509.ParsePKCS8PrivateKey(der)
+	if err != nil {
+		return nil, fmt.Errorf("parsing pkcs8: %w", err)
 	}
-
-	privKey := ed25519.PrivateKey(block.Bytes)
-	if len(privKey) != ed25519.PrivateKeySize {
-		return nil, fmt.Errorf("invalid key size: %d", len(privKey))
+	rsaKey, ok := k.(*rsa.PrivateKey)
+	if !ok {
+		return nil, fmt.Errorf("expected RSA private key, got %T", k)
 	}
-
-	return privKey, nil
+	return rsaKey, nil
 }
 
-func savePrivateKey(privKey ed25519.PrivateKey) error {
-	if err := os.MkdirAll(filepath.Dir(KeyFile), 0700); err != nil {
+func writeSealed(priv *rsa.PrivateKey, key []byte) error {
+	if err := os.MkdirAll(filepath.Dir(SecretsFile), 0o700); err != nil {
 		return fmt.Errorf("creating directory: %w", err)
 	}
-
-	block := &pem.Block{
-		Type:  "PRIVATE KEY",
-		Bytes: privKey,
-	}
-
-	keyFile, err := os.OpenFile(KeyFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
+	der, err := x509.MarshalPKCS8PrivateKey(priv)
 	if err != nil {
-		return fmt.Errorf("opening file: %w", err)
+		return fmt.Errorf("marshalling pkcs8: %w", err)
 	}
-	defer keyFile.Close()
-
-	if err := pem.Encode(keyFile, block); err != nil {
-		return fmt.Errorf("encoding PEM: %w", err)
+	ct, err := secrets.Seal(der, key)
+	if err != nil {
+		return err
 	}
+	return os.WriteFile(SecretsFile, ct, 0o600)
+}
 
-	return nil
+func zeroAndRemove(path string) {
+	if info, err := os.Stat(path); err == nil {
+		zeros := make([]byte, info.Size())
+		_ = os.WriteFile(path, zeros, 0o600)
+	}
+	_ = os.Remove(path)
 }

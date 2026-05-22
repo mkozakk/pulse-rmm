@@ -3,15 +3,7 @@ import requests
 
 from config import BASE_URL
 
-pytestmark = pytest.mark.fast
-
-
-def test_create_token_requires_auth():
-    """Creating an enrolment token without auth returns 403."""
-    group_id = "00000000-0000-0000-0000-000000000000"
-    payload = {"groupId": group_id, "ttlHours": 24}
-    r = requests.post(f"{BASE_URL}/api/enrolment/tokens", json=payload)
-    assert r.status_code == 403
+# Auth enforcement tests consolidated in test_auth_enforcement.py
 
 
 def test_create_token_with_valid_jwt(admin_session):
@@ -33,13 +25,20 @@ def test_create_token_with_valid_jwt(admin_session):
 
 
 def test_list_endpoints_empty(admin_session):
-    """List endpoints returns 200 with empty list when no agents enrolled."""
+    """List endpoints returns 200 with list (may have enrolled agents)."""
     r = admin_session.get(f"{BASE_URL}/api/endpoints")
     assert r.status_code == 200
     assert isinstance(r.json(), list)
 
 
-def test_list_endpoints_requires_auth():
-    """List endpoints without auth returns 403."""
-    r = requests.get(f"{BASE_URL}/api/endpoints")
-    assert r.status_code == 403
+@pytest.mark.slow
+@pytest.mark.requires_agent
+def test_endpoint_enrolled_and_online(admin_session, enrolled_agent):
+    """Real agent enrolls and appears in endpoint list with online status."""
+    r = admin_session.get(f"{BASE_URL}/api/endpoints")
+    assert r.status_code == 200
+    ids = [e["id"] for e in r.json()]
+    assert enrolled_agent in ids
+
+    endpoint = next(e for e in r.json() if e["id"] == enrolled_agent)
+    assert endpoint["status"] == "online", f"expected online, got: {endpoint}"

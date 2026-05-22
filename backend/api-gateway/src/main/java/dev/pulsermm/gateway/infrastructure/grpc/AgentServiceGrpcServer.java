@@ -1,5 +1,6 @@
 package dev.pulsermm.gateway.infrastructure.grpc;
 
+import dev.pulsermm.gateway.infrastructure.mtls.MtlsContext;
 import dev.pulsermm.proto.v1.*;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
@@ -13,6 +14,7 @@ import org.springframework.web.client.RestClient;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @GrpcService
 public class AgentServiceGrpcServer extends AgentServiceGrpc.AgentServiceImplBase {
@@ -24,9 +26,9 @@ public class AgentServiceGrpcServer extends AgentServiceGrpc.AgentServiceImplBas
     private final RestClient softwareClient;
 
     public AgentServiceGrpcServer(
-            @Value("${ENROLMENT_SERVICE_URL:http://localhost:8081}") String enrolmentUrl,
+            @Value("${ENDPOINT_SERVICE_URL:http://localhost:8081}") String enrolmentUrl,
             @Value("${METRIC_SERVICE_URL:http://localhost:8082}") String metricUrl,
-            @Value("${SOFTWARE_SERVICE_URL:http://localhost:8085}") String softwareUrl) {
+            @Value("${COMMANDS_SERVICE_URL:http://localhost:8084}") String softwareUrl) {
         this.enrolmentClient = RestClient.builder().baseUrl(enrolmentUrl).build();
         this.metricClient = RestClient.builder().baseUrl(metricUrl).build();
         this.softwareClient = RestClient.builder().baseUrl(softwareUrl).build();
@@ -42,13 +44,15 @@ public class AgentServiceGrpcServer extends AgentServiceGrpc.AgentServiceImplBas
     public void enrol(EnrolRequest request, StreamObserver<EnrolResponse> responseObserver) {
         try {
             String publicKeyB64 = Base64.getEncoder().encodeToString(request.getPublicKey().toByteArray());
-            Map<String, String> body = Map.of(
-                "token", request.getToken(),
-                "publicKey", publicKeyB64,
-                "hostname", request.getHostname(),
-                "os", request.getOs(),
-                "arch", request.getArch()
-            );
+            java.util.HashMap<String, String> body = new java.util.HashMap<>();
+            body.put("token", request.getToken());
+            body.put("publicKey", publicKeyB64);
+            body.put("hostname", request.getHostname());
+            body.put("os", request.getOs());
+            body.put("arch", request.getArch());
+            if (request.getCsrPem() != null && !request.getCsrPem().isEmpty()) {
+                body.put("csrPem", request.getCsrPem());
+            }
 
             var result = enrolmentClient.post()
                 .uri("/internal/enrol")
@@ -59,9 +63,17 @@ public class AgentServiceGrpcServer extends AgentServiceGrpc.AgentServiceImplBas
 
             if (result.getStatusCode().is2xxSuccessful() && result.getBody() != null) {
                 Map<?, ?> resp = result.getBody();
-                responseObserver.onNext(EnrolResponse.newBuilder()
-                    .setEndpointId((String) resp.get("endpointId"))
-                    .build());
+                EnrolResponse.Builder respBuilder = EnrolResponse.newBuilder()
+                    .setEndpointId((String) resp.get("endpointId"));
+                Object certPem = resp.get("certPem");
+                Object caPem = resp.get("caBundlePem");
+                if (certPem instanceof String s && !s.isEmpty()) {
+                    respBuilder.setClientCertPem(com.google.protobuf.ByteString.copyFromUtf8(s));
+                }
+                if (caPem instanceof String s && !s.isEmpty()) {
+                    respBuilder.setCaCertPem(com.google.protobuf.ByteString.copyFromUtf8(s));
+                }
+                responseObserver.onNext(respBuilder.build());
                 responseObserver.onCompleted();
             } else {
                 responseObserver.onError(Status.INTERNAL.withDescription("enrol failed").asRuntimeException());
@@ -70,6 +82,52 @@ public class AgentServiceGrpcServer extends AgentServiceGrpc.AgentServiceImplBas
             responseObserver.onError(Status.UNAUTHENTICATED.withDescription("invalid token").asRuntimeException());
         } catch (Exception e) {
             logger.error("Enrol failed", e);
+            responseObserver.onError(Status.INTERNAL.withDescription(e.getMessage()).asRuntimeException());
+        }
+    }
+
+    @Override
+    public void renewCert(RenewCertRequest request, StreamObserver<RenewCertResponse> responseObserver) {
+        UUID endpointId = MtlsContext.ENDPOINT_ID.get();
+        if (endpointId == null) {
+            responseObserver.onError(Status.UNAUTHENTICATED
+                .withDescription("client certificate required").asRuntimeException());
+            return;
+        }
+        if (request.getCsrPem() == null || request.getCsrPem().isEmpty()) {
+            responseObserver.onError(Status.INVALID_ARGUMENT
+                .withDescription("csr_pem is required").asRuntimeException());
+            return;
+        }
+        try {
+            var result = enrolmentClient.post()
+                .uri("/internal/cert/renew")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("endpointId", endpointId.toString(), "csrPem", request.getCsrPem()))
+                .retrieve()
+                .toEntity(Map.class);
+            Map<?, ?> body = result.getBody();
+            if (body == null) {
+                responseObserver.onError(Status.INTERNAL.withDescription("empty response").asRuntimeException());
+                return;
+            }
+            RenewCertResponse.Builder b = RenewCertResponse.newBuilder();
+            if (body.get("certPem") instanceof String s) {
+                b.setClientCertPem(com.google.protobuf.ByteString.copyFromUtf8(s));
+            }
+            if (body.get("caBundlePem") instanceof String s) {
+                b.setCaCertPem(com.google.protobuf.ByteString.copyFromUtf8(s));
+            }
+            responseObserver.onNext(b.build());
+            responseObserver.onCompleted();
+        } catch (org.springframework.web.client.HttpClientErrorException.Forbidden e) {
+            responseObserver.onError(Status.PERMISSION_DENIED
+                .withDescription("endpoint revoked").asRuntimeException());
+        } catch (org.springframework.web.client.HttpClientErrorException.NotFound e) {
+            responseObserver.onError(Status.NOT_FOUND
+                .withDescription("endpoint not found").asRuntimeException());
+        } catch (Exception e) {
+            logger.error("RenewCert failed for {}", endpointId, e);
             responseObserver.onError(Status.INTERNAL.withDescription(e.getMessage()).asRuntimeException());
         }
     }

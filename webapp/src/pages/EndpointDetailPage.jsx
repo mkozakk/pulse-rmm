@@ -44,6 +44,7 @@ export default function EndpointDetailPage() {
         <>
           <button className="endpoint-action" disabled={!canOpenRemote} onClick={() => navigate(`/endpoints/${id}/shell`)}>Open Terminal</button>
           <button className="endpoint-action" disabled={!canOpenRemote} onClick={() => navigate(`/endpoints/${id}/desktop`)}>Open Desktop</button>
+          <button className="endpoint-action" disabled={!canOpenRemote} onClick={() => navigate(`/endpoints/${id}/files`)}>Browse Files</button>
         </>
       )}
     >
