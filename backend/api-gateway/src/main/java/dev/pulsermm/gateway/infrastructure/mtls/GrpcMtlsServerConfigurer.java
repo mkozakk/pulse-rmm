@@ -3,6 +3,7 @@ package dev.pulsermm.gateway.infrastructure.mtls;
 import io.grpc.netty.shaded.io.grpc.netty.GrpcSslContexts;
 import io.grpc.netty.shaded.io.grpc.netty.NettyServerBuilder;
 import io.grpc.netty.shaded.io.netty.handler.ssl.ClientAuth;
+import io.grpc.netty.shaded.io.netty.handler.ssl.SslContextBuilder;
 import io.grpc.netty.shaded.io.netty.handler.ssl.SslProvider;
 import net.devh.boot.grpc.server.serverfactory.GrpcServerConfigurer;
 import org.slf4j.Logger;
@@ -22,7 +23,13 @@ public class GrpcMtlsServerConfigurer {
     }
 
     @Bean
-    public GrpcServerConfigurer mtlsConfigurer() {
+    public ReloadableX509KeyManager reloadableKeyManager() throws Exception {
+        GatewayCertBootstrap.Bundle b = bootstrap.ensure();
+        return new ReloadableX509KeyManager(b.certFile().toPath(), b.keyFile().toPath());
+    }
+
+    @Bean
+    public GrpcServerConfigurer mtlsConfigurer(ReloadableX509KeyManager keyManager) {
         return serverBuilder -> {
             if (!(serverBuilder instanceof NettyServerBuilder netty)) {
                 logger.warn("gRPC server is not Netty-based; skipping mTLS config");
@@ -30,15 +37,13 @@ public class GrpcMtlsServerConfigurer {
             }
             try {
                 GatewayCertBootstrap.Bundle b = bootstrap.ensure();
-                netty.sslContext(
-                    GrpcSslContexts.configure(
-                        GrpcSslContexts.forServer(b.certFile(), b.keyFile())
-                            .trustManager(b.caFile())
-                            .clientAuth(ClientAuth.OPTIONAL),
-                        SslProvider.OPENSSL
-                    ).build()
-                );
-                logger.info("gRPC server configured with mTLS (ClientAuth.OPTIONAL)");
+                ReloadableKeyManagerFactory kmf = new ReloadableKeyManagerFactory(keyManager);
+                SslContextBuilder builder = SslContextBuilder.forServer(kmf)
+                    .trustManager(b.caFile())
+                    .clientAuth(ClientAuth.OPTIONAL)
+                    .sslProvider(SslProvider.JDK);
+                netty.sslContext(GrpcSslContexts.configure(builder, SslProvider.JDK).build());
+                logger.info("gRPC server configured with mTLS (JDK provider, hot-reload enabled)");
             } catch (Exception e) {
                 throw new IllegalStateException("configuring gRPC mTLS", e);
             }
