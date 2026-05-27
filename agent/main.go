@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -17,6 +18,7 @@ import (
 	"github.com/pulsermm/pulse-rmm/agent/internal/enrolment"
 	"github.com/pulsermm/pulse-rmm/agent/internal/files"
 	"github.com/pulsermm/pulse-rmm/agent/internal/metrics"
+	"github.com/pulsermm/pulse-rmm/agent/internal/processes"
 	"github.com/pulsermm/pulse-rmm/agent/internal/script"
 	"github.com/pulsermm/pulse-rmm/agent/internal/shell"
 	"github.com/pulsermm/pulse-rmm/agent/internal/software"
@@ -324,6 +326,55 @@ func dispatchCmd(ctx context.Context, mgr *shell.Manager, deskHandler *desktop.H
 		go handleFileDownload(ctx, p.FileDownload, fileClient, outCh)
 	case *pb.GatewayCommand_FileUpload:
 		go handleFileUpload(ctx, p.FileUpload, fileClient, outCh)
+	case *pb.GatewayCommand_ListProcesses:
+		go handleListProcesses(p.ListProcesses, outCh)
+	case *pb.GatewayCommand_KillProcess:
+		go handleKillProcess(p.KillProcess, outCh)
+	}
+}
+
+func handleListProcesses(c *pb.ListProcessesCommand, outCh chan<- *pb.AgentEvent) {
+	list, err := processes.List()
+	exitCode := int32(0)
+	var output string
+	if err != nil {
+		exitCode = 1
+		output = err.Error()
+	} else {
+		b, jerr := json.Marshal(list)
+		if jerr != nil {
+			exitCode = 1
+			output = jerr.Error()
+		} else {
+			output = string(b)
+		}
+	}
+	outCh <- &pb.AgentEvent{
+		Payload: &pb.AgentEvent_AckCommand{
+			AckCommand: &pb.AckCommand{
+				CommandId: c.CommandId,
+				ExitCode:  exitCode,
+				Output:    output,
+			},
+		},
+	}
+}
+
+func handleKillProcess(c *pb.KillProcessCommand, outCh chan<- *pb.AgentEvent) {
+	exitCode := int32(0)
+	var output string
+	if err := processes.Kill(c.Pid); err != nil {
+		exitCode = 1
+		output = err.Error()
+	}
+	outCh <- &pb.AgentEvent{
+		Payload: &pb.AgentEvent_AckCommand{
+			AckCommand: &pb.AckCommand{
+				CommandId: c.CommandId,
+				ExitCode:  exitCode,
+				Output:    output,
+			},
+		},
 	}
 }
 
