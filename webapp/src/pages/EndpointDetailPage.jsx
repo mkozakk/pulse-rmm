@@ -1,7 +1,15 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
-import { useGetEndpointQuery, useGetMetricsQuery } from '../api/pulseApi'
+import {
+  useGetEndpointQuery,
+  useGetMetricsQuery,
+  useGetSystemInfoQuery
+} from '../api/pulseApi'
 import MetricChart from '../components/MetricChart'
+import SystemInfoPanel from '../components/SystemInfoPanel'
+import PerCoreCpuChart from '../components/PerCoreCpuChart'
+import PerDiskTable from '../components/PerDiskTable'
+import NetworkChart from '../components/NetworkChart'
 import AppShell from '../components/AppShell'
 
 const RANGES = [
@@ -11,16 +19,24 @@ const RANGES = [
   { label: '7d', hours: 168 }
 ]
 
-function useMetric(id, hours, type, tick) {
+const SECTIONS = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'cpu', label: 'CPU' },
+  { id: 'storage', label: 'Storage' },
+  { id: 'network', label: 'Network' }
+]
+
+function useMetric(id, hours, type, tick, labels) {
   const to = tick.toISOString()
   const from = new Date(tick - hours * 3600 * 1000).toISOString()
-  return useGetMetricsQuery({ id, from, to, type })
+  return useGetMetricsQuery({ id, from, to, type, labels })
 }
 
 export default function EndpointDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const [range, setRange] = useState(RANGES[0])
+  const [section, setSection] = useState('overview')
   const [tick, setTick] = useState(() => new Date())
 
   useEffect(() => {
@@ -29,11 +45,52 @@ export default function EndpointDetailPage() {
   }, [])
 
   const endpoint = useGetEndpointQuery(id)
+  const sysinfo = useGetSystemInfoQuery(id)
+
   const cpu = useMetric(id, range.hours, 'cpu', tick)
   const ram = useMetric(id, range.hours, 'ram', tick)
   const disk = useMetric(id, range.hours, 'disk', tick)
-  const loading = endpoint.isLoading || cpu.isLoading || ram.isLoading || disk.isLoading
-  const error = endpoint.isError || cpu.isError || ram.isError || disk.isError
+  const perCore = useMetric(id, range.hours, 'cpu.core', tick)
+
+  const diskUsedSamples = useMetric(id, range.hours, 'disk.used_bytes', tick)
+  const diskFreeSamples = useMetric(id, range.hours, 'disk.free_bytes', tick)
+  const diskTotalSamples = useMetric(id, range.hours, 'disk.total_bytes', tick)
+
+  const firstNic = sysinfo.data?.nics?.find(n => n.name && n.name !== 'lo')?.name
+    || sysinfo.data?.nics?.[0]?.name
+  const rxSamples = useGetMetricsQuery(
+    firstNic
+      ? { id, from: new Date(tick - range.hours * 3600 * 1000).toISOString(), to: tick.toISOString(), type: 'net.rx_bytes', labels: { nic: firstNic } }
+      : { skip: true },
+    { skip: !firstNic }
+  )
+  const txSamples = useGetMetricsQuery(
+    firstNic
+      ? { id, from: new Date(tick - range.hours * 3600 * 1000).toISOString(), to: tick.toISOString(), type: 'net.tx_bytes', labels: { nic: firstNic } }
+      : { skip: true },
+    { skip: !firstNic }
+  )
+
+  const latestDiskSamples = useMemo(() => {
+    const all = [
+      ...(diskUsedSamples.data || []),
+      ...(diskFreeSamples.data || []),
+      ...(diskTotalSamples.data || [])
+    ]
+    if (all.length === 0) return []
+    const byKey = new Map()
+    for (const s of all) {
+      const key = `${s.labels?.mount}|${s.type || ''}`
+      const prev = byKey.get(key)
+      if (!prev || new Date(s.sampledAt) > new Date(prev.sampledAt)) {
+        byKey.set(key, s)
+      }
+    }
+    return Array.from(byKey.values())
+  }, [diskUsedSamples.data, diskFreeSamples.data, diskTotalSamples.data])
+
+  const loading = endpoint.isLoading
+  const error = endpoint.isError
   const canOpenRemote = endpoint.data?.status === 'online'
 
   return (
@@ -76,11 +133,41 @@ export default function EndpointDetailPage() {
         </div>
       </section>
 
-      <div className="charts-grid">
-        <MetricChart data={cpu.data ?? []} label="CPU" />
-        <MetricChart data={ram.data ?? []} label="RAM" />
-        <MetricChart data={disk.data ?? []} label="Disk" />
-      </div>
+      <SystemInfoPanel info={sysinfo.data} />
+
+      <nav className="section-tabs">
+        {SECTIONS.map(s => (
+          <button
+            key={s.id}
+            className={section === s.id ? 'active' : ''}
+            onClick={() => setSection(s.id)}
+          >
+            {s.label}
+          </button>
+        ))}
+      </nav>
+
+      {section === 'overview' && (
+        <div className="charts-grid">
+          <MetricChart data={cpu.data ?? []} label="CPU" />
+          <MetricChart data={ram.data ?? []} label="RAM" />
+          <MetricChart data={disk.data ?? []} label="Disk" />
+        </div>
+      )}
+
+      {section === 'cpu' && (
+        <PerCoreCpuChart samples={perCore.data ?? []} />
+      )}
+
+      {section === 'storage' && (
+        <PerDiskTable disks={sysinfo.data?.disks ?? []} samples={latestDiskSamples} />
+      )}
+
+      {section === 'network' && (
+        firstNic
+          ? <NetworkChart rxSamples={rxSamples.data ?? []} txSamples={txSamples.data ?? []} nic={firstNic} />
+          : <p className="panel-empty">No network interfaces reported.</p>
+      )}
 
       <div className="page-footer">
         <Link to="/endpoints">Back to endpoints</Link>

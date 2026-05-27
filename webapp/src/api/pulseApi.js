@@ -148,8 +148,19 @@ export const pulseApi = createApi({
       keepUnusedDataFor: 0
     }),
     getMetrics: builder.query({
-      query: ({ id, from, to, type }) =>
-        `/endpoints/${id}/metrics?from=${from}&to=${to}&type=${type}`,
+      query: ({ id, from, to, type, labels }) => {
+        const params = new URLSearchParams({ from, to, type })
+        if (labels) {
+          for (const [k, v] of Object.entries(labels)) {
+            params.set(`label.${k}`, v)
+          }
+        }
+        return `/endpoints/${id}/metrics?${params}`
+      },
+      keepUnusedDataFor: 0
+    }),
+    getSystemInfo: builder.query({
+      query: (id) => `/endpoints/${id}/system-info`,
       keepUnusedDataFor: 0
     }),
     listFiles: builder.query({
@@ -296,6 +307,7 @@ export const {
   useRemoveSoftwareMutation,
   useGetEndpointQuery,
   useGetMetricsQuery,
+  useGetSystemInfoQuery,
   useListFilesQuery,
   useUploadFileMutation,
   useCreateSessionMutation,
