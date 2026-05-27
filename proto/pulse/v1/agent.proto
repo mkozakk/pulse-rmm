@@ -17,6 +17,7 @@ service AgentService {
 
 service MetricService {
   rpc PushMetrics(MetricBatch) returns (Ack);
+  rpc ReportSystemInfo(SystemInfo) returns (Ack);
 }
 
 message PingRequest {}
@@ -48,14 +49,50 @@ message HeartbeatRequest {
 message HeartbeatOk {}
 
 message MetricSample {
-  string type         = 1;
-  double value        = 2;
-  int64  collected_at = 3;
+  string type                = 1;
+  double value               = 2;
+  int64  collected_at        = 3;
+  map<string, string> labels = 4;
 }
 
 message MetricBatch {
   string endpoint_id            = 1;
   repeated MetricSample samples = 2;
+}
+
+message CpuInfo {
+  string model          = 1;
+  int32  physical_cores = 2;
+  int32  logical_cores  = 3;
+  double frequency_mhz  = 4;
+}
+
+message MemoryInfo {
+  uint64 total_bytes      = 1;
+  uint64 swap_total_bytes = 2;
+}
+
+message DiskInfo {
+  string device      = 1;
+  string mountpoint  = 2;
+  string fstype      = 3;
+  uint64 total_bytes = 4;
+}
+
+message NicInfo {
+  string name              = 1;
+  string mac               = 2;
+  repeated string addresses = 3;
+  uint32 mtu               = 4;
+}
+
+message SystemInfo {
+  string endpoint_id       = 1;
+  CpuInfo cpu              = 2;
+  MemoryInfo memory        = 3;
+  repeated DiskInfo disks  = 4;
+  repeated NicInfo nics    = 5;
+  int64 collected_at       = 6;
 }
 
 message Ack {}
