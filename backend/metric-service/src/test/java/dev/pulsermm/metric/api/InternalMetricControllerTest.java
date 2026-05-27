@@ -34,11 +34,12 @@ class InternalMetricControllerTest {
 
     @Test
     void testSampleInputCreation() {
-        var sample = new InternalMetricController.SampleInput("cpu", 42.5, System.currentTimeMillis());
+        var sample = new InternalMetricController.SampleInput("cpu", 42.5, System.currentTimeMillis(), null);
 
         assertThat(sample.type()).isEqualTo("cpu");
         assertThat(sample.value()).isEqualTo(42.5);
         assertThat(sample.collectedAt()).isGreaterThan(0);
+        assertThat(sample.labels()).isEmpty();
     }
 
     @Test
