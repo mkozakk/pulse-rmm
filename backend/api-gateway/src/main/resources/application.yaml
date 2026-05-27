@@ -42,6 +42,14 @@ spring:
             uri: ${COMMANDS_SERVICE_URL:http://localhost:8084}
             predicates:
               - Path=/api/endpoints/*/software/**
+          - id: endpoint-processes
+            uri: ${COMMANDS_SERVICE_URL:http://localhost:8084}
+            predicates:
+              - Path=/api/endpoints/*/processes/**
+          - id: processes
+            uri: ${COMMANDS_SERVICE_URL:http://localhost:8084}
+            predicates:
+              - Path=/api/processes/**
           - id: groups
             uri: ${ENDPOINT_SERVICE_URL:http://localhost:8081}
             predicates:
