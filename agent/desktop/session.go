@@ -227,6 +227,10 @@ func (s *DesktopSession) addAudioTrack(track webrtc.TrackLocal) error {
 	return nil
 }
 
+func (s *DesktopSession) setScreenSize(w, h int) {
+	s.injector.SetScreenSize(w, h)
+}
+
 func (s *DesktopSession) OnPeerConnectionClosed(fn func()) {
 	once := sync.Once{}
 	s.pc.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {

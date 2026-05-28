@@ -35,6 +35,10 @@ type screencastSession struct {
 	bus     *dbus.Conn
 	handle  dbus.ObjectPath
 	nodeIDs []uint32
+	// streamW/H are the pixel dimensions of the first shared stream as
+	// reported by the portal. Zero when the compositor didn't include size.
+	streamW uint32
+	streamH uint32
 }
 
 func (s *screencastSession) Close() {
@@ -141,10 +145,26 @@ func openScreencast(ctx context.Context) (*screencastSession, error) {
 		nodes = append(nodes, s.NodeID)
 	}
 
+	var streamW, streamH uint32
+	if len(streams) > 0 {
+		if sv, ok := streams[0].Props["size"]; ok {
+			if pair, ok := sv.Value().([]interface{}); ok && len(pair) == 2 {
+				if w, ok := pair[0].(uint32); ok {
+					streamW = w
+				}
+				if h, ok := pair[1].(uint32); ok {
+					streamH = h
+				}
+			}
+		}
+	}
+
 	return &screencastSession{
 		bus:     bus,
 		handle:  sessionHandle,
 		nodeIDs: nodes,
+		streamW: streamW,
+		streamH: streamH,
 	}, nil
 }
 

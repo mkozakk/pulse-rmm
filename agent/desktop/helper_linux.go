@@ -124,6 +124,7 @@ func serveHelperConn(conn net.Conn) {
 		LogFile:       sess.logFile,
 		AddTrack:      sess.addVideoTrack,
 		AddAudioTrack: sess.addAudioTrack,
+		SetScreenSize: sess.setScreenSize,
 	}
 	if err := capture.Start(ctx, target); err != nil {
 		sess.Close()

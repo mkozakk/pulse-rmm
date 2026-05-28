@@ -7,6 +7,10 @@ type InputInjector interface {
 	MouseButton(button int, pressed bool) error
 	MouseScroll(deltaX, deltaY int) error
 	KeyEvent(keyCode int, pressed bool) error
+	// SetScreenSize updates the coordinate space for absolute pointing (uinput
+	// touchpad on Wayland). Called once the capture dimensions are known.
+	// Implementations that don't use absolute coordinates ignore it.
+	SetScreenSize(w, h int)
 	Close() error
 }
 
@@ -19,4 +23,5 @@ func (n *noopInjector) MouseMove(x, y int) error                  { return nil }
 func (n *noopInjector) MouseButton(button int, pressed bool) error { return nil }
 func (n *noopInjector) MouseScroll(deltaX, deltaY int) error       { return nil }
 func (n *noopInjector) KeyEvent(keyCode int, pressed bool) error   { return nil }
+func (n *noopInjector) SetScreenSize(w, h int)                     {}
 func (n *noopInjector) Close() error                               { return nil }

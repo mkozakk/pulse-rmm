@@ -160,4 +160,5 @@ func (w *windowsInjector) KeyEvent(keyCode int, pressed bool) error {
 	return nil
 }
 
-func (w *windowsInjector) Close() error { return nil }
+func (w *windowsInjector) SetScreenSize(_, _ int) {}
+func (w *windowsInjector) Close() error            { return nil }
