@@ -1,56 +1,24 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react'
-import { clearCredentials, setCredentials } from '../store/authSlice'
+import keycloak from '../keycloak'
 
 const rawBaseQuery = fetchBaseQuery({
   baseUrl: import.meta.env.VITE_API_BASE || 'http://localhost:8080/api',
-  credentials: 'include',
-  prepareHeaders: (headers, { getState }) => {
-    const token = getState().auth.token
-    if (token) headers.set('Authorization', `Bearer ${token}`)
+  prepareHeaders: async (headers) => {
+    // refresh if the token expires within 30s, then attach it
+    try {
+      await keycloak.updateToken(30)
+    } catch {
+      keycloak.login()
+    }
+    if (keycloak.token) headers.set('Authorization', `Bearer ${keycloak.token}`)
     return headers
   }
 })
 
-export function makeBaseQueryWithRefresh(rawQuery) {
-  return async function baseQueryWithRefresh(args, api, extraOptions) {
-    const result = await rawQuery(args, api, extraOptions)
-    if (result?.error?.status !== 401) return result
-
-    const url = typeof args === 'string' ? args : args.url
-    if (url === '/auth/refresh' || url === '/auth/login' || url === '/auth/register') {
-      if (url === '/auth/refresh') api.dispatch(clearCredentials())
-      return result
-    }
-
-    const refreshResult = await rawQuery({ url: '/auth/refresh', method: 'POST' }, api, extraOptions)
-    if (refreshResult?.data?.accessToken) {
-      api.dispatch(setCredentials(refreshResult.data.accessToken))
-      return rawQuery(args, api, extraOptions)
-    }
-
-    api.dispatch(clearCredentials())
-    return result
-  }
-}
-
-const baseQueryWithRefresh = makeBaseQueryWithRefresh(rawBaseQuery)
-
 export const pulseApi = createApi({
   reducerPath: 'pulseApi',
-  baseQuery: baseQueryWithRefresh,
+  baseQuery: rawBaseQuery,
   endpoints: (builder) => ({
-    register: builder.mutation({
-      query: (body) => ({ url: '/auth/register', method: 'POST', body })
-    }),
-    login: builder.mutation({
-      query: (body) => ({ url: '/auth/login', method: 'POST', body })
-    }),
-    refresh: builder.mutation({
-      query: () => ({ url: '/auth/refresh', method: 'POST' })
-    }),
-    logout: builder.mutation({
-      query: () => ({ url: '/auth/logout', method: 'POST' })
-    }),
     getGroups: builder.query({
       query: () => '/groups',
       keepUnusedDataFor: 0
@@ -281,10 +249,6 @@ export const pulseApi = createApi({
 })
 
 export const {
-  useRegisterMutation,
-  useLoginMutation,
-  useRefreshMutation,
-  useLogoutMutation,
   useGetGroupsQuery,
   useCreateGroupMutation,
   useGetTagRulesQuery,

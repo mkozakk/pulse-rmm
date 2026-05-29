@@ -1,21 +1,15 @@
-import { Link, useNavigate } from 'react-router-dom'
-import { useDispatch } from 'react-redux'
-import { useGetEndpointsQuery, useLogoutMutation } from '../api/pulseApi'
-import { clearCredentials } from '../store/authSlice'
+import { Link } from 'react-router-dom'
+import { useGetEndpointsQuery } from '../api/pulseApi'
+import keycloak from '../keycloak'
 import AppShell from '../components/AppShell'
 
 export default function EndpointsPage() {
   const { data: endpoints = [], isLoading, isError } = useGetEndpointsQuery(undefined, {
     pollingInterval: 30000
   })
-  const [logout] = useLogoutMutation()
-  const dispatch = useDispatch()
-  const navigate = useNavigate()
 
-  async function handleLogout() {
-    await logout().unwrap().catch(() => {})
-    dispatch(clearCredentials())
-    navigate('/login')
+  function handleLogout() {
+    keycloak.logout({ redirectUri: window.location.origin })
   }
 
   return (
