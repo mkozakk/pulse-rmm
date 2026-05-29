@@ -3,8 +3,6 @@ package dev.pulsermm.audit.api;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.pulsermm.audit.domain.AuditEvent;
 import dev.pulsermm.audit.infrastructure.persistence.AuditEventRepository;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.security.Keys;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,6 +22,7 @@ import java.util.UUID;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 
 @Testcontainers
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -124,7 +123,7 @@ class AuditControllerIT {
             null, null, Instant.now()));
 
         mvc.perform(get("/api/audit/export?format=csv")
-                .header("Authorization", "Bearer " + mintJwt(UUID.randomUUID())))
+                .with(jwt().jwt(j -> j.subject(UUID.randomUUID().toString()))))
             .andExpect(status().isOk())
             .andExpect(content().contentType("text/csv"));
     }
@@ -136,7 +135,7 @@ class AuditControllerIT {
             null, null, Instant.now()));
 
         mvc.perform(get("/api/audit/export?format=json")
-                .header("Authorization", "Bearer " + mintJwt(UUID.randomUUID())))
+                .with(jwt().jwt(j -> j.subject(UUID.randomUUID().toString()))))
             .andExpect(status().isOk())
             .andExpect(content().contentType("application/x-ndjson"));
     }
@@ -144,16 +143,7 @@ class AuditControllerIT {
     @Test
     void testDeleteForbidden() throws Exception {
         mvc.perform(delete("/api/audit/anything")
-                .header("Authorization", "Bearer " + mintJwt(UUID.randomUUID())))
+                .with(jwt().jwt(j -> j.subject(UUID.randomUUID().toString()))))
             .andExpect(status().isForbidden());
-    }
-
-    private String mintJwt(UUID userId) {
-        return Jwts.builder()
-            .subject(userId.toString())
-            .issuedAt(new Date())
-            .expiration(new Date(System.currentTimeMillis() + 3_600_000))
-            .signWith(Keys.hmacShaKeyFor(JWT_SECRET.getBytes(StandardCharsets.UTF_8)))
-            .compact();
     }
 }

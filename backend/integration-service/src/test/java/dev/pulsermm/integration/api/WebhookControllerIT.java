@@ -2,8 +2,6 @@ package dev.pulsermm.integration.api;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.pulsermm.integration.api.dto.CreateWebhookRequest;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.security.Keys;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -23,6 +21,7 @@ import java.util.UUID;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 
 @Testcontainers
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -59,7 +58,7 @@ class WebhookControllerIT {
 
         var result = mvc.perform(post("/api/webhooks")
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("Authorization", "Bearer " + mintJwt(UUID.randomUUID()))
+                .with(jwt().jwt(j -> j.subject(UUID.randomUUID().toString())))
                 .content(asJson(request)))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.id").exists())
@@ -85,7 +84,7 @@ class WebhookControllerIT {
 
         mvc.perform(post("/api/webhooks")
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("Authorization", "Bearer " + mintJwt(UUID.randomUUID()))
+                .with(jwt().jwt(j -> j.subject(UUID.randomUUID().toString())))
                 .content(asJson(request)))
             .andExpect(status().isBadRequest());
     }
@@ -97,7 +96,7 @@ class WebhookControllerIT {
 
         mvc.perform(post("/api/webhooks")
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("Authorization", "Bearer " + mintJwt(UUID.randomUUID()))
+                .with(jwt().jwt(j -> j.subject(UUID.randomUUID().toString())))
                 .content(asJson(request)))
             .andExpect(status().isBadRequest());
     }
@@ -109,7 +108,7 @@ class WebhookControllerIT {
 
         mvc.perform(post("/api/webhooks")
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("Authorization", "Bearer " + mintJwt(UUID.randomUUID()))
+                .with(jwt().jwt(j -> j.subject(UUID.randomUUID().toString())))
                 .content(asJson(request)))
             .andExpect(status().isBadRequest());
     }
@@ -117,7 +116,7 @@ class WebhookControllerIT {
     @Test
     void testListWebhooksEmpty() throws Exception {
         mvc.perform(get("/api/webhooks")
-                .header("Authorization", "Bearer " + mintJwt(UUID.randomUUID())))
+                .with(jwt().jwt(j -> j.subject(UUID.randomUUID().toString()))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$").isArray())
             .andExpect(jsonPath("$[0]").doesNotExist());
@@ -126,14 +125,14 @@ class WebhookControllerIT {
     @Test
     void testGetWebhookNotFound() throws Exception {
         mvc.perform(get("/api/webhooks/" + UUID.randomUUID())
-                .header("Authorization", "Bearer " + mintJwt(UUID.randomUUID())))
+                .with(jwt().jwt(j -> j.subject(UUID.randomUUID().toString()))))
             .andExpect(status().isNotFound());
     }
 
     @Test
     void testDeleteWebhookNotFound() throws Exception {
         mvc.perform(delete("/api/webhooks/" + UUID.randomUUID())
-                .header("Authorization", "Bearer " + mintJwt(UUID.randomUUID())))
+                .with(jwt().jwt(j -> j.subject(UUID.randomUUID().toString()))))
             .andExpect(status().isNotFound());
     }
 
@@ -141,7 +140,7 @@ class WebhookControllerIT {
     void testListDeliveriesEmpty() throws Exception {
         UUID webhookId = UUID.randomUUID();
         mvc.perform(get("/api/webhooks/" + webhookId + "/deliveries")
-                .header("Authorization", "Bearer " + mintJwt(UUID.randomUUID())))
+                .with(jwt().jwt(j -> j.subject(UUID.randomUUID().toString()))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$").isArray());
     }
@@ -149,18 +148,9 @@ class WebhookControllerIT {
     @Test
     void testDeadLetterEmpty() throws Exception {
         mvc.perform(get("/api/webhooks/deliveries/dead-letter")
-                .header("Authorization", "Bearer " + mintJwt(UUID.randomUUID())))
+                .with(jwt().jwt(j -> j.subject(UUID.randomUUID().toString()))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$").isArray());
-    }
-
-    private String mintJwt(UUID userId) {
-        return Jwts.builder()
-            .subject(userId.toString())
-            .issuedAt(new Date())
-            .expiration(new Date(System.currentTimeMillis() + 3_600_000))
-            .signWith(Keys.hmacShaKeyFor(JWT_SECRET.getBytes(StandardCharsets.UTF_8)))
-            .compact();
     }
 
     private String asJson(Object obj) throws Exception {

@@ -1,22 +1,14 @@
 package dev.pulsermm.gateway.api;
 
 import dev.pulsermm.gateway.infrastructure.identity.IdentityClient;
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.security.Keys;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.authority.AuthorityUtils;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 
-import javax.crypto.SecretKey;
-import java.nio.charset.StandardCharsets;
-import java.time.Instant;
-import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -24,12 +16,8 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
-@Disabled("Mockito cannot mock these classes on Java 21+; tested via PermissionGuardIT integration tests")
 @ExtendWith(MockitoExtension.class)
 class PermissionGuardTest {
-
-    private static final String SECRET = "test-secret-key-that-is-long-enough-for-hs256";
-    private static final SecretKey KEY = Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8));
 
     @Mock
     IdentityClient identityClient;
@@ -45,8 +33,7 @@ class PermissionGuardTest {
         when(identityClient.getEndpointGroup(endpointId.toString()))
             .thenReturn(Optional.empty());
 
-        Authentication auth = authWith(userId);
-        assertThat(guard.canOpenShell(auth, endpointId.toString())).isTrue();
+        assertThat(guard.canOpenShell(authWith(userId), endpointId.toString())).isTrue();
     }
 
     @Test
@@ -60,8 +47,7 @@ class PermissionGuardTest {
         when(identityClient.getEndpointGroup(endpointId.toString()))
             .thenReturn(Optional.empty());
 
-        Authentication auth = authWith(userId);
-        assertThat(guard.canOpenShell(auth, endpointId.toString())).isFalse();
+        assertThat(guard.canOpenShell(authWith(userId), endpointId.toString())).isFalse();
     }
 
     @Test
@@ -76,8 +62,7 @@ class PermissionGuardTest {
         when(identityClient.getEndpointGroup(endpointId.toString()))
             .thenReturn(Optional.of(groupId));
 
-        Authentication auth = authWith(userId);
-        assertThat(guard.canOpenShell(auth, endpointId.toString())).isTrue();
+        assertThat(guard.canOpenShell(authWith(userId), endpointId.toString())).isTrue();
     }
 
     @Test
@@ -93,16 +78,13 @@ class PermissionGuardTest {
         when(identityClient.getEndpointGroup(endpointId.toString()))
             .thenReturn(Optional.of(groupB));
 
-        Authentication auth = authWith(userId);
-        assertThat(guard.canOpenShell(auth, endpointId.toString())).isFalse();
+        assertThat(guard.canOpenShell(authWith(userId), endpointId.toString())).isFalse();
     }
 
     @Test
     void nullAuthCannotOpenShell() {
-        UUID endpointId = UUID.randomUUID();
         PermissionGuard guard = new PermissionGuard(identityClient);
-
-        assertThat(guard.canOpenShell(null, endpointId.toString())).isFalse();
+        assertThat(guard.canOpenShell(null, UUID.randomUUID().toString())).isFalse();
     }
 
     @Test
@@ -128,18 +110,11 @@ class PermissionGuardTest {
     }
 
     private Authentication authWith(UUID userId) {
-        String token = Jwts.builder()
+        Jwt jwt = Jwt.withTokenValue("token")
+            .header("alg", "none")
             .subject(userId.toString())
-            .expiration(Date.from(Instant.now().plusSeconds(3600)))
-            .signWith(KEY)
-            .compact();
-
-        Claims claims = Jwts.parser()
-            .verifyWith(KEY)
-            .build()
-            .parseSignedClaims(token)
-            .getPayload();
-
-        return new UsernamePasswordAuthenticationToken(claims, null, AuthorityUtils.NO_AUTHORITIES);
+            .build();
+        // two-arg constructor marks the token authenticated, like the real resource-server filter
+        return new JwtAuthenticationToken(jwt, java.util.Collections.emptyList());
     }
 }

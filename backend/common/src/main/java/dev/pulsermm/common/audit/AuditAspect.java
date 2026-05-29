@@ -60,11 +60,13 @@ public class AuditAspect {
 
     private UUID extractUserId() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !(auth.getPrincipal() instanceof String principal)) {
+        if (auth == null) {
             return null;
         }
+        // getName() is the JWT subject (Keycloak sub) for resource-server auth,
+        // and the principal string for the older filter-based auth.
         try {
-            return UUID.fromString(principal);
+            return UUID.fromString(auth.getName());
         } catch (IllegalArgumentException e) {
             return null;
         }

@@ -1,6 +1,5 @@
 package dev.pulsermm.integration.api.controller;
 
-import dev.pulsermm.integration.api.JwtAuthFilter;
 import dev.pulsermm.integration.api.dto.*;
 import dev.pulsermm.integration.application.WebhookService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -35,7 +34,7 @@ public class WebhookController {
     @PostMapping
     public ResponseEntity<WebhookResponse> create(@RequestBody @Valid CreateWebhookRequest req,
                                                    Authentication auth) {
-        var createdBy = JwtAuthFilter.currentUserId(auth);
+        var createdBy = UUID.fromString(auth.getName());
         var webhook = webhookService.create(req.url(), req.eventTypes(), req.secret(), createdBy);
         return ResponseEntity.created(URI.create("/api/webhooks/" + webhook.getId()))
             .body(WebhookResponse.from(webhook));

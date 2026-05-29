@@ -16,7 +16,7 @@ public class IdentityClient {
     private final RestClient restClient;
     private final String internalSecret;
 
-    public IdentityClient(@Value("${pulse.identity.url:http://identity-service:8083}") String identityUrl,
+    public IdentityClient(@Value("${pulse.identity.url:http://rbac-service:8083}") String identityUrl,
                          @Value("${pulse.identity.internal-secret}") String internalSecret) {
         this.internalSecret = internalSecret;
         this.restClient = RestClient.builder()

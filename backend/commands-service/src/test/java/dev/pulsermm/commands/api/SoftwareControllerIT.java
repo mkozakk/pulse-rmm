@@ -1,8 +1,6 @@
 package dev.pulsermm.commands.api;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.security.Keys;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -21,6 +19,7 @@ import java.util.UUID;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 
 @Testcontainers
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -53,7 +52,7 @@ class SoftwareControllerIT {
     void testListSoftwareEmpty() throws Exception {
         UUID endpointId = UUID.randomUUID();
         mvc.perform(get("/api/endpoints/" + endpointId + "/software")
-                .header("Authorization", "Bearer " + mintJwt(UUID.randomUUID())))
+                .with(jwt().jwt(j -> j.subject(UUID.randomUUID().toString()))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$").isArray())
             .andExpect(jsonPath("$[0]").doesNotExist());
@@ -74,7 +73,7 @@ class SoftwareControllerIT {
 
         mvc.perform(post("/api/endpoints/" + endpointId + "/software/install")
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("Authorization", "Bearer " + mintJwt(UUID.randomUUID()))
+                .with(jwt().jwt(j -> j.subject(UUID.randomUUID().toString())))
                 .content(installRequest.toString()))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.id").exists())
@@ -89,7 +88,7 @@ class SoftwareControllerIT {
 
         mvc.perform(post("/api/endpoints/" + endpointId + "/software/update")
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("Authorization", "Bearer " + mintJwt(UUID.randomUUID()))
+                .with(jwt().jwt(j -> j.subject(UUID.randomUUID().toString())))
                 .content(updateRequest.toString()))
             .andExpect(status().isCreated());
     }
@@ -102,7 +101,7 @@ class SoftwareControllerIT {
 
         mvc.perform(post("/api/endpoints/" + endpointId + "/software/remove")
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("Authorization", "Bearer " + mintJwt(UUID.randomUUID()))
+                .with(jwt().jwt(j -> j.subject(UUID.randomUUID().toString())))
                 .content(removeRequest.toString()))
             .andExpect(status().isCreated());
     }
@@ -112,16 +111,7 @@ class SoftwareControllerIT {
         // Software commands tested via install/update/remove above
         UUID endpointId = UUID.randomUUID();
         mvc.perform(get("/api/endpoints/" + endpointId + "/software")
-                .header("Authorization", "Bearer " + mintJwt(UUID.randomUUID())))
+                .with(jwt().jwt(j -> j.subject(UUID.randomUUID().toString()))))
             .andExpect(status().isOk());
-    }
-
-    private String mintJwt(UUID userId) {
-        return Jwts.builder()
-            .subject(userId.toString())
-            .issuedAt(new Date())
-            .expiration(new Date(System.currentTimeMillis() + 3_600_000))
-            .signWith(Keys.hmacShaKeyFor(JWT_SECRET.getBytes(StandardCharsets.UTF_8)))
-            .compact();
     }
 }

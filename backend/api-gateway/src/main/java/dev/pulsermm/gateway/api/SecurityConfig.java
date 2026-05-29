@@ -1,13 +1,13 @@
 package dev.pulsermm.gateway.api;
 
-import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -18,19 +18,12 @@ import java.util.Collections;
 @EnableWebSecurity
 public class SecurityConfig {
 
-    private final JwtAuthFilter jwtAuthFilter;
     private final PermissionGuard permissionGuard;
+    private final BearerTokenResolver bearerTokenResolver;
 
-    public SecurityConfig(JwtAuthFilter jwtAuthFilter, PermissionGuard permissionGuard) {
-        this.jwtAuthFilter = jwtAuthFilter;
+    public SecurityConfig(PermissionGuard permissionGuard, BearerTokenResolver bearerTokenResolver) {
         this.permissionGuard = permissionGuard;
-    }
-
-    @Bean
-    public FilterRegistrationBean<JwtAuthFilter> jwtFilterRegistration(JwtAuthFilter filter) {
-        FilterRegistrationBean<JwtAuthFilter> bean = new FilterRegistrationBean<>(filter);
-        bean.setEnabled(false);
-        return bean;
+        this.bearerTokenResolver = bearerTokenResolver;
     }
 
     @Bean
@@ -55,8 +48,11 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .anyRequest().permitAll()
             )
-            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
-            .addFilterAfter(new StructurePermissionFilter(permissionGuard), JwtAuthFilter.class)
+            .oauth2ResourceServer(oauth2 -> oauth2
+                .bearerTokenResolver(bearerTokenResolver)
+                .jwt(jwt -> {})
+            )
+            .addFilterAfter(new StructurePermissionFilter(permissionGuard), BearerTokenAuthenticationFilter.class)
             .addFilterAfter(new AlertPermissionFilter(permissionGuard), StructurePermissionFilter.class)
             .csrf(csrf -> csrf.disable());
         return http.build();

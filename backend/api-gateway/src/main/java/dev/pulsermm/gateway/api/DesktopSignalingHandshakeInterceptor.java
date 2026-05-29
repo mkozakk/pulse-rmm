@@ -1,7 +1,6 @@
 package dev.pulsermm.gateway.api;
 
 import dev.pulsermm.gateway.infrastructure.desktop.DesktopSessionRegistry;
-import io.jsonwebtoken.Claims;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -9,6 +8,7 @@ import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.http.server.ServerHttpResponse;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.WebSocketHandler;
 import org.springframework.web.socket.server.HandshakeInterceptor;
@@ -30,7 +30,7 @@ public class DesktopSignalingHandshakeInterceptor implements HandshakeIntercepto
     public boolean beforeHandshake(ServerHttpRequest request, ServerHttpResponse response,
                                     WebSocketHandler wsHandler, Map<String, Object> attributes) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated() || !(auth.getPrincipal() instanceof Claims claims)) {
+        if (auth == null || !auth.isAuthenticated() || !(auth instanceof JwtAuthenticationToken)) {
             response.setStatusCode(HttpStatus.UNAUTHORIZED);
             return false;
         }
@@ -52,7 +52,7 @@ public class DesktopSignalingHandshakeInterceptor implements HandshakeIntercepto
         }
 
         attributes.put(DesktopSignalingWebSocketHandler.ATTR_SESSION_ID, sessionId);
-        attributes.put(DesktopSignalingWebSocketHandler.ATTR_USER_ID, claims.getSubject());
+        attributes.put(DesktopSignalingWebSocketHandler.ATTR_USER_ID, auth.getName());
         return true;
     }
 

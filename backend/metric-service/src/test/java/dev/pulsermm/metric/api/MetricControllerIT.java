@@ -1,8 +1,6 @@
 package dev.pulsermm.metric.api;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.security.Keys;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -23,6 +21,7 @@ import java.util.UUID;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 
 @Testcontainers
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -136,7 +135,7 @@ class MetricControllerIT {
 
         mvc.perform(get("/api/endpoints/" + endpointId + "/metrics" +
                 "?from=2024-01-01T00:00:00Z&to=2099-01-01T00:00:00Z&type=cpu.core&label.core=0")
-                .header("Authorization", "Bearer " + mintJwt(UUID.randomUUID())))
+                .with(jwt().jwt(j -> j.subject(UUID.randomUUID().toString()))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$").isArray())
             .andExpect(jsonPath("$[0].value").value(10.0))
@@ -147,7 +146,7 @@ class MetricControllerIT {
     void testSystemInfoReturns404WhenMissing() throws Exception {
         UUID endpointId = UUID.randomUUID();
         mvc.perform(get("/api/endpoints/" + endpointId + "/system-info")
-                .header("Authorization", "Bearer " + mintJwt(UUID.randomUUID())))
+                .with(jwt().jwt(j -> j.subject(UUID.randomUUID().toString()))))
             .andExpect(status().isNotFound())
             .andExpect(jsonPath("$.title").exists());
     }
@@ -200,7 +199,7 @@ class MetricControllerIT {
             .andExpect(status().isNoContent());
 
         mvc.perform(get("/api/endpoints/" + endpointId + "/system-info")
-                .header("Authorization", "Bearer " + mintJwt(UUID.randomUUID())))
+                .with(jwt().jwt(j -> j.subject(UUID.randomUUID().toString()))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.cpuModel").value("Test CPU v2"))
             .andExpect(jsonPath("$.cpuLogical").value(8))
@@ -218,7 +217,7 @@ class MetricControllerIT {
     void testQueryNoData() throws Exception {
         UUID endpointId = UUID.randomUUID();
         mvc.perform(get("/api/endpoints/" + endpointId + "/metrics?from=2024-01-01T00:00:00Z&to=2024-01-02T00:00:00Z&type=cpu")
-                .header("Authorization", "Bearer " + mintJwt(UUID.randomUUID())))
+                .with(jwt().jwt(j -> j.subject(UUID.randomUUID().toString()))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$").isArray())
             .andExpect(jsonPath("$[0]").doesNotExist());
@@ -229,14 +228,5 @@ class MetricControllerIT {
         UUID endpointId = UUID.randomUUID();
         mvc.perform(get("/api/endpoints/" + endpointId + "/metrics?from=2024-01-01T00:00:00Z&to=2024-01-02T00:00:00Z&type=cpu"))
             .andExpect(status().isUnauthorized());
-    }
-
-    private String mintJwt(UUID userId) {
-        return Jwts.builder()
-            .subject(userId.toString())
-            .issuedAt(new Date())
-            .expiration(new Date(System.currentTimeMillis() + 3_600_000))
-            .signWith(Keys.hmacShaKeyFor(JWT_SECRET.getBytes(StandardCharsets.UTF_8)))
-            .compact();
     }
 }
