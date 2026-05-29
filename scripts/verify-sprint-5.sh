@@ -14,11 +14,14 @@ echo "==> Waiting for api-gateway..."
 until curl -sf "$BASE/actuator/health" >/dev/null; do sleep 1; done
 echo "    gateway healthy"
 
-echo "==> Logging in as admin..."
-TOKEN=$(curl -sf -X POST "$BASE/api/auth/login" \
-  -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"admin"}' | jq -r .accessToken)
-[ -n "$TOKEN" ] || { echo "ERROR: login failed"; exit 1; }
+echo "==> Waiting for Keycloak..."
+until curl -sf "http://localhost:8180/realms/pulse-rmm" >/dev/null; do sleep 1; done
+
+echo "==> Getting admin token from Keycloak..."
+TOKEN=$(curl -sf -X POST "http://localhost:8180/realms/pulse-rmm/protocol/openid-connect/token" \
+  -d "grant_type=password" -d "client_id=pulse-e2e" \
+  -d "username=admin" -d "password=admin" | jq -r .access_token)
+[ -n "$TOKEN" ] && [ "$TOKEN" != "null" ] || { echo "ERROR: token request failed"; exit 1; }
 echo "    got access token"
 
 echo "==> Creating enrolment token..."
