@@ -1,54 +1,43 @@
 import pytest
 import requests
 
-from config import BASE_URL, ADMIN_USERNAME, ADMIN_PASSWORD
+from config import (
+    BASE_URL, KEYCLOAK_URL, KEYCLOAK_REALM, KEYCLOAK_E2E_CLIENT,
+    ADMIN_USERNAME, ADMIN_PASSWORD,
+)
 
 pytestmark = pytest.mark.fast
 
-
-def test_register_first_user_becomes_admin(admin_session):
-    """First registered user is an admin (verified by permissions test below)."""
-    r = admin_session.get(f"{BASE_URL}/actuator/health")
-    assert r.status_code == 200
+TOKEN_URL = f"{KEYCLOAK_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/token"
 
 
-def test_register_duplicate_username_returns_409():
-    """After bootstrap, registration is closed (409 Conflict)."""
-    payload = {"username": "someone_else", "password": "validpass1234"}
-    r = requests.post(f"{BASE_URL}/api/auth/register", json=payload)
-    assert r.status_code == 409
+def _token(username, password):
+    return requests.post(TOKEN_URL, data={
+        "grant_type": "password",
+        "client_id": KEYCLOAK_E2E_CLIENT,
+        "username": username,
+        "password": password,
+    })
 
 
-def test_login_wrong_password_returns_401():
-    """Login with wrong password returns 401."""
-    wrong = {"username": ADMIN_USERNAME, "password": "wrongpass123"}
-    r = requests.post(f"{BASE_URL}/api/auth/login", json=wrong)
+def test_keycloak_issues_token_for_admin(registered_user):
+    r = _token(ADMIN_USERNAME, ADMIN_PASSWORD)
+    assert r.status_code == 200, r.text
+    assert "access_token" in r.json()
+
+
+def test_wrong_password_rejected(registered_user):
+    r = _token(ADMIN_USERNAME, "wrongpass123")
     assert r.status_code == 401
 
 
-def test_login_correct_returns_access_token_and_cookie(admin_session):
-    """Login with correct credentials returns accessToken and Sets-Cookie."""
-    r = requests.post(
-        f"{BASE_URL}/api/auth/login",
-        json={"username": "e2e_admin", "password": "e2eadminpassword1"},
-    )
+def test_keycloak_token_grants_api_access(admin_session):
+    """A Keycloak-issued token is accepted by the gateway (validated via JWKS)."""
+    r = admin_session.get(f"{BASE_URL}/api/groups")
     assert r.status_code == 200
-    assert "accessToken" in r.json()
-    assert "expiresIn" in r.json()
-    assert "Set-Cookie" in r.headers
 
 
-def test_refresh_rotates_token(admin_session):
-    """Refresh endpoint returns accessToken (may be same as current)."""
-    r = admin_session.post(f"{BASE_URL}/api/auth/refresh")
+def test_seeded_admin_has_rbac_permissions(admin_session):
+    """The realm-imported admin's sub is seeded the Admin role in rbac-service."""
+    r = admin_session.get(f"{BASE_URL}/api/identity/rbac/permissions")
     assert r.status_code == 200
-    assert "accessToken" in r.json()
-    assert "expiresIn" in r.json()
-
-
-def test_logout_clears_cookie(admin_session):
-    """Logout clears the refresh token cookie."""
-    r = admin_session.post(f"{BASE_URL}/api/auth/logout")
-    assert r.status_code == 204
-    assert "Set-Cookie" in r.headers
-    assert "Max-Age=0" in r.headers["Set-Cookie"]
