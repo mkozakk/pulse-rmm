@@ -18,6 +18,10 @@ services:
       - "8081:80"
       - "9091:9090"
 
+  keycloak:
+    ports: !override
+      - "8181:8080"
+
   postgres:
     volumes:
       - postgres_e2e_data:/var/lib/postgresql/data

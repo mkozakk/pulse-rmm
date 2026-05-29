@@ -12,9 +12,10 @@
 #   - No Grafana / Prometheus / Loki / Tempo ports exposed
 #
 # Before deploying:
-#   - Replace every secret in .env (JWT_SECRET, INTERNAL_API_SECRET, SCRIPT_SECRET_KEK,
-#     WEBHOOK_SECRET_KEK, CA_ROOT_KEY_SECRET, TURN_SECRET, GRAFANA_ADMIN_PASSWORD,
-#     POSTGRES_PASSWORD, RABBITMQ_PASSWORD, MINIO_*) with real values.
+#   - Replace every secret in .env (KEYCLOAK_ADMIN_PASSWORD, INTERNAL_API_SECRET,
+#     SCRIPT_SECRET_KEK, WEBHOOK_SECRET_KEK, CA_ROOT_KEY_SECRET, TURN_SECRET,
+#     GRAFANA_ADMIN_PASSWORD, POSTGRES_PASSWORD, RABBITMQ_PASSWORD, MINIO_*) with real values.
+#   - Set KEYCLOAK_HOSTNAME / KEYCLOAK_ISSUER_URI to the public auth hostname (https).
 #   - Configure nginx with TLS certs (this file does not — terminate TLS at nginx or
 #     in front of it).
 
@@ -29,11 +30,20 @@ services:
       PULSE_MTLS_ENABLED: "true"
       SWAGGER_UI_ENABLED: "false"
 
-  identity-service:
+  rbac-service:
     environment:
       <<: *prod-env
-      PULSE_COOKIE_SECURE: "true"
       SWAGGER_UI_ENABLED: "false"
+    ports: !override []
+
+  keycloak:
+    # production server instead of start-dev; TLS terminated by nginx in front
+    command: start --import-realm
+    environment:
+      KC_HOSTNAME: ${KEYCLOAK_HOSTNAME}
+      KC_PROXY: edge
+      KC_HTTP_ENABLED: "true"
+      KC_HEALTH_ENABLED: "true"
     ports: !override []
 
   endpoint-service:

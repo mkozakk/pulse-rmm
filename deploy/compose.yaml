@@ -20,14 +20,15 @@ services:
       dockerfile: backend/api-gateway/Dockerfile
     environment:
       PULSE_COOKIE_SECURE: "false"
-      IDENTITY_SERVICE_URL: http://identity-service:8083
+      RBAC_SERVICE_URL: http://rbac-service:8083
       ENDPOINT_SERVICE_URL: http://endpoint-service:8081
       METRIC_SERVICE_URL: http://metric-service:8082
       COMMANDS_SERVICE_URL: http://commands-service:8084
       ALERT_SERVICE_URL: http://alert-service:8087
       AUDIT_SERVICE_URL: http://audit-service:8088
       INTEGRATION_SERVICE_URL: http://integration-service:8091
-      JWT_SECRET: ${JWT_SECRET}
+      KEYCLOAK_URL: ${KEYCLOAK_URL}
+      KEYCLOAK_ISSUER_URI: ${KEYCLOAK_ISSUER_URI}
       INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PORT: 5672
@@ -47,9 +48,11 @@ services:
       start_period: 40s
     depends_on:
       <<: *app-deps
+      keycloak:
+        condition: service_started
       ca-service:
         condition: service_healthy
-      identity-service:
+      rbac-service:
         condition: service_healthy
       endpoint-service:
         condition: service_healthy
@@ -64,16 +67,17 @@ services:
       integration-service:
         condition: service_healthy
 
-  identity-service:
+  rbac-service:
     build:
       context: ..
-      dockerfile: backend/identity-service/Dockerfile
+      dockerfile: backend/rbac-service/Dockerfile
     environment:
       POSTGRES_HOST: postgres
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
-      JWT_SECRET: ${JWT_SECRET}
+      KEYCLOAK_URL: ${KEYCLOAK_URL}
+      KEYCLOAK_ISSUER_URI: ${KEYCLOAK_ISSUER_URI}
       INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
       PULSE_COOKIE_SECURE: ${PULSE_COOKIE_SECURE:-false}
       RABBITMQ_HOST: rabbitmq
@@ -100,9 +104,10 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
-      JWT_SECRET: ${JWT_SECRET}
+      KEYCLOAK_URL: ${KEYCLOAK_URL}
+      KEYCLOAK_ISSUER_URI: ${KEYCLOAK_ISSUER_URI}
       INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
-      IDENTITY_SERVICE_URL: http://identity-service:8083
+      RBAC_SERVICE_URL: http://rbac-service:8083
       GATEWAY_URL: http://api-gateway:8080
       PULSE_CA_ENABLED: "true"
       PULSE_CA_URL: http://ca-service:8089
@@ -136,7 +141,8 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
-      JWT_SECRET: ${JWT_SECRET}
+      KEYCLOAK_URL: ${KEYCLOAK_URL}
+      KEYCLOAK_ISSUER_URI: ${KEYCLOAK_ISSUER_URI}
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PORT: 5672
       RABBITMQ_USER: ${RABBITMQ_USER}
@@ -162,7 +168,8 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
-      JWT_SECRET: ${JWT_SECRET}
+      KEYCLOAK_URL: ${KEYCLOAK_URL}
+      KEYCLOAK_ISSUER_URI: ${KEYCLOAK_ISSUER_URI}
       GATEWAY_URL: http://api-gateway:8080
       SCRIPT_SERVICE_BASE_URL: http://commands-service:8084
       SCRIPT_SECRET_KEK: ${SCRIPT_SECRET_KEK}
@@ -191,7 +198,8 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
-      JWT_SECRET: ${JWT_SECRET}
+      KEYCLOAK_URL: ${KEYCLOAK_URL}
+      KEYCLOAK_ISSUER_URI: ${KEYCLOAK_ISSUER_URI}
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PORT: 5672
       RABBITMQ_USER: ${RABBITMQ_USER}
@@ -218,7 +226,8 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
-      JWT_SECRET: ${JWT_SECRET}
+      KEYCLOAK_URL: ${KEYCLOAK_URL}
+      KEYCLOAK_ISSUER_URI: ${KEYCLOAK_ISSUER_URI}
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PORT: 5672
       RABBITMQ_USER: ${RABBITMQ_USER}
@@ -244,7 +253,8 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
-      JWT_SECRET: ${JWT_SECRET}
+      KEYCLOAK_URL: ${KEYCLOAK_URL}
+      KEYCLOAK_ISSUER_URI: ${KEYCLOAK_ISSUER_URI}
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PORT: 5672
       RABBITMQ_USER: ${RABBITMQ_USER}
@@ -331,6 +341,45 @@ services:
       interval: 5s
       timeout: 2s
       retries: 3
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:25.0
+    command: start-dev --import-realm
+    environment:
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      KC_DB_SCHEMA: keycloak
+      KC_DB_USERNAME: ${POSTGRES_USER}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD}
+      KC_HEALTH_ENABLED: "true"
+      KC_HTTP_ENABLED: "true"
+      # start-dev infers the issuer from the request host (http://localhost:8180);
+      # backends fetch JWKS over the internal network at http://keycloak:8080.
+    volumes:
+      - ./keycloak-realm-export.json:/opt/keycloak/data/import/realm.json:ro,Z
+    networks:
+      - private
+    ports:
+      - "8180:8080"
+    depends_on:
+      keycloak-schema-init:
+        condition: service_completed_successfully
+
+  keycloak-schema-init:
+    image: docker.io/timescale/timescaledb:2.14.1-pg16
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    command: >
+      psql -h postgres -U ${POSTGRES_USER} -d ${POSTGRES_DB}
+        -c "CREATE SCHEMA IF NOT EXISTS keycloak"
+    networks:
+      - private
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
 
   redis:
     image: docker.io/library/redis:7.0-alpine
