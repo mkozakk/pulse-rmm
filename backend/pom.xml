@@ -19,7 +19,7 @@
     <modules>
         <module>common</module>
         <module>api-gateway</module>
-        <module>identity-service</module>
+        <module>rbac-service</module>
         <module>endpoint-service</module>
         <module>metric-service</module>
         <module>commands-service</module>
