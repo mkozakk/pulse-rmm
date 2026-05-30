@@ -37,4 +37,14 @@ public class NotificationRabbitConfig {
     public Binding auditEventsBinding(Queue notificationQueue, TopicExchange pulseEventsExchange) {
         return BindingBuilder.bind(notificationQueue).to(pulseEventsExchange).with("audit.#");
     }
+
+    @Bean
+    public Binding scriptResultBinding(Queue notificationQueue, TopicExchange pulseEventsExchange) {
+        return BindingBuilder.bind(notificationQueue).to(pulseEventsExchange).with("script.result");
+    }
+
+    @Bean
+    public Binding softwareCommandCompletedBinding(Queue notificationQueue, TopicExchange pulseEventsExchange) {
+        return BindingBuilder.bind(notificationQueue).to(pulseEventsExchange).with("software.command.completed");
+    }
 }
