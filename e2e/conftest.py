@@ -7,7 +7,7 @@ import pytest
 import requests
 
 from config import (
-    BASE_URL, ADMIN_USERNAME, ADMIN_PASSWORD, ADMIN_ID, AGENT_IMAGE, E2E_NETWORK,
+    BASE_URL, ADMIN_USERNAME, ADMIN_PASSWORD, AGENT_IMAGE, E2E_NETWORK,
     KEYCLOAK_URL, KEYCLOAK_REALM, KEYCLOAK_E2E_CLIENT,
 )
 
@@ -124,14 +124,40 @@ def pytest_runtest_makereport(item, call):
                 print('\n'.join(lines[-30:]))  # Last 30 lines
 
 
+def _lookup_admin_id():
+    """Look up admin user UUID from Keycloak admin API."""
+    keycloak_admin = os.environ.get("KEYCLOAK_ADMIN", "admin")
+    keycloak_admin_pass = os.environ.get("KEYCLOAK_ADMIN_PASSWORD", "admin")
+    token_r = requests.post(
+        f"{KEYCLOAK_URL}/realms/master/protocol/openid-connect/token",
+        data={
+            "grant_type": "password",
+            "client_id": "admin-cli",
+            "username": keycloak_admin,
+            "password": keycloak_admin_pass,
+        },
+    )
+    token = token_r.json()["access_token"]
+    users_r = requests.get(
+        f"{KEYCLOAK_URL}/admin/realms/{KEYCLOAK_REALM}/users?username={ADMIN_USERNAME}&exact=true",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    users = users_r.json()
+    if not users:
+        raise RuntimeError(f"Admin user '{ADMIN_USERNAME}' not found in Keycloak realm")
+    return users[0]["id"]
+
+
 @pytest.fixture(scope="session")
 def registered_user():
-    """The admin user is provisioned by the Keycloak realm import, not registered."""
+    """The admin user is created by keycloak-user-init at stack startup."""
     print(f"\n[setup] waiting for gateway at {BASE_URL}...")
     _wait_for_gateway()
     print(f"[setup] waiting for Keycloak at {KEYCLOAK_URL}...")
     _wait_for_keycloak()
-    return {"id": ADMIN_ID, "username": ADMIN_USERNAME}
+    admin_id = _lookup_admin_id()
+    print(f"[setup] admin user id: {admin_id}")
+    return {"id": admin_id, "username": ADMIN_USERNAME}
 
 
 @pytest.fixture(scope="session")
@@ -279,4 +305,7 @@ def auth_test_endpoints():
         ("GET", "/api/groups"),
         ("POST", "/api/groups"),
         ("PUT", "/api/endpoints/fake-id/tags"),
+        ("GET", "/api/identity/users"),
+        ("POST", "/api/identity/users"),
+        ("DELETE", "/api/identity/users/fake-id"),
     ]
