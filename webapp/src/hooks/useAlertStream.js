@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
-import { addAlert } from '../store/alertsSlice'
+import { addAlert, addNotif } from '../store/alertsSlice'
 
 const BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8080/api'
 
@@ -16,6 +16,10 @@ export function useAlertStream() {
 
     es.addEventListener('alert', e => {
       dispatch(addAlert(JSON.parse(e.data)))
+    })
+
+    es.addEventListener('notification', e => {
+      dispatch(addNotif(JSON.parse(e.data)))
     })
 
     return () => es.close()
