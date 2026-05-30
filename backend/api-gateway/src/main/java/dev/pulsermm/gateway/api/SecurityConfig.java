@@ -54,6 +54,7 @@ public class SecurityConfig {
             )
             .addFilterAfter(new StructurePermissionFilter(permissionGuard), BearerTokenAuthenticationFilter.class)
             .addFilterAfter(new AlertPermissionFilter(permissionGuard), StructurePermissionFilter.class)
+            .addFilterAfter(new ApiPermissionFilter(permissionGuard), AlertPermissionFilter.class)
             .csrf(csrf -> csrf.disable());
         return http.build();
     }
