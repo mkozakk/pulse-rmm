@@ -40,15 +40,19 @@ public class SessionService {
 
     @Transactional
     public SessionResult createSession(UUID endpointId, UUID technicianId) {
+        boolean canControl = identityClient.hasPermission(technicianId, "remote:desktop:control");
+        boolean canView = identityClient.hasPermission(technicianId, "remote:desktop:view");
+        if (!canControl && !canView) {
+            throw new ForbiddenException("remote:desktop:view");
+        }
+
         long expires = Instant.now().plusSeconds(3600).getEpochSecond();
         String sessionId = UUID.randomUUID().toString();
         String username = expires + ":" + sessionId;
         String credential = hmacSha1(turnSecret, username);
 
-        DesktopSession session = new DesktopSession(endpointId, technicianId, username, credential);
-        sessions.save(session);
-
-        boolean canControl = identityClient.hasPermission(technicianId, "remote:desktop:control");
+        DesktopSession session = sessions.save(
+            new DesktopSession(endpointId, technicianId, username, credential));
 
         gatewayClient.startDesktopSession(endpointId, session.getId(), turnUrls, turnSecret);
 
