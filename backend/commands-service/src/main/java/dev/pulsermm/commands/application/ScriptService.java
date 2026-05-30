@@ -1,17 +1,21 @@
 package dev.pulsermm.commands.application;
 
 import dev.pulsermm.common.audit.Auditable;
+import dev.pulsermm.common.events.DomainEvent;
+import dev.pulsermm.common.events.DomainEventPublisher;
 import dev.pulsermm.commands.api.dto.CreateScriptRequest;
 import dev.pulsermm.commands.domain.Script;
 import dev.pulsermm.commands.domain.ScriptRun;
 import dev.pulsermm.commands.domain.ScriptRunResult;
 import dev.pulsermm.commands.domain.ScriptSecret;
-import dev.pulsermm.commands.infrastructure.GatewayClient;
+import dev.pulsermm.commands.infrastructure.config.ScriptDispatchRabbitConfig;
+import dev.pulsermm.commands.infrastructure.messaging.ScriptDispatchMessage;
 import dev.pulsermm.commands.infrastructure.persistence.ScriptRepository;
 import dev.pulsermm.commands.infrastructure.persistence.ScriptRunRepository;
 import dev.pulsermm.commands.infrastructure.persistence.ScriptRunResultRepository;
 import dev.pulsermm.commands.infrastructure.persistence.ScriptSecretRepository;
 import dev.pulsermm.commands.infrastructure.security.ScriptSecretEncryptor;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
@@ -22,6 +26,7 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.OffsetDateTime;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -34,7 +39,8 @@ public class ScriptService {
     private final ScriptSecretRepository scriptSecretRepository;
     private final ScriptSecretEncryptor encryptor;
     private final String scriptSecretKek;
-    private final GatewayClient gatewayClient;
+    private final RabbitTemplate rabbitTemplate;
+    private final DomainEventPublisher domainEventPublisher;
     private final String scriptServiceBaseUrl;
 
     public ScriptService(ScriptRepository scriptRepository,
@@ -43,7 +49,8 @@ public class ScriptService {
                          ScriptSecretRepository scriptSecretRepository,
                          ScriptSecretEncryptor encryptor,
                          @Qualifier("scriptSecretKek") String scriptSecretKek,
-                         GatewayClient gatewayClient,
+                         RabbitTemplate rabbitTemplate,
+                         DomainEventPublisher domainEventPublisher,
                          @Value("${pulse.script.base-url:http://localhost:8084}") String scriptServiceBaseUrl) {
         this.scriptRepository = scriptRepository;
         this.scriptRunRepository = scriptRunRepository;
@@ -51,7 +58,8 @@ public class ScriptService {
         this.scriptSecretRepository = scriptSecretRepository;
         this.encryptor = encryptor;
         this.scriptSecretKek = scriptSecretKek;
-        this.gatewayClient = gatewayClient;
+        this.rabbitTemplate = rabbitTemplate;
+        this.domainEventPublisher = domainEventPublisher;
         this.scriptServiceBaseUrl = scriptServiceBaseUrl;
     }
 
@@ -114,19 +122,18 @@ public class ScriptService {
         }
 
         var decryptedSecrets = getDecryptedSecretsForRun(savedRun.getId());
-        var dispatches = results.stream()
+        var messages = results.stream()
                 .map(result -> {
                     var callbackUrl = scriptServiceBaseUrl + "/api/scripts/runs/" + savedRun.getId() +
                                     "/endpoints/" + result.getEndpointId() + "/ack";
-                    return new DispatchInfo(result.getEndpointId(), result.getId(), script.getBody(), decryptedSecrets, callbackUrl);
+                    return new ScriptDispatchMessage(result.getEndpointId(), result.getId(), script.getBody(), decryptedSecrets, callbackUrl);
                 })
                 .toList();
 
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
-                dispatches.forEach(d -> gatewayClient.dispatchScriptCommand(
-                        d.endpointId(), d.commandId(), d.scriptBody(), d.envVars(), d.callbackUrl()));
+                messages.forEach(msg -> rabbitTemplate.convertAndSend(ScriptDispatchRabbitConfig.QUEUE, msg));
             }
         });
 
@@ -155,6 +162,12 @@ public class ScriptService {
         result.setOutput(output);
         result.setAckedAt(OffsetDateTime.now());
         scriptRunResultRepository.save(result);
+
+        domainEventPublisher.publish(DomainEvent.of("script.result", Map.of(
+                "runId", runId.toString(),
+                "endpointId", endpointId.toString(),
+                "exitCode", exitCode
+        )));
     }
 
     @Transactional(readOnly = true)
@@ -175,10 +188,6 @@ public class ScriptService {
     }
 
     public record ScriptRunData(UUID runId, int endpointCount) {
-    }
-
-    private record DispatchInfo(UUID endpointId, UUID commandId, String scriptBody,
-                                java.util.Map<String, String> envVars, String callbackUrl) {
     }
 
     public record ScriptRunResponseData(UUID runId, java.util.List<ScriptRunResult> results, int total, long pending) {
