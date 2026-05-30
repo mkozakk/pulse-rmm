@@ -8,4 +8,5 @@ import java.util.UUID;
 
 public interface UserPermissionRepository extends JpaRepository<UserPermission, UserPermissionId> {
     List<UserPermission> findAllByIdUserId(UUID userId);
+    void deleteAllByIdUserId(UUID userId);
 }

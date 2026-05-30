@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -73,6 +74,31 @@ public class RbacService {
     @Transactional
     public void removeRoleFromUser(UUID userId, UUID roleId) {
         userRoleRepository.deleteById(new UserRoleId(userId, roleId));
+        permissionEvaluationService.invalidate(userId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<String> getUserRoles(UUID userId) {
+        return userRoleRepository.findAllByIdUserId(userId).stream()
+            .map(ur -> roleRepository.findById(ur.getId().getRoleId()))
+            .filter(java.util.Optional::isPresent)
+            .map(opt -> opt.get().getName())
+            .toList();
+    }
+
+    @Transactional
+    public void replaceUserRoles(UUID userId, List<UUID> roleIds) {
+        userRoleRepository.deleteAllByIdUserId(userId);
+        for (UUID roleId : roleIds) {
+            userRoleRepository.save(new UserRole(new UserRoleId(userId, roleId)));
+        }
+        permissionEvaluationService.invalidate(userId);
+    }
+
+    @Transactional
+    public void removeAllUserData(UUID userId) {
+        userRoleRepository.deleteAllByIdUserId(userId);
+        userPermissionRepository.deleteAllByIdUserId(userId);
         permissionEvaluationService.invalidate(userId);
     }
 }
