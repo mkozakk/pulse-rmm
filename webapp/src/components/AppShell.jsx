@@ -35,6 +35,9 @@ export default function AppShell({ children, title, subtitle, actions }) {
           <NavLink to="/webhooks" className={({ isActive }) => isActive ? 'app-shell-link active' : 'app-shell-link'}>
             Webhooks
           </NavLink>
+          <NavLink to="/users" className={({ isActive }) => isActive ? 'app-shell-link active' : 'app-shell-link'}>
+            Users
+          </NavLink>
         </nav>
 
         <p className="app-shell-note">Metrics, shell, and desktop live here.</p>

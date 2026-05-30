@@ -18,6 +18,7 @@ const rawBaseQuery = fetchBaseQuery({
 export const pulseApi = createApi({
   reducerPath: 'pulseApi',
   baseQuery: rawBaseQuery,
+  tagTypes: ['Users'],
   endpoints: (builder) => ({
     getGroups: builder.query({
       query: () => '/groups',
@@ -244,6 +245,36 @@ export const pulseApi = createApi({
         url: `/endpoints/${endpointId}/processes/${pid}/kill`,
         method: 'POST'
       })
+    }),
+    getRoles: builder.query({
+      query: () => '/identity/rbac/roles',
+      keepUnusedDataFor: 0
+    }),
+    getUsers: builder.query({
+      query: () => '/identity/users',
+      providesTags: ['Users'],
+      keepUnusedDataFor: 0
+    }),
+    getUser: builder.query({
+      query: (id) => `/identity/users/${id}`,
+      providesTags: (result, error, id) => [{ type: 'Users', id }],
+      keepUnusedDataFor: 0
+    }),
+    createUser: builder.mutation({
+      query: (body) => ({ url: '/identity/users', method: 'POST', body }),
+      invalidatesTags: ['Users']
+    }),
+    updateUser: builder.mutation({
+      query: ({ id, ...body }) => ({ url: `/identity/users/${id}`, method: 'PUT', body }),
+      invalidatesTags: ['Users']
+    }),
+    deleteUser: builder.mutation({
+      query: (id) => ({ url: `/identity/users/${id}`, method: 'DELETE' }),
+      invalidatesTags: ['Users']
+    }),
+    updateUserRoles: builder.mutation({
+      query: ({ id, roleIds }) => ({ url: `/identity/users/${id}/roles`, method: 'PUT', body: { roleIds } }),
+      invalidatesTags: ['Users']
     })
   })
 })
@@ -296,5 +327,12 @@ export const {
   useListDeadLetterQuery,
   useRefreshProcessesMutation,
   useGetLatestProcessesQuery,
-  useKillProcessMutation
+  useKillProcessMutation,
+  useGetRolesQuery,
+  useGetUsersQuery,
+  useGetUserQuery,
+  useCreateUserMutation,
+  useUpdateUserMutation,
+  useDeleteUserMutation,
+  useUpdateUserRolesMutation
 } = pulseApi
