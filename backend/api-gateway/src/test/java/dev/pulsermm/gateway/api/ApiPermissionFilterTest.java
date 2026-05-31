@@ -32,14 +32,14 @@ class ApiPermissionFilterTest {
     }
 
     @Test
-    void unauthenticatedRequestReturns401() throws Exception {
+    void unauthenticatedRequestReturns403() throws Exception {
         SecurityContextHolder.clearContext();
         var request = request("GET", "/api/scripts");
         var response = new MockHttpServletResponse();
 
         new ApiPermissionFilter(guard).doFilter(request, response, chain);
 
-        assertThat(response.getStatus()).isEqualTo(401);
+        assertThat(response.getStatus()).isEqualTo(403);
         verifyNoInteractions(chain);
     }
 
