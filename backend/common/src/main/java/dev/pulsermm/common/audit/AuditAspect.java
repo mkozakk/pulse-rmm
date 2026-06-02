@@ -11,6 +11,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
+
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.time.Instant;
@@ -54,8 +57,20 @@ public class AuditAspect {
             auditable.action(),
             endpointId,
             payloadJson,
-            Instant.now()
+            Instant.now(),
+            extractOrgId()
         );
+    }
+
+    private UUID extractOrgId() {
+        try {
+            var attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            if (attrs == null) return null;
+            String orgId = attrs.getRequest().getHeader("X-User-Org-Id");
+            return (orgId != null && !orgId.isBlank()) ? UUID.fromString(orgId) : null;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private UUID extractUserId() {

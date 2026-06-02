@@ -11,5 +11,6 @@ public record AuditEventMessage(
     String action,
     UUID endpointId,
     String payloadJson,
-    Instant createdAt
+    Instant createdAt,
+    UUID orgId
 ) implements Serializable {}
