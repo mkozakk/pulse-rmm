@@ -45,15 +45,33 @@ public class KeycloakAdminClient {
         });
     }
 
+    // Keycloak attribute search: ?q=org_id:<uuid> matches users carrying that custom attribute.
+    public List<KeycloakUser> listUsersByOrg(UUID orgId) {
+        return withToken(tok -> {
+            var users = restClient.get()
+                .uri(b -> b.path("/admin/realms/{realm}/users").queryParam("q", "org_id:" + orgId).build(realm))
+                .header("Authorization", "Bearer " + tok)
+                .retrieve()
+                .body(KeycloakUserJson[].class);
+            return users == null ? List.of() : Arrays.stream(users).map(KeycloakUserJson::toRecord).toList();
+        });
+    }
+
     public UUID createUser(String username, String email, String firstName, String lastName, String password) {
-        var body = Map.of(
-            "username", username,
-            "email", email != null ? email : "",
-            "firstName", firstName != null ? firstName : "",
-            "lastName", lastName != null ? lastName : "",
-            "enabled", true,
-            "credentials", List.of(Map.of("type", "password", "value", password, "temporary", false))
-        );
+        return createUser(username, email, firstName, lastName, password, null);
+    }
+
+    public UUID createUser(String username, String email, String firstName, String lastName, String password, UUID orgId) {
+        var body = new java.util.HashMap<String, Object>();
+        body.put("username", username);
+        body.put("email", email != null ? email : "");
+        body.put("firstName", firstName != null ? firstName : "");
+        body.put("lastName", lastName != null ? lastName : "");
+        body.put("enabled", true);
+        body.put("credentials", List.of(Map.of("type", "password", "value", password, "temporary", false)));
+        if (orgId != null) {
+            body.put("attributes", Map.of("org_id", List.of(orgId.toString())));
+        }
         withToken(tok -> {
             restClient.post()
                 .uri("/admin/realms/{realm}/users", realm)
@@ -164,9 +182,17 @@ public class KeycloakAdminClient {
     record TokenResponse(String access_token) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    record KeycloakUserJson(String id, String username, String email, String firstName, String lastName, boolean enabled) {
+    record KeycloakUserJson(String id, String username, String email, String firstName, String lastName,
+                            boolean enabled, Map<String, List<String>> attributes) {
         KeycloakUser toRecord() {
-            return new KeycloakUser(UUID.fromString(id), username, email, firstName, lastName, enabled);
+            UUID orgId = null;
+            if (attributes != null) {
+                var values = attributes.get("org_id");
+                if (values != null && !values.isEmpty() && values.get(0) != null && !values.get(0).isBlank()) {
+                    orgId = UUID.fromString(values.get(0));
+                }
+            }
+            return new KeycloakUser(UUID.fromString(id), username, email, firstName, lastName, enabled, orgId);
         }
     }
 }
