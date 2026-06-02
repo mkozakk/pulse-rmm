@@ -1,7 +1,9 @@
 import { NavLink } from 'react-router-dom'
 import NotificationBell from './NotificationBell'
+import keycloak from '../keycloak'
 
 export default function AppShell({ children, title, subtitle, actions }) {
+  const isGlobalAdmin = !keycloak.tokenParsed?.org_id
   return (
     <div className="app-shell">
       <aside className="app-shell-nav">
@@ -38,6 +40,11 @@ export default function AppShell({ children, title, subtitle, actions }) {
           <NavLink to="/users" className={({ isActive }) => isActive ? 'app-shell-link active' : 'app-shell-link'}>
             Users
           </NavLink>
+          {isGlobalAdmin && (
+            <NavLink to="/organizations" className={({ isActive }) => isActive ? 'app-shell-link active' : 'app-shell-link'}>
+              Organizations
+            </NavLink>
+          )}
         </nav>
 
         <p className="app-shell-note">Metrics, shell, and desktop live here.</p>
