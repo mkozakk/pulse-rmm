@@ -27,6 +27,7 @@ public class SecurityConfig {
     private final PermissionGuard permissionGuard;
     private final BearerTokenResolver bearerTokenResolver;
     private final ProxyManager<String> rateLimitProxyManager;
+    private final dev.pulsermm.gateway.infrastructure.identity.EndpointOrgClient endpointOrgClient;
 
     @Value("${pulse.rate-limit.capacity:200}")
     private long rateLimitCapacity;
@@ -38,10 +39,12 @@ public class SecurityConfig {
     private long rateLimitRefillSeconds;
 
     public SecurityConfig(PermissionGuard permissionGuard, BearerTokenResolver bearerTokenResolver,
-                          @Lazy ProxyManager<String> rateLimitProxyManager) {
+                          @Lazy ProxyManager<String> rateLimitProxyManager,
+                          dev.pulsermm.gateway.infrastructure.identity.EndpointOrgClient endpointOrgClient) {
         this.permissionGuard = permissionGuard;
         this.bearerTokenResolver = bearerTokenResolver;
         this.rateLimitProxyManager = rateLimitProxyManager;
+        this.endpointOrgClient = endpointOrgClient;
     }
 
     @Bean
@@ -82,6 +85,7 @@ public class SecurityConfig {
             .addFilterAfter(new StructurePermissionFilter(permissionGuard), RateLimitFilter.class)
             .addFilterAfter(new AlertPermissionFilter(permissionGuard), StructurePermissionFilter.class)
             .addFilterAfter(new ApiPermissionFilter(permissionGuard), AlertPermissionFilter.class)
+            .addFilterAfter(new OrgContextFilter(endpointOrgClient), ApiPermissionFilter.class)
             .csrf(csrf -> csrf.disable());
         return http.build();
     }
