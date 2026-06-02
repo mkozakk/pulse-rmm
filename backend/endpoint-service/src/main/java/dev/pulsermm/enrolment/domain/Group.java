@@ -15,12 +15,22 @@ public class Group {
     @Column(name = "parent_id")
     private UUID parentId;
 
+    @Column(name = "org_id")
+    private UUID orgId;
+
     public Group() {}
 
     public Group(UUID id, String name, UUID parentId) {
         this.id = id;
         this.name = name;
         this.parentId = parentId;
+    }
+
+    public Group(UUID id, String name, UUID parentId, UUID orgId) {
+        this.id = id;
+        this.name = name;
+        this.parentId = parentId;
+        this.orgId = orgId;
     }
 
     public UUID getId() {
@@ -45,5 +55,13 @@ public class Group {
 
     public void setParentId(UUID parentId) {
         this.parentId = parentId;
+    }
+
+    public UUID getOrgId() {
+        return orgId;
+    }
+
+    public void setOrgId(UUID orgId) {
+        this.orgId = orgId;
     }
 }

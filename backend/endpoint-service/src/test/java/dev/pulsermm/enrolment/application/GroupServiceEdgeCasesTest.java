@@ -110,7 +110,7 @@ class GroupServiceEdgeCasesTest {
     void listAllReturnsEmptyList() {
         when(groupRepo.findAll()).thenReturn(List.of());
 
-        var result = service.listAll();
+        var result = service.listForOrg(null);
 
         assertThat(result).isEmpty();
     }
@@ -122,7 +122,7 @@ class GroupServiceEdgeCasesTest {
 
         when(groupRepo.findAll()).thenReturn(List.of(group1, group2));
 
-        var result = service.listAll();
+        var result = service.listForOrg(null);
 
         assertThat(result).hasSize(2);
         assertThat(result.get(0).name()).isEqualTo("group1");
