@@ -47,6 +47,9 @@ public class AlertRule {
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt;
 
+    @Column(name = "org_id")
+    private UUID orgId;
+
     public AlertRule() {
     }
 
@@ -75,6 +78,8 @@ public class AlertRule {
     public boolean isEnabled() { return enabled; }
     public UUID getCreatedBy() { return createdBy; }
     public OffsetDateTime getCreatedAt() { return createdAt; }
+    public UUID getOrgId() { return orgId; }
 
     public void setEnabled(boolean enabled) { this.enabled = enabled; }
+    public void setOrgId(UUID orgId) { this.orgId = orgId; }
 }
