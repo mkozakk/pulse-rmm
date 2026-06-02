@@ -24,4 +24,13 @@ public interface ScriptRepository extends JpaRepository<Script, UUID> {
 
     @Query("SELECT s FROM Script s WHERE s.createdBy = :userId ORDER BY s.createdAt DESC")
     Page<Script> findByCreatedBy(@Param("userId") UUID userId, Pageable pageable);
+
+    @Query("SELECT s FROM Script s WHERE (s.orgId = :orgId OR s.isGlobal = true) ORDER BY s.createdAt DESC")
+    Page<Script> findVisibleToOrg(@Param("orgId") UUID orgId, Pageable pageable);
+
+    @Query("SELECT s FROM Script s WHERE (s.orgId = :orgId OR s.isGlobal = true) AND s.approvedAt IS NULL ORDER BY s.createdAt DESC")
+    Page<Script> findPendingForOrg(@Param("orgId") UUID orgId, Pageable pageable);
+
+    @Query("SELECT s FROM Script s WHERE (s.orgId = :orgId OR s.isGlobal = true) AND s.approvedAt IS NOT NULL ORDER BY s.createdAt DESC")
+    Page<Script> findApprovedForOrg(@Param("orgId") UUID orgId, Pageable pageable);
 }

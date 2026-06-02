@@ -26,6 +26,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -52,9 +53,10 @@ public class ScriptController {
     @PostMapping
     public ResponseEntity<CreateScriptResponse> createScript(
             @Valid @RequestBody CreateScriptRequest request,
-            Authentication authentication) {
+            Authentication authentication,
+            @RequestHeader(value = "X-User-Org-Id", required = false) UUID orgId) {
         var userId = UUID.fromString(authentication.getName());
-        var script = scriptService.createScript(request, userId);
+        var script = scriptService.createScript(request, userId, orgId);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(new CreateScriptResponse(script.getId()));
     }
@@ -67,10 +69,11 @@ public class ScriptController {
     public ResponseEntity<ListScriptsResponse> listScripts(
             @RequestParam(defaultValue = "all") String status,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "50") int size) {
+            @RequestParam(defaultValue = "50") int size,
+            @RequestHeader(value = "X-User-Org-Id", required = false) UUID orgId) {
         var scriptStatus = ScriptStatus.valueOf(status.toUpperCase());
         var pageable = PageRequest.of(page, size);
-        var scripts = scriptService.listScripts(scriptStatus, pageable);
+        var scripts = scriptService.listScripts(scriptStatus, pageable, orgId);
         var response = new ListScriptsResponse(
                 scripts.getContent().stream()
                         .map(ScriptResponse::from)
@@ -110,9 +113,10 @@ public class ScriptController {
     public ResponseEntity<InitiateScriptRunResponse> runScript(
             @PathVariable UUID id,
             @Valid @RequestBody RunScriptRequest request,
-            Authentication authentication) {
+            Authentication authentication,
+            @RequestHeader(value = "X-User-Org-Id", required = false) UUID orgId) {
         var userId = UUID.fromString(authentication.getName());
-        var runData = scriptService.runScript(id, request.endpointIds(), request.secrets(), userId);
+        var runData = scriptService.runScript(id, request.endpointIds(), request.secrets(), userId, orgId);
         return ResponseEntity.status(HttpStatus.ACCEPTED)
                 .body(new InitiateScriptRunResponse(runData.runId()));
     }

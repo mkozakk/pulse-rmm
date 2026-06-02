@@ -64,9 +64,14 @@ public class ScriptService {
     }
 
     @Auditable(action = "script.create", permission = "script:adhoc")
-    public Script createScript(CreateScriptRequest request, UUID createdBy) {
-        var script = new Script(request.name(), request.body(), createdBy);
+    public Script createScript(CreateScriptRequest request, UUID createdBy, UUID orgId) {
+        var script = new Script(request.name(), request.body(), createdBy, orgId);
         return scriptRepository.save(script);
+    }
+
+    @Auditable(action = "script.create", permission = "script:adhoc")
+    public Script createScript(CreateScriptRequest request, UUID createdBy) {
+        return createScript(request, createdBy, null);
     }
 
     @Transactional(readOnly = true)
@@ -76,12 +81,24 @@ public class ScriptService {
     }
 
     @Transactional(readOnly = true)
-    public Page<Script> listScripts(ScriptStatus status, Pageable pageable) {
+    public Page<Script> listScripts(ScriptStatus status, Pageable pageable, UUID orgId) {
+        if (orgId == null) {
+            return switch (status) {
+                case PENDING -> scriptRepository.findPendingScripts(pageable);
+                case LIBRARY -> scriptRepository.findApprovedScripts(pageable);
+                case ALL -> scriptRepository.findAllScripts(pageable);
+            };
+        }
         return switch (status) {
-            case PENDING -> scriptRepository.findPendingScripts(pageable);
-            case LIBRARY -> scriptRepository.findApprovedScripts(pageable);
-            case ALL -> scriptRepository.findAllScripts(pageable);
+            case PENDING -> scriptRepository.findPendingForOrg(orgId, pageable);
+            case LIBRARY -> scriptRepository.findApprovedForOrg(orgId, pageable);
+            case ALL -> scriptRepository.findVisibleToOrg(orgId, pageable);
         };
+    }
+
+    @Transactional(readOnly = true)
+    public Page<Script> listScripts(ScriptStatus status, Pageable pageable) {
+        return listScripts(status, pageable, null);
     }
 
     @Auditable(action = "script.approve", permission = "script:approve")
@@ -96,8 +113,13 @@ public class ScriptService {
 
     @Auditable(action = "script.run", permission = "script:run", capturePayload = false)
     public ScriptRunData runScript(UUID scriptId, java.util.List<String> endpointIds,
-                                   java.util.Map<String, String> secrets, UUID initiatedBy) {
+                                   java.util.Map<String, String> secrets, UUID initiatedBy, UUID callerOrgId) {
         var script = getScriptById(scriptId);
+
+        if (callerOrgId != null && !script.isGlobal() &&
+                (script.getOrgId() == null || !script.getOrgId().equals(callerOrgId))) {
+            throw new ScriptNotFoundException("Script not found: " + scriptId);
+        }
 
         var run = new ScriptRun(scriptId, initiatedBy);
         var savedRun = scriptRunRepository.save(run);
