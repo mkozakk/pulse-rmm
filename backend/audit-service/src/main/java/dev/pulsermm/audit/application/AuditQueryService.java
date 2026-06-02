@@ -20,7 +20,13 @@ public class AuditQueryService {
     }
 
     @Transactional(readOnly = true)
+    public Page<AuditEvent> list(UUID userId, UUID endpointId, Instant from, Instant to,
+                                 UUID orgId, Pageable pageable) {
+        return repository.findFiltered(userId, endpointId, from, to, orgId, pageable);
+    }
+
+    @Transactional(readOnly = true)
     public Page<AuditEvent> list(UUID userId, UUID endpointId, Instant from, Instant to, Pageable pageable) {
-        return repository.findFiltered(userId, endpointId, from, to, pageable);
+        return list(userId, endpointId, from, to, null, pageable);
     }
 }

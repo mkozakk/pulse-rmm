@@ -38,7 +38,8 @@ public class AuditEventConsumer {
                 message.action(),
                 message.endpointId(),
                 message.payloadJson(),
-                message.createdAt()
+                message.createdAt(),
+                message.orgId()
             );
             repository.save(event);
             publishAuditDomainEvent(message, event.getId());
