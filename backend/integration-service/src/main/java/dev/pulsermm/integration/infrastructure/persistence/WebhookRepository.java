@@ -12,6 +12,8 @@ public interface WebhookRepository extends JpaRepository<Webhook, UUID> {
 
     List<Webhook> findAllByEnabledTrue();
 
+    List<Webhook> findByOrgId(UUID orgId);
+
     @Query(value = "SELECT * FROM integration.webhooks WHERE enabled = true AND :eventType = ANY(event_types)", nativeQuery = true)
     List<Webhook> findByEventType(@Param("eventType") String eventType);
 }

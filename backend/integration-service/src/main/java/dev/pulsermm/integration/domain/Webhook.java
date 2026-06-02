@@ -38,6 +38,9 @@ public class Webhook {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
+    @Column(name = "org_id")
+    private UUID orgId;
+
     protected Webhook() {}
 
     public Webhook(String url, byte[] secretCiphertext, String secretKekId, List<String> eventTypes, UUID createdBy) {
@@ -48,6 +51,12 @@ public class Webhook {
         this.createdBy = createdBy;
     }
 
+    public Webhook(String url, byte[] secretCiphertext, String secretKekId, List<String> eventTypes,
+                   UUID createdBy, UUID orgId) {
+        this(url, secretCiphertext, secretKekId, eventTypes, createdBy);
+        this.orgId = orgId;
+    }
+
     public UUID getId() { return id; }
     public String getUrl() { return url; }
     public byte[] getSecretCiphertext() { return secretCiphertext; }
@@ -56,6 +65,7 @@ public class Webhook {
     public boolean isEnabled() { return enabled; }
     public UUID getCreatedBy() { return createdBy; }
     public Instant getCreatedAt() { return createdAt; }
+    public UUID getOrgId() { return orgId; }
 
     public void setUrl(String url) { this.url = url; }
     public void setSecretCiphertext(byte[] secretCiphertext) { this.secretCiphertext = secretCiphertext; }

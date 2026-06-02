@@ -29,26 +29,45 @@ public class WebhookService {
     }
 
     @Transactional
-    public Webhook create(String url, List<String> eventTypes, String secret, UUID createdBy) {
+    public Webhook create(String url, List<String> eventTypes, String secret, UUID createdBy, UUID orgId) {
         validateUrl(url);
         validateEventTypes(eventTypes);
         var ciphertext = encryptor.encrypt(secret);
-        var webhook = new Webhook(url, ciphertext, WebhookSecretEncryptor.KEK_ID, eventTypes, createdBy);
+        var webhook = new Webhook(url, ciphertext, WebhookSecretEncryptor.KEK_ID, eventTypes, createdBy, orgId);
         return webhookRepository.save(webhook);
     }
 
+    @Transactional
+    public Webhook create(String url, List<String> eventTypes, String secret, UUID createdBy) {
+        return create(url, eventTypes, secret, createdBy, null);
+    }
+
+    public List<Webhook> list(UUID orgId) {
+        if (orgId == null) return webhookRepository.findAll();
+        return webhookRepository.findByOrgId(orgId);
+    }
+
     public List<Webhook> list() {
-        return webhookRepository.findAll();
+        return list(null);
+    }
+
+    public Webhook get(UUID id, UUID callerOrgId) {
+        var webhook = webhookRepository.findById(id)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "webhook not found"));
+        if (callerOrgId != null && !callerOrgId.equals(webhook.getOrgId())) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "webhook not found");
+        }
+        return webhook;
     }
 
     public Webhook get(UUID id) {
-        return webhookRepository.findById(id)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "webhook not found"));
+        return get(id, null);
     }
 
     @Transactional
-    public Webhook update(UUID id, String url, List<String> eventTypes, Boolean enabled, String secret) {
-        var webhook = get(id);
+    public Webhook update(UUID id, String url, List<String> eventTypes, Boolean enabled, String secret,
+                          UUID callerOrgId) {
+        var webhook = get(id, callerOrgId);
         if (url != null) {
             validateUrl(url);
             webhook.setUrl(url);
@@ -67,9 +86,19 @@ public class WebhookService {
     }
 
     @Transactional
-    public void delete(UUID id) {
-        var webhook = get(id);
+    public Webhook update(UUID id, String url, List<String> eventTypes, Boolean enabled, String secret) {
+        return update(id, url, eventTypes, enabled, secret, null);
+    }
+
+    @Transactional
+    public void delete(UUID id, UUID callerOrgId) {
+        var webhook = get(id, callerOrgId);
         webhookRepository.delete(webhook);
+    }
+
+    @Transactional
+    public void delete(UUID id) {
+        delete(id, null);
     }
 
     private void validateUrl(String url) {
