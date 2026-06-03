@@ -55,8 +55,14 @@ public class ApiPermissionFilter extends OncePerRequestFilter {
 
     private boolean isPermitAll(String path, String method) {
         // Agent ack callback: gateway calls this without a user JWT when relaying ack events
-        return "POST".equals(method)
-            && path.matches("/api/scripts/runs/[^/]+/endpoints/[^/]+/ack");
+        if ("POST".equals(method) && path.matches("/api/scripts/runs/[^/]+/endpoints/[^/]+/ack")) {
+            return true;
+        }
+        // Checksum endpoint is called by the install script before the agent is enrolled (no JWT)
+        if ("GET".equals(method) && path.equals("/api/agent-versions/checksum")) {
+            return true;
+        }
+        return false;
     }
 
     private boolean isMonitored(String path) {
