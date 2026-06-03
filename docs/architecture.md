@@ -340,7 +340,8 @@ podman network (pulse-rmm)
 
 webapp (Node.js dev server) runs on host at 5173
     → proxies /api requests to http://api-gateway:8080 (docker network)
-    → proxies /oauth to http://keycloak:8080 (docker network)
+
+nginx routes /auth/* to keycloak:8080 (KC_HTTP_RELATIVE_PATH=/auth)
 ```
 
 **Service discovery in compose:**
