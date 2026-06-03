@@ -479,18 +479,18 @@ services:
       KC_DB_PASSWORD: ${POSTGRES_PASSWORD}
       KC_HEALTH_ENABLED: "true"
       KC_HTTP_ENABLED: "true"
+      KC_HTTP_RELATIVE_PATH: /auth
       # start-dev infers the issuer from the request host (http://localhost:8180);
       # backends fetch JWKS over the internal network at http://keycloak:8080.
     volumes:
       - ./keycloak-realm-export.json:/opt/keycloak/data/import/realm.json:ro,Z
     networks:
+      - gateway
       - private
-    ports:
-      - "8180:8080"
     healthcheck:
-      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/9000 && printf \"GET /health/ready HTTP/1.0\\r\\nHost: 127.0.0.1\\r\\n\\r\\n\" >&3 && timeout 2 cat <&3 | grep -q UP'"]
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080 && printf \"GET /auth/realms/master HTTP/1.0\\r\\nHost: 127.0.0.1\\r\\n\\r\\n\" >&3 && timeout 3 cat <&3 | grep -q realm'"]
       interval: 10s
-      timeout: 3s
+      timeout: 5s
       retries: 10
       start_period: 60s
     depends_on:
