@@ -1,0 +1,9 @@
+spring:
+  jpa:
+    show-sql: false
+
+logging:
+  level:
+    dev.pulsermm: info
+    org.hibernate.SQL: warn
+    org.hibernate.orm.jdbc.bind: warn

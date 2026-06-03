@@ -1,0 +1,14 @@
+spring:
+  jpa:
+    show-sql: false
+
+pulse:
+  jwt:
+    cookie-secure: false
+
+logging:
+  level:
+    dev.pulsermm: info
+    org.springframework.security: info
+    org.hibernate.SQL: warn
+    org.hibernate.orm.jdbc.bind: warn
