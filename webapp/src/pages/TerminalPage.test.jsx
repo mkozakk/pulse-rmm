@@ -4,6 +4,8 @@ import { Provider } from 'react-redux'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { configureStore } from '@reduxjs/toolkit'
 import authReducer from '../store/authSlice'
+import alertsReducer from '../store/alertsSlice'
+import { pulseApi } from '../api/pulseApi'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import TerminalPage from './TerminalPage'
@@ -45,8 +47,9 @@ beforeEach(() => {
 
 function renderPage() {
   const store = configureStore({
-    reducer: { auth: authReducer },
+    reducer: { auth: authReducer, alerts: alertsReducer, [pulseApi.reducerPath]: pulseApi.reducer },
     preloadedState: { auth: { token: 'test-token', initialized: true } },
+    middleware: (getDefaultMiddleware) => getDefaultMiddleware().concat(pulseApi.middleware)
   })
   return render(
     <Provider store={store}>

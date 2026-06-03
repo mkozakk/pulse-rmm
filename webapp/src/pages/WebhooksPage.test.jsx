@@ -56,14 +56,14 @@ describe('WebhooksPage', () => {
 
   it('shows add form when button clicked', () => {
     renderPage()
-    fireEvent.click(screen.getByText('+ Add Webhook'))
+    fireEvent.click(screen.getByRole('button', { name: /add webhook/i }))
     expect(screen.getByPlaceholderText(/URL/i)).toBeInTheDocument()
     expect(screen.getByPlaceholderText(/Secret/i)).toBeInTheDocument()
   })
 
   it('submits create with correct payload', async () => {
     renderPage()
-    fireEvent.click(screen.getByText('+ Add Webhook'))
+    fireEvent.click(screen.getByRole('button', { name: /add webhook/i }))
 
     fireEvent.change(screen.getByPlaceholderText(/URL/i), { target: { value: 'https://hooks.example.com' } })
     fireEvent.change(screen.getByPlaceholderText(/Secret/i), { target: { value: 'supersecretvalue123' } })
