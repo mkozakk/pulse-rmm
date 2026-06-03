@@ -33,8 +33,8 @@ spring:
     password: ${RABBITMQ_PASSWORD:guest}
 
 pulse:
-  gateway:
-    url: ${GATEWAY_URL:http://localhost:8080}
+  agent-hub:
+    url: ${AGENT_HUB_URL:http://localhost:8092}
   script:
     base-url: ${SCRIPT_SERVICE_BASE_URL:http://localhost:8084}
     secret-kek: ${SCRIPT_SECRET_KEK:change-me-in-production-set-SCRIPT_SECRET_KEK-env-var}
