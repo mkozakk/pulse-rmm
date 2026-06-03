@@ -1,3 +1,14 @@
+DEV_COMPOSE = podman compose \
+	--project-name pulse-dev \
+	-f deploy/compose.yaml \
+	--env-file deploy/.env.dev
+
+PROD_COMPOSE = podman compose \
+	--project-name pulse-prod \
+	-f deploy/compose.yaml \
+	-f deploy/compose.prod.yaml \
+	--env-file deploy/.env.prod
+
 E2E_COMPOSE = JAVA_HOME=/usr/lib/jvm/java-21-openjdk podman compose \
 	-f deploy/compose.yaml \
 	-f deploy/compose.e2e.yaml \
@@ -6,7 +17,32 @@ E2E_COMPOSE = JAVA_HOME=/usr/lib/jvm/java-21-openjdk podman compose \
 
 PODMAN_SOCKET := $(or $(wildcard /run/user/1000/podman/podman.sock),/run/podman/podman.sock)
 
-.PHONY: e2e e2e-logs e2e-up e2e-down tests tests-unit tests-it
+.PHONY: dev dev-build dev-down dev-logs prod prod-build prod-down prod-logs \
+        e2e e2e-logs e2e-up e2e-down tests tests-unit tests-it
+
+dev:
+	$(DEV_COMPOSE) up
+
+dev-build:
+	$(DEV_COMPOSE) build
+
+dev-down:
+	$(DEV_COMPOSE) down
+
+dev-logs:
+	$(DEV_COMPOSE) logs -f $(service)
+
+prod:
+	$(PROD_COMPOSE) up
+
+prod-build:
+	$(PROD_COMPOSE) build
+
+prod-down:
+	$(PROD_COMPOSE) down
+
+prod-logs:
+	$(PROD_COMPOSE) logs -f $(service)
 
 tests: tests-unit tests-it
 
