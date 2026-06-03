@@ -8,7 +8,7 @@
 #   - PULSE_MTLS_ENABLED=true           (agent <-> gateway mTLS required)
 #   - SWAGGER_UI_ENABLED=false          (API docs disabled)
 #   - No host-exposed service ports     (nginx is the only entry point)
-#   - No host-exposed dependency ports  (postgres, redis, rabbit, minio internal only)
+#   - No host-exposed dependency ports  (postgres, redis, rabbit, minio, coturn internal only)
 #   - No Grafana / Prometheus / Loki / Tempo ports exposed
 #
 # Before deploying:
@@ -28,6 +28,7 @@ services:
       <<: *prod-env
       PULSE_COOKIE_SECURE: "true"
       SWAGGER_UI_ENABLED: "false"
+    ports: !override []
 
   agent-hub:
     environment:
@@ -78,6 +79,14 @@ services:
 
   ca-service:
     environment: *prod-env
+    ports: !override []
+
+  nginx:
+    ports: !override
+      - "8082:80"
+      - "8443:443"
+
+  coturn:
     ports: !override []
 
   postgres:
