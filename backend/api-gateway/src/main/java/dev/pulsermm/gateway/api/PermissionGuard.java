@@ -1,6 +1,8 @@
 package dev.pulsermm.gateway.api;
 
-import dev.pulsermm.gateway.infrastructure.identity.IdentityClient;
+import dev.pulsermm.common.rbac.IdentityClient;
+import dev.pulsermm.common.rbac.PermissionChecker;
+import dev.pulsermm.common.rbac.ResolvedPermission;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Component;

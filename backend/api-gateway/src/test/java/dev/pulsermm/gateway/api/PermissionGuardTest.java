@@ -1,6 +1,7 @@
 package dev.pulsermm.gateway.api;
 
-import dev.pulsermm.gateway.infrastructure.identity.IdentityClient;
+import dev.pulsermm.common.rbac.IdentityClient;
+import dev.pulsermm.common.rbac.ResolvedPermission;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
