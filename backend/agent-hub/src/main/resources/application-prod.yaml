@@ -1,0 +1,9 @@
+logging:
+  level:
+    dev.pulsermm: info
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false

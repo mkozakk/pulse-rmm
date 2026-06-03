@@ -1,0 +1,12 @@
+logging:
+  level:
+    org.springframework.security: warn
+    org.springframework.web: warn
+    org.springframework.cloud.gateway: warn
+    dev.pulsermm.gateway: info
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
