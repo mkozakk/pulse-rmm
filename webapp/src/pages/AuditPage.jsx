@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Search, Download, ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from 'lucide-react'
 import AppShell from '../components/AppShell'
 import { useGetAuditLogQuery } from '../api/pulseApi'
 
@@ -44,7 +45,7 @@ export default function AuditPage() {
               <input placeholder="Endpoint UUID" value={filters.endpoint} onChange={set('endpoint')} />
               <input type="datetime-local" placeholder="From" value={filters.from} onChange={set('from')} />
               <input type="datetime-local" placeholder="To" value={filters.to} onChange={set('to')} />
-              <button type="submit">Search</button>
+              <button type="submit" className="icon-btn"><Search size={14} />Search</button>
             </div>
           </form>
         </div>
@@ -53,8 +54,8 @@ export default function AuditPage() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <p className="section-title">Events</p>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <a href={exportUrl('csv')} download="audit.csv" className="button-link">Export CSV</a>
-              <a href={exportUrl('json')} download="audit.ndjson" className="button-link">Export JSON</a>
+              <a href={exportUrl('csv')} download="audit.csv" className="button-link icon-btn"><Download size={13} />Export CSV</a>
+              <a href={exportUrl('json')} download="audit.ndjson" className="button-link icon-btn"><Download size={13} />Export JSON</a>
             </div>
           </div>
 
@@ -85,8 +86,8 @@ export default function AuditPage() {
                     <span style={{ flex: 2 }} className="muted">{ev.endpointId?.slice(0, 8) ?? '—'}</span>
                     <span style={{ flex: 1 }}>
                       {ev.payload
-                        ? <button onClick={() => setExpanded(expanded === ev.id ? null : ev.id)}>
-                            {expanded === ev.id ? 'hide' : 'show'}
+                        ? <button className="icon-btn" onClick={() => setExpanded(expanded === ev.id ? null : ev.id)}>
+                            {expanded === ev.id ? <><ChevronUp size={13} />hide</> : <><ChevronDown size={13} />show</>}
                           </button>
                         : <span className="muted">—</span>
                       }
@@ -104,9 +105,9 @@ export default function AuditPage() {
 
           {totalPages > 1 && (
             <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem', alignItems: 'center' }}>
-              <button onClick={() => setPage(p => p - 1)} disabled={page === 0}>Prev</button>
+              <button className="icon-btn" onClick={() => setPage(p => p - 1)} disabled={page === 0}><ChevronLeft size={14} />Prev</button>
               <span className="muted">{page + 1} / {totalPages}</span>
-              <button onClick={() => setPage(p => p + 1)} disabled={page >= totalPages - 1}>Next</button>
+              <button className="icon-btn" onClick={() => setPage(p => p + 1)} disabled={page >= totalPages - 1}><ChevronRight size={14} />Next</button>
             </div>
           )}
         </div>

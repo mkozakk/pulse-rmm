@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Plus, Pencil, History, Trash2 } from 'lucide-react'
 import AppShell from '../components/AppShell'
 import {
   useListWebhooksQuery,
@@ -100,7 +101,7 @@ function WebhookForm({ initial = EMPTY_FORM, onSubmit, onCancel, submitLabel }) 
 
 export default function WebhooksPage() {
   const navigate = useNavigate()
-  const { data: webhooks = [], refetch } = useListWebhooksQuery()
+  const { data: webhooks = [] } = useListWebhooksQuery()
   const [createWebhook] = useCreateWebhookMutation()
   const [updateWebhook] = useUpdateWebhookMutation()
   const [deleteWebhook] = useDeleteWebhookMutation()
@@ -111,7 +112,6 @@ export default function WebhooksPage() {
   async function handleCreate(form) {
     await createWebhook({ url: form.url, eventTypes: form.eventTypes, secret: form.secret, enabled: form.enabled })
     setShowAdd(false)
-    refetch()
   }
 
   async function handleUpdate(id, form) {
@@ -119,13 +119,11 @@ export default function WebhooksPage() {
     if (form.secret) body.secret = form.secret
     await updateWebhook({ id, ...body })
     setEditId(null)
-    refetch()
   }
 
   async function handleDelete(id) {
     if (!window.confirm('Delete this webhook?')) return
     await deleteWebhook(id)
-    refetch()
   }
 
   return (
@@ -142,7 +140,7 @@ export default function WebhooksPage() {
           </div>
         ) : (
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <button onClick={() => setShowAdd(true)}>+ Add Webhook</button>
+            <button className="icon-btn" onClick={() => setShowAdd(true)}><Plus size={14} />Add Webhook</button>
           </div>
         )}
 
@@ -174,9 +172,9 @@ export default function WebhooksPage() {
                         </div>
                       </div>
                       <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0, marginLeft: '1rem' }}>
-                        <button onClick={() => navigate(`/webhooks/${wh.id}`)}>History</button>
-                        <button onClick={() => setEditId(wh.id)}>Edit</button>
-                        <button onClick={() => handleDelete(wh.id)}>Delete</button>
+                        <button className="icon-btn" onClick={() => navigate(`/webhooks/${wh.id}`)}><History size={13} />History</button>
+                        <button className="icon-btn" onClick={() => setEditId(wh.id)}><Pencil size={13} />Edit</button>
+                        <button className="icon-btn" onClick={() => handleDelete(wh.id)}><Trash2 size={13} />Delete</button>
                       </div>
                     </div>
                   )}

@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { LogOut } from 'lucide-react'
 import { useGetEndpointsQuery } from '../api/pulseApi'
 import keycloak from '../keycloak'
 import AppShell from '../components/AppShell'
@@ -16,7 +17,7 @@ export default function EndpointsPage() {
     <AppShell
       title="Endpoints"
       subtitle="Keep an eye on online status and jump into an endpoint's details."
-      actions={<button onClick={handleLogout}>Log out</button>}
+      actions={<button className="icon-btn" onClick={handleLogout}><LogOut size={14} />Log out</button>}
     >
       {isLoading && <p className="panel-empty">Loading endpoints...</p>}
       {isError && <p className="error">Failed to load endpoints.</p>}

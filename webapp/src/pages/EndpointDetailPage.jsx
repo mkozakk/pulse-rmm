@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
+import { Terminal, Monitor, FolderOpen, Activity, ArrowLeft } from 'lucide-react'
 import {
   useGetEndpointQuery,
   useGetMetricsQuery,
@@ -99,10 +100,10 @@ export default function EndpointDetailPage() {
       subtitle={endpoint.data ? `${endpoint.data.os} · ${endpoint.data.status}` : 'Inspect live resource usage and jump into remote access.'}
       actions={(
         <>
-          <button className="endpoint-action" disabled={!canOpenRemote} onClick={() => navigate(`/endpoints/${id}/shell`)}>Open Terminal</button>
-          <button className="endpoint-action" disabled={!canOpenRemote} onClick={() => navigate(`/endpoints/${id}/desktop`)}>Open Desktop</button>
-          <button className="endpoint-action" disabled={!canOpenRemote} onClick={() => navigate(`/endpoints/${id}/files`)}>Browse Files</button>
-          <button className="endpoint-action" disabled={!canOpenRemote} onClick={() => navigate(`/endpoints/${id}/processes`)}>Processes</button>
+          <button className="endpoint-action icon-btn" disabled={!canOpenRemote} onClick={() => navigate(`/endpoints/${id}/shell`)}><Terminal size={14} />Terminal</button>
+          <button className="endpoint-action icon-btn" disabled={!canOpenRemote} onClick={() => navigate(`/endpoints/${id}/desktop`)}><Monitor size={14} />Desktop</button>
+          <button className="endpoint-action icon-btn" disabled={!canOpenRemote} onClick={() => navigate(`/endpoints/${id}/files`)}><FolderOpen size={14} />Files</button>
+          <button className="endpoint-action icon-btn" disabled={!canOpenRemote} onClick={() => navigate(`/endpoints/${id}/processes`)}><Activity size={14} />Processes</button>
         </>
       )}
     >
@@ -170,7 +171,9 @@ export default function EndpointDetailPage() {
       )}
 
       <div className="page-footer">
-        <Link to="/endpoints">Back to endpoints</Link>
+        <Link to="/endpoints" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+          <ArrowLeft size={14} />Back to endpoints
+        </Link>
       </div>
     </AppShell>
   )

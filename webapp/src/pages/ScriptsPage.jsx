@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { FilePlus, ShieldCheck, Play, CheckCheck } from 'lucide-react'
 import AppShell from '../components/AppShell'
 import {
   useAckScriptExecutionMutation,
@@ -26,7 +27,7 @@ function ScriptEditor({ onCreate, saving }) {
       <div className="stack">
         <input value={name} onChange={e => setName(e.target.value)} placeholder="Script name" />
         <textarea value={body} onChange={e => setBody(e.target.value)} placeholder="Write script body here" rows={8} />
-        <button onClick={handleCreate} disabled={saving}>Create script</button>
+        <button className="icon-btn" onClick={handleCreate} disabled={saving}><FilePlus size={14} />Create script</button>
       </div>
     </section>
   )
@@ -110,7 +111,7 @@ export default function ScriptsPage() {
                 </div>
                 <div className="inline-actions">
                   <button onClick={() => setSelectedScriptId(script.id)}>Select</button>
-                  {!script.approved && <button onClick={() => handleApprove(script.id)} disabled={busy === script.id}>Approve</button>}
+                  {!script.approved && <button className="icon-btn" onClick={() => handleApprove(script.id)} disabled={busy === script.id}><ShieldCheck size={13} />Approve</button>}
                 </div>
               </div>
             ))}
@@ -128,7 +129,7 @@ export default function ScriptsPage() {
               </label>
             ))}
           </div>
-          <button onClick={handleRun} disabled={busy === 'run' || !selectedScriptId}>Run on selected endpoints</button>
+          <button className="icon-btn" onClick={handleRun} disabled={busy === 'run' || !selectedScriptId}><Play size={13} />Run on selected</button>
         </section>
 
         <section className="panel-card stack">
@@ -146,7 +147,7 @@ export default function ScriptsPage() {
                 </div>
               ))}
             </div>
-            <button onClick={handleAck} disabled={busy === 'ack' || !pendingAck.runId}>Send ack</button>
+            <button className="icon-btn" onClick={handleAck} disabled={busy === 'ack' || !pendingAck.runId}><CheckCheck size={13} />Send ack</button>
           </div>
         </section>
       </div>

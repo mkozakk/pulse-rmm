@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { UserPlus, Pencil, Trash2 } from 'lucide-react'
 import AppShell from '../components/AppShell'
 import {
   useGetUsersQuery,
@@ -89,8 +90,8 @@ export default function UsersPage() {
     <AppShell
       title="Users"
       actions={
-        <button className="btn-primary" onClick={() => { setShowCreate(true); setError(null) }}>
-          New User
+        <button className="btn-primary icon-btn" onClick={() => { setShowCreate(true); setError(null) }}>
+          <UserPlus size={14} />New User
         </button>
       }
     >
@@ -134,9 +135,9 @@ export default function UsersPage() {
                     </span>
                   ) : (
                     <>
-                      <button className="btn-sm" onClick={() => openEdit(user)}>Edit</button>
+                      <button className="btn-sm icon-btn" onClick={() => openEdit(user)}><Pencil size={12} />Edit</button>
                       {' '}
-                      <button className="btn-danger-sm" onClick={() => setConfirmDelete(user.id)}>Delete</button>
+                      <button className="btn-danger-sm icon-btn" onClick={() => setConfirmDelete(user.id)}><Trash2 size={12} />Delete</button>
                     </>
                   )}
                 </td>

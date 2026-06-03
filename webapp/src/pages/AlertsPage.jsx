@@ -1,9 +1,10 @@
 import { useState } from 'react'
+import { Plus, Trash2 } from 'lucide-react'
 import AppShell from '../components/AppShell'
 import { useGetAlertRulesQuery, useCreateAlertRuleMutation, useDeleteAlertRuleMutation } from '../api/pulseApi'
 
 export default function AlertsPage() {
-  const { data: rules = [], refetch } = useGetAlertRulesQuery()
+  const { data: rules = [] } = useGetAlertRulesQuery()
   const [createRule] = useCreateAlertRuleMutation()
   const [deleteRule] = useDeleteAlertRuleMutation()
   const [form, setForm] = useState({
@@ -26,12 +27,10 @@ export default function AlertsPage() {
       target: { type: form.targetType, value: form.targetValue }
     })
     setForm(f => ({ ...f, name: '', targetValue: '' }))
-    refetch()
   }
 
   async function handleDelete(id) {
     await deleteRule(id)
-    refetch()
   }
 
   return (
@@ -65,7 +64,7 @@ export default function AlertsPage() {
                 onChange={set('targetValue')}
                 required
               />
-              <button type="submit">Create</button>
+              <button type="submit" className="icon-btn"><Plus size={14} />Create</button>
             </div>
           </form>
         </div>
@@ -82,7 +81,7 @@ export default function AlertsPage() {
                       <p>{r.name}</p>
                       <p className="muted">{r.metricType} {r.operator} {r.threshold}% for {r.durationSecs}s — {r.targetType}: {r.targetValue}</p>
                     </div>
-                    <button onClick={() => handleDelete(r.id)}>Delete</button>
+                    <button className="icon-btn" onClick={() => handleDelete(r.id)}><Trash2 size={13} />Delete</button>
                   </div>
                 ))}
               </div>
