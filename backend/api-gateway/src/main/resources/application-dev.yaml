@@ -12,19 +12,19 @@ springdoc:
     enabled: true
     urls:
       - name: Identity
-        url: http://localhost:8083/v3/api-docs
+        url: /v3/api-docs/rbac-service
       - name: Endpoints
-        url: http://localhost:8081/v3/api-docs
+        url: /v3/api-docs/endpoint-service
       - name: Metrics
-        url: http://localhost:8082/v3/api-docs
+        url: /v3/api-docs/metric-service
       - name: Commands
-        url: http://localhost:8084/v3/api-docs
+        url: /v3/api-docs/commands-service
       - name: Alerts
-        url: http://localhost:8087/v3/api-docs
+        url: /v3/api-docs/alert-service
       - name: Audit
-        url: http://localhost:8088/v3/api-docs
+        url: /v3/api-docs/audit-service
       - name: Integrations
-        url: http://localhost:8091/v3/api-docs
+        url: /v3/api-docs/integration-service
     urls-primary-name: Identity
     tags-sorter: alpha
     operations-sorter: alpha
