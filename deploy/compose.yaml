@@ -39,6 +39,7 @@ services:
       RATE_LIMIT_CAPACITY: ${RATE_LIMIT_CAPACITY}
       RATE_LIMIT_REFILL_TOKENS: ${RATE_LIMIT_REFILL_TOKENS}
       RATE_LIMIT_REFILL_SECONDS: ${RATE_LIMIT_REFILL_SECONDS}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE}
     networks:
       - gateway
       - private
@@ -337,6 +338,82 @@ services:
     depends_on:
       <<: *app-deps
 
+  prometheus:
+    image: docker.io/prom/prometheus:v2.55.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+      - --web.enable-lifecycle
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro,Z
+      - prometheus_data:/prometheus
+    networks:
+      - private
+    ports:
+      - "9095:9090"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9090/-/ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  tempo:
+    image: docker.io/grafana/tempo:2.6.0
+    command: ["-config.file=/etc/tempo/tempo-config.yml"]
+    volumes:
+      - ./observability/tempo/tempo-config.yml:/etc/tempo/tempo-config.yml:ro,Z
+      - tempo_data:/var/tempo
+    networks:
+      - private
+    ports:
+      - "3200:3200"
+      - "4318:4318"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3200/ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
+  loki:
+    image: docker.io/grafana/loki:3.2.0
+    command: -config.file=/etc/loki/loki-config.yml
+    volumes:
+      - ./observability/loki/loki-config.yml:/etc/loki/loki-config.yml:ro,Z
+      - loki_data:/loki
+    networks:
+      - private
+    ports:
+      - "3100:3100"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3100/ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  grafana:
+    image: docker.io/grafana/grafana:11.3.0
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+    volumes:
+      - ./observability/grafana/datasources:/etc/grafana/provisioning/datasources:ro,Z
+      - ./observability/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro,Z
+      - grafana_data:/var/lib/grafana
+    networks:
+      - private
+    ports:
+      - "3000:3000"
+    depends_on:
+      prometheus:
+        condition: service_healthy
+      loki:
+        condition: service_healthy
+      tempo:
+        condition: service_healthy
+
   coturn:
     image: docker.io/coturn/coturn:4.6.2
     command: >-
@@ -529,3 +606,7 @@ volumes:
   minio_data:
   rabbitmq_data:
   agent_hub_tls:
+  prometheus_data:
+  loki_data:
+  grafana_data:
+  tempo_data:
