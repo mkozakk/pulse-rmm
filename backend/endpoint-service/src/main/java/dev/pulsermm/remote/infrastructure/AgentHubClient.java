@@ -11,14 +11,14 @@ import java.util.List;
 import java.util.UUID;
 
 @Component
-public class GatewayClient {
+public class AgentHubClient {
 
-    private static final Logger logger = LoggerFactory.getLogger(GatewayClient.class);
+    private static final Logger logger = LoggerFactory.getLogger(AgentHubClient.class);
 
     private final RestClient restClient;
 
-    public GatewayClient(@Value("${pulse.gateway.url:http://localhost:8080}") String gatewayUrl) {
-        this.restClient = RestClient.builder().baseUrl(gatewayUrl).build();
+    public AgentHubClient(@Value("${pulse.agent-hub.url:http://localhost:8092}") String agentHubUrl) {
+        this.restClient = RestClient.builder().baseUrl(agentHubUrl).build();
     }
 
     public void startDesktopSession(UUID endpointId, UUID sessionId, List<String> turnUrls, String turnSecret) {

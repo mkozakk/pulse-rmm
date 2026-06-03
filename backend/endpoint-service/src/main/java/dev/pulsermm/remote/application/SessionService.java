@@ -1,7 +1,7 @@
 package dev.pulsermm.remote.application;
 
 import dev.pulsermm.remote.domain.DesktopSession;
-import dev.pulsermm.remote.infrastructure.GatewayClient;
+import dev.pulsermm.remote.infrastructure.AgentHubClient;
 import dev.pulsermm.remote.infrastructure.IdentityClient;
 import dev.pulsermm.remote.infrastructure.persistence.SessionRepository;
 import org.springframework.beans.factory.annotation.Value;
@@ -21,19 +21,19 @@ public class SessionService {
 
     private final SessionRepository sessions;
     private final IdentityClient identityClient;
-    private final GatewayClient gatewayClient;
+    private final AgentHubClient agentHubClient;
     private final String turnSecret;
     private final List<String> turnUrls;
 
     public SessionService(
             SessionRepository sessions,
             IdentityClient identityClient,
-            GatewayClient gatewayClient,
+            AgentHubClient agentHubClient,
             @Value("${pulse.turn.secret}") String turnSecret,
             @Value("${pulse.turn.urls}") String turnUrlsCsv) {
         this.sessions = sessions;
         this.identityClient = identityClient;
-        this.gatewayClient = gatewayClient;
+        this.agentHubClient = agentHubClient;
         this.turnSecret = turnSecret;
         this.turnUrls = List.of(turnUrlsCsv.split(","));
     }
@@ -54,7 +54,7 @@ public class SessionService {
         DesktopSession session = sessions.save(
             new DesktopSession(endpointId, technicianId, username, credential));
 
-        gatewayClient.startDesktopSession(endpointId, session.getId(), turnUrls, turnSecret);
+        agentHubClient.startDesktopSession(endpointId, session.getId(), turnUrls, turnSecret);
 
         return new SessionResult(session, turnUrls, canControl);
     }
@@ -73,7 +73,7 @@ public class SessionService {
         }
         session.markEnded();
         sessions.save(session);
-        gatewayClient.endDesktopSession(session.getEndpointId(), sessionId);
+        agentHubClient.endDesktopSession(session.getEndpointId(), sessionId);
     }
 
     private String hmacSha1(String key, String data) {

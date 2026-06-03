@@ -60,8 +60,8 @@ pulse:
   turn:
     secret: ${TURN_SECRET:change-me-in-production-set-TURN_SECRET-env-var}
     urls: ${TURN_URLS:turn:localhost:3478}
-  gateway:
-    url: ${GATEWAY_URL:http://localhost:8080}
+  agent-hub:
+    url: ${AGENT_HUB_URL:http://localhost:8092}
 
 management:
   endpoints:
