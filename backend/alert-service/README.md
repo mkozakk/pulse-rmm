@@ -20,6 +20,6 @@ alert-service/
 
 ## Features & Internal Documentation
 
-* **[Alerting Evaluator](docs/evaluator.md)** — Covers the scheduled evaluation loop, TimescaleDB breach-count query, endpoint resolution by group or tag, deduplication via partial unique index, and the condition-clear logic that allows a rule to re-fire.
-* **[SSE Push Stream](docs/sse.md)** — Explains how new alert events are broadcast to connected browsers in real-time using Spring `SseEmitter`, including the in-process event bridge and heartbeat scheduling.
-* **[REST API](docs/api.md)** — Documents the rule CRUD endpoints, alert listing and acknowledgement endpoint, and the JWT security configuration applied to all `/api/**` paths.
+* **[Alerting Evaluator](docs/evaluator.md)** - Covers the scheduled evaluation loop, TimescaleDB breach-count query, endpoint resolution by group or tag, deduplication via partial unique index, and the condition-clear logic that allows a rule to re-fire.
+* **[SSE Push Stream](docs/sse.md)** - Explains how new alert events are broadcast to connected browsers in real-time using Spring `SseEmitter`, including the in-process event bridge and heartbeat scheduling.
+* **[REST API](docs/api.md)** - Documents the rule CRUD endpoints, alert listing and acknowledgement endpoint, and the JWT security configuration applied to all `/api/**` paths.

@@ -39,8 +39,8 @@ endpoint-service/
 
 ## Key Responsibilities
 
-- **Enrollment** — Agents generate keypairs locally, present public key + token to the service, receive stable endpoint UUID and group assignment
-- **Group Management** — Hierarchical group organization for permission scoping; endpoints belong to exactly one group
-- **Tag System** — Free-form key=value labels for filtering, alerting, and policy targeting; supports auto-tagging via rules
-- **Agent Updates** — Version lifecycle, artifact storage in MinIO, and distribution to agents on request
-- **Remote Sessions** — Coordinates WebRTC signaling between browser and agent; manages session lifecycle and cleanup
+- **Enrollment** - Agents generate keypairs locally, present public key + token to the service, receive stable endpoint UUID and group assignment
+- **Group Management** - Hierarchical group organization for permission scoping; endpoints belong to exactly one group
+- **Tag System** - Free-form key=value labels for filtering, alerting, and policy targeting; supports auto-tagging via rules
+- **Agent Updates** - Version lifecycle, artifact storage in MinIO, and distribution to agents on request
+- **Remote Sessions** - Coordinates WebRTC signaling between browser and agent; manages session lifecycle and cleanup

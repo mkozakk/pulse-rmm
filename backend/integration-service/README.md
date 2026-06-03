@@ -1,6 +1,6 @@
 # Integration Service (`backend/integration-service/`)
 
-The Integration Service manages outbound webhooks — it lets external systems react to Pulse RMM events without polling the REST API. When a domain event fires (alert, enrolment, audit record), the service matches it against registered webhooks, POSTs a signed JSON payload to each matching URL, and retries failures with exponential backoff. Permanent failures land in a dead-letter queue an admin can inspect.
+The Integration Service manages outbound webhooks - it lets external systems react to Pulse RMM events without polling the REST API. When a domain event fires (alert, enrolment, audit record), the service matches it against registered webhooks, POSTs a signed JSON payload to each matching URL, and retries failures with exponential backoff. Permanent failures land in a dead-letter queue an admin can inspect.
 
 ## Directory Structure
 

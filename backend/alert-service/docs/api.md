@@ -6,24 +6,24 @@ Exposes the alert rule management and alert event endpoints consumed by the weba
 
 **Rule management**
 [`AlertRuleController.java`](../src/main/java/dev/pulsermm/alert/api/controller/AlertRuleController.java):
-- `POST /api/alert-rules` — Validates the request body (name, metricType, operator, threshold, durationSecs, target), creates a rule via `AlertRuleService`, and returns 201 with the persisted rule.
-- `GET /api/alert-rules` — Returns all alert rules regardless of enabled state.
-- `DELETE /api/alert-rules/{id}` — Hard-deletes the rule; the `ON DELETE CASCADE` on `alert_events.rule_id` removes all associated events automatically.
+- `POST /api/alert-rules` - Validates the request body (name, metricType, operator, threshold, durationSecs, target), creates a rule via `AlertRuleService`, and returns 201 with the persisted rule.
+- `GET /api/alert-rules` - Returns all alert rules regardless of enabled state.
+- `DELETE /api/alert-rules/{id}` - Hard-deletes the rule; the `ON DELETE CASCADE` on `alert_events.rule_id` removes all associated events automatically.
 
 [`AlertRuleService.java`](../src/main/java/dev/pulsermm/alert/application/AlertRuleService.java):
-- `create` — Persists a new `AlertRule` entity. Sets `enabled = true` and `createdAt = now()` in the domain constructor; the creator's UUID is taken from the JWT `sub` claim.
-- `list` — Returns all rules via `AlertRuleRepository.findAll()`.
-- `delete` — Throws `AlertRuleNotFoundException` (mapped to 404) when the ID does not exist.
+- `create` - Persists a new `AlertRule` entity. Sets `enabled = true` and `createdAt = now()` in the domain constructor; the creator's UUID is taken from the JWT `sub` claim.
+- `list` - Returns all rules via `AlertRuleRepository.findAll()`.
+- `delete` - Throws `AlertRuleNotFoundException` (mapped to 404) when the ID does not exist.
 
 **Alert events**
 [`AlertEventController.java`](../src/main/java/dev/pulsermm/alert/api/controller/AlertEventController.java):
-- `GET /api/alerts?status=open|all` — Lists alert events. `open` (default) returns only events where `acked_at IS NULL`; `all` returns the full history ordered by `triggered_at DESC`.
-- `POST /api/alerts/{id}/ack` — Marks the event as acknowledged. Idempotent: acking an already-acked event returns 204 with no change.
-- `GET /api/alerts/stream` — SSE stream; see [`sse.md`](sse.md).
+- `GET /api/alerts?status=open|all` - Lists alert events. `open` (default) returns only events where `acked_at IS NULL`; `all` returns the full history ordered by `triggered_at DESC`.
+- `POST /api/alerts/{id}/ack` - Marks the event as acknowledged. Idempotent: acking an already-acked event returns 204 with no change.
+- `GET /api/alerts/stream` - SSE stream; see [`sse.md`](sse.md).
 
 [`AlertEventService.java`](../src/main/java/dev/pulsermm/alert/application/AlertEventService.java):
-- `listOpen` / `listAll` — Delegates to `AlertEventRepository` named queries.
-- `ack` — Loads the event by ID and calls `event.ack(userId)` only when `event.isOpen()` is true, then saves. The idempotency check is a no-op when already acked.
+- `listOpen` / `listAll` - Delegates to `AlertEventRepository` named queries.
+- `ack` - Loads the event by ID and calls `event.ack(userId)` only when `event.isOpen()` is true, then saves. The idempotency check is a no-op when already acked.
 
 **DTOs**
 [`CreateAlertRuleRequest.java`](../src/main/java/dev/pulsermm/alert/api/dto/CreateAlertRuleRequest.java):

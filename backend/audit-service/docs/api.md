@@ -6,7 +6,7 @@ Exposes a filtered, paginated query endpoint and streaming export for the audit 
 **Controller**
 [`AuditController.java`](../src/main/java/dev/pulsermm/audit/api/controller/AuditController.java):
 	- `list` - Accepts optional `user`, `endpoint`, `from`, and `to` query parameters and delegates to `AuditQueryService`. Page size is capped at 200 to prevent unbounded result sets.
-	- `export` - Returns a `StreamingResponseBody` so records are written directly to the HTTP response output stream in batches — the full result set is never held in memory. Supports `format=csv` (default) and `format=json` (NDJSON).
+	- `export` - Returns a `StreamingResponseBody` so records are written directly to the HTTP response output stream in batches - the full result set is never held in memory. Supports `format=csv` (default) and `format=json` (NDJSON).
 	- `deleteNotAllowed` - Catches all `DELETE /**` requests and returns 403, making the immutability contract explicit rather than relying on the absence of a handler.
 
 **Application Services**

@@ -4,9 +4,9 @@
 
 Tags are free-form key=value labels attached to endpoints. They serve three purposes:
 
-1. **Ad-hoc filtering** — Technician selects endpoints by tag (e.g., `env=prod`, `site=warsaw`)
-2. **Alert targeting** — Alert rules apply to endpoints matching tag selectors
-3. **Policy targeting** — Policies are applied to groups of endpoints selected by tags
+1. **Ad-hoc filtering** - Technician selects endpoints by tag (e.g., `env=prod`, `site=warsaw`)
+2. **Alert targeting** - Alert rules apply to endpoints matching tag selectors
+3. **Policy targeting** - Policies are applied to groups of endpoints selected by tags
 
 Unlike groups (which are hierarchical and exclusive), tags are:
 - Many-to-many (an endpoint can have any number of tags)
@@ -53,10 +53,10 @@ POST /api/tag-rules {
 ```
 
 **Available attributes for matching:**
-- `hostname_pattern` — Regex match on hostname
-- `os` — Exact match (windows, linux)
-- `arch` — Exact match (x86_64, arm64)
-- `ip_range` — CIDR block (future)
+- `hostname_pattern` - Regex match on hostname
+- `os` - Exact match (windows, linux)
+- `arch` - Exact match (x86_64, arm64)
+- `ip_range` - CIDR block (future)
 
 **Evaluation:** Rules are evaluated:
 - On enrollment (during gRPC Enrol)
@@ -134,9 +134,9 @@ GET /api/endpoints?tags=!cluster:west
 
 ## Idempotency & Conflicts
 
-**Adding a tag that already exists** — No error; treated as idempotent update.
+**Adding a tag that already exists** - No error; treated as idempotent update.
 
-**Tag key uniqueness** — An endpoint can have only one value per key. Example:
+**Tag key uniqueness** - An endpoint can have only one value per key. Example:
 
 ```
 Initial: {env: prod}
@@ -146,7 +146,7 @@ PATCH {added: {env: staging}}
   → Result: {env: staging}
 ```
 
-**Source tracking** — When a tag is overwritten:
+**Source tracking** - When a tag is overwritten:
 - Manual override always wins
 - Auto-tagging rule updates only if no manual value
 
@@ -161,7 +161,7 @@ Example:
 
 ## Error Handling
 
-- `400 Bad Request` — Invalid key/value format, unsupported selector field
-- `404 Not Found` — Endpoint or rule not found
-- `409 Conflict` — Rule name not unique, selector is empty
-- `422 Unprocessable Entity` — Regex pattern is invalid
+- `400 Bad Request` - Invalid key/value format, unsupported selector field
+- `404 Not Found` - Endpoint or rule not found
+- `409 Conflict` - Rule name not unique, selector is empty
+- `422 Unprocessable Entity` - Regex pattern is invalid
