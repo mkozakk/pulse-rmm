@@ -19,6 +19,7 @@
     <modules>
         <module>common</module>
         <module>api-gateway</module>
+        <module>agent-hub</module>
         <module>rbac-service</module>
         <module>endpoint-service</module>
         <module>metric-service</module>
