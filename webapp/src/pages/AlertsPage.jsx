@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { Plus, Trash2 } from 'lucide-react'
 import AppShell from '../components/AppShell'
-import { useGetAlertRulesQuery, useCreateAlertRuleMutation, useDeleteAlertRuleMutation } from '../api/pulseApi'
+import { useGetAlertRulesQuery, useCreateAlertRuleMutation, useDeleteAlertRuleMutation, useGetGroupsQuery } from '../api/pulseApi'
 
 export default function AlertsPage() {
   const { data: rules = [] } = useGetAlertRulesQuery()
+  const { data: groups = [] } = useGetGroupsQuery()
   const [createRule] = useCreateAlertRuleMutation()
   const [deleteRule] = useDeleteAlertRuleMutation()
   const [form, setForm] = useState({
@@ -14,6 +15,10 @@ export default function AlertsPage() {
 
   function set(field) {
     return e => setForm(f => ({ ...f, [field]: e.target.value }))
+  }
+
+  function setTargetType(e) {
+    setForm(f => ({ ...f, targetType: e.target.value, targetValue: '' }))
   }
 
   async function handleSubmit(e) {
@@ -29,65 +34,100 @@ export default function AlertsPage() {
     setForm(f => ({ ...f, name: '', targetValue: '' }))
   }
 
-  async function handleDelete(id) {
-    await deleteRule(id)
-  }
-
   return (
-    <AppShell title="Alerts" subtitle="Threshold-based alerting rules">
+    <AppShell title="Alerts">
       <div className="stack">
-        <div className="panel-card">
-          <p className="section-title">New Rule</p>
-          <form onSubmit={handleSubmit} style={{ marginTop: '0.75rem' }}>
-            <div className="form-grid alerts-form">
-              <input placeholder="Name" value={form.name} onChange={set('name')} required />
-              <select value={form.metricType} onChange={set('metricType')}>
-                <option value="cpu">CPU</option>
-                <option value="ram">RAM</option>
-                <option value="disk">Disk</option>
-              </select>
-              <select value={form.operator} onChange={set('operator')}>
-                <option value=">">&gt; (above)</option>
-                <option value="<">&lt; (below)</option>
-              </select>
-              <input type="number" placeholder="Threshold %" value={form.threshold}
-                min={0} max={100} onChange={set('threshold')} required />
-              <input type="number" placeholder="Duration (s)" value={form.durationSecs}
-                min={30} max={3600} onChange={set('durationSecs')} required />
-              <select value={form.targetType} onChange={set('targetType')}>
-                <option value="group">Group</option>
-                <option value="tag">Tag</option>
-              </select>
-              <input
-                placeholder={form.targetType === 'tag' ? 'key=value' : 'Group UUID'}
-                value={form.targetValue}
-                onChange={set('targetValue')}
-                required
-              />
-              <button type="submit" className="icon-btn"><Plus size={14} />Create</button>
+        <section className="panel-card stack">
+          <h2 className="section-title">New rule</h2>
+          <form onSubmit={handleSubmit} className="stack">
+            <div className="form-row">
+              <div className="form-field">
+                <label className="field-label">Name</label>
+                <input placeholder="e.g. High CPU" value={form.name} onChange={set('name')} required />
+              </div>
+              <div className="form-field">
+                <label className="field-label">Metric</label>
+                <select value={form.metricType} onChange={set('metricType')}>
+                  <option value="cpu">CPU</option>
+                  <option value="ram">RAM</option>
+                  <option value="disk">Disk</option>
+                </select>
+              </div>
+              <div className="form-field">
+                <label className="field-label">Operator</label>
+                <select value={form.operator} onChange={set('operator')}>
+                  <option value=">">&gt; above</option>
+                  <option value="<">&lt; below</option>
+                </select>
+              </div>
+              <div className="form-field">
+                <label className="field-label">Threshold %</label>
+                <input type="number" placeholder="90" value={form.threshold} min={0} max={100} onChange={set('threshold')} required />
+              </div>
+              <div className="form-field">
+                <label className="field-label">Duration (s)</label>
+                <input type="number" placeholder="300" value={form.durationSecs} min={30} max={3600} onChange={set('durationSecs')} required />
+              </div>
+              <div className="form-field">
+                <label className="field-label">Target type</label>
+                <select value={form.targetType} onChange={setTargetType}>
+                  <option value="group">Group</option>
+                  <option value="tag">Tag</option>
+                </select>
+              </div>
+              <div className="form-field">
+                <label className="field-label">{form.targetType === 'tag' ? 'Tag (key=value)' : 'Group'}</label>
+                {form.targetType === 'group'
+                  ? (
+                    <select value={form.targetValue} onChange={set('targetValue')} required>
+                      <option value="">Select group</option>
+                      {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                    </select>
+                  )
+                  : <input placeholder="env=prod" value={form.targetValue} onChange={set('targetValue')} required />
+                }
+              </div>
+            </div>
+            <div className="form-actions">
+              <button type="submit" className="icon-btn btn-primary"><Plus size={14} />Create rule</button>
             </div>
           </form>
-        </div>
+        </section>
 
-        <div className="panel-card">
-          <p className="section-title">Rules</p>
+        <section className="panel-card stack">
+          <h2 className="section-title">Rules ({rules.length})</h2>
           {rules.length === 0
-            ? <p className="panel-empty" style={{ marginTop: '0.5rem' }}>No rules defined.</p>
+            ? <p className="panel-empty">No rules defined.</p>
             : (
-              <div className="list-card" style={{ marginTop: '0.5rem' }}>
-                {rules.map(r => (
-                  <div key={r.id} className="list-row">
-                    <div>
-                      <p>{r.name}</p>
-                      <p className="muted">{r.metricType} {r.operator} {r.threshold}% for {r.durationSecs}s — {r.targetType}: {r.targetValue}</p>
-                    </div>
-                    <button className="icon-btn" onClick={() => handleDelete(r.id)}><Trash2 size={13} />Delete</button>
-                  </div>
-                ))}
-              </div>
+              <table className="enrolment-table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Condition</th>
+                    <th>Target</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rules.map(r => (
+                    <tr key={r.id}>
+                      <td style={{ fontWeight: 500 }}>{r.name}</td>
+                      <td className="col-muted" style={{ fontFamily: 'monospace', fontSize: 12 }}>
+                        {r.metricType} {r.operator} {r.threshold}% for {r.durationSecs}s
+                      </td>
+                      <td className="col-muted">{r.targetType}: {r.targetValue}</td>
+                      <td className="col-right">
+                        <button className="icon-btn endpoint-action proc-kill-btn" onClick={() => deleteRule(r.id)}>
+                          <Trash2 size={12} />Delete
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             )
           }
-        </div>
+        </section>
       </div>
     </AppShell>
   )
