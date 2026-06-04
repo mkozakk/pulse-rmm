@@ -50,7 +50,7 @@ function DeliveryPanel({ deliveryId, onClose }) {
             </div>
             <div>
               <p style={{ fontSize: '0.8rem', color: '#6b7280' }}>Attempts / HTTP status</p>
-              <p style={{ fontSize: '0.875rem' }}>{delivery.attempts} attempts · {delivery.lastStatusCode ?? '—'}</p>
+              <p style={{ fontSize: '0.875rem' }}>{delivery.attempts} attempts · {delivery.lastStatusCode ?? '-'}</p>
             </div>
             {delivery.lastError && (
               <div>
@@ -147,7 +147,7 @@ export default function WebhookDetailPage() {
                   <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexShrink: 0 }}>
                     <StatusBadge status={d.status} />
                     <span style={{ fontSize: '0.8rem', color: '#6b7280' }}>
-                      {d.lastStatusCode ?? '—'} · {d.attempts} att.
+                      {d.lastStatusCode ?? '-'} · {d.attempts} att.
                     </span>
                   </div>
                 </div>
