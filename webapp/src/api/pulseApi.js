@@ -311,7 +311,7 @@ export const pulseApi = createApi({
     }),
     createOrgUser: builder.mutation({
       query: ({ orgId, ...body }) => ({ url: `/organizations/${orgId}/users`, method: 'POST', body }),
-      invalidatesTags: (result, error, { orgId }) => [{ type: 'OrgUsers', id: orgId }]
+      invalidatesTags: (result, error, { orgId }) => [{ type: 'OrgUsers', id: orgId }, 'Users']
     })
   })
 })
