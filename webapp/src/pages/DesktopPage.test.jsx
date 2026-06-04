@@ -54,7 +54,7 @@ describe('DesktopPage', () => {
   it('renders the shell heading', () => {
     mockSession({ status: 'idle' })
     renderPage()
-    expect(screen.getByText(/desktop — abc-123/i)).toBeInTheDocument()
+    expect(screen.getByText(/desktop - abc-123/i)).toBeInTheDocument()
   })
 
   it('renders video element', () => {

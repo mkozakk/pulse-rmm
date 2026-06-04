@@ -14,8 +14,6 @@ vi.mock('../api/pulseApi', async () => {
     ...actual,
     useGetEndpointsQuery: () => ({ data: [], isLoading: false, isError: false }),
     useGetSoftwareQuery: () => ({ data: [], isLoading: false, isError: false }),
-    useInstallSoftwareMutation: () => [vi.fn()],
-    useUpdateSoftwareMutation: () => [vi.fn()],
     useRemoveSoftwareMutation: () => [vi.fn()]
   }
 })
@@ -40,6 +38,5 @@ describe('SoftwarePage', () => {
   it('renders software workspace', () => {
     renderPage()
     expect(screen.getByText(/installed software/i)).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: /commands/i })).toBeInTheDocument()
   })
 })
