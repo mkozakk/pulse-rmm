@@ -18,6 +18,29 @@ if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
   exit 1
 fi
 
+echo "==> Registering org_id attribute in user profile schema..."
+PROFILE=$(curl -sf \
+  -H "Authorization: Bearer ${TOKEN}" \
+  "${KEYCLOAK_URL}/admin/realms/${REALM}/users/profile")
+
+HAS_ORG_ID=$(echo "$PROFILE" | jq '[.attributes[]? | select(.name == "org_id")] | length')
+if [ "$HAS_ORG_ID" -eq 0 ]; then
+  UPDATED=$(echo "$PROFILE" | jq '.attributes += [{
+    "name": "org_id",
+    "displayName": "Organization ID",
+    "permissions": {"view": ["admin"], "edit": ["admin"]},
+    "multivalued": false
+  }]')
+  curl -sf -X PUT \
+    -H "Authorization: Bearer ${TOKEN}" \
+    -H "Content-Type: application/json" \
+    -d "$UPDATED" \
+    "${KEYCLOAK_URL}/admin/realms/${REALM}/users/profile"
+  echo "==> org_id attribute registered."
+else
+  echo "==> org_id attribute already registered, skipping."
+fi
+
 echo "==> Checking if '${ADMIN_USERNAME}' already exists in realm '${REALM}'..."
 EXISTING=$(curl -sf \
   -H "Authorization: Bearer ${TOKEN}" \
