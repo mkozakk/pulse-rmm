@@ -37,7 +37,7 @@ public class KeycloakAdminClient {
     public List<KeycloakUser> listUsers() {
         return withToken(tok -> {
             var users = restClient.get()
-                .uri("/admin/realms/{realm}/users", realm)
+                .uri(b -> b.path("/admin/realms/{realm}/users").queryParam("max", 1000).build(realm))
                 .header("Authorization", "Bearer " + tok)
                 .retrieve()
                 .body(KeycloakUserJson[].class);
@@ -45,16 +45,8 @@ public class KeycloakAdminClient {
         });
     }
 
-    // Keycloak attribute search: ?q=org_id:<uuid> matches users carrying that custom attribute.
     public List<KeycloakUser> listUsersByOrg(UUID orgId) {
-        return withToken(tok -> {
-            var users = restClient.get()
-                .uri(b -> b.path("/admin/realms/{realm}/users").queryParam("q", "org_id:" + orgId).build(realm))
-                .header("Authorization", "Bearer " + tok)
-                .retrieve()
-                .body(KeycloakUserJson[].class);
-            return users == null ? List.of() : Arrays.stream(users).map(KeycloakUserJson::toRecord).toList();
-        });
+        return listUsers().stream().filter(u -> orgId.equals(u.orgId())).toList();
     }
 
     public UUID createUser(String username, String email, String firstName, String lastName, String password) {
