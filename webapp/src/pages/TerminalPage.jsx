@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useSelector } from 'react-redux'
+import { ArrowLeft, Maximize2, Minimize2, X } from 'lucide-react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
+import { useGetEndpointQuery } from '../api/pulseApi'
 import AppShell from '../components/AppShell'
 
 const WS_BASE = import.meta.env.VITE_WS_BASE ?? 'ws://localhost:8080'
@@ -12,7 +14,16 @@ export default function TerminalPage() {
   const token = useSelector(state => state.auth.token)
   const termRef = useRef(null)
   const wsRef = useRef(null)
+  const fsRef = useRef(null)
   const [closed, setClosed] = useState(false)
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const { data: ep } = useGetEndpointQuery(id)
+
+  useEffect(() => {
+    const handler = () => setIsFullscreen(!!document.fullscreenElement)
+    document.addEventListener('fullscreenchange', handler)
+    return () => document.removeEventListener('fullscreenchange', handler)
+  }, [])
 
   useEffect(() => {
     const term = new Terminal({ cursorBlink: true, convertEol: true })
@@ -68,27 +79,63 @@ export default function TerminalPage() {
     }
   }, [id, token])
 
+  function toggleFullscreen() {
+    if (document.fullscreenElement) {
+      document.exitFullscreen()
+    } else {
+      fsRef.current?.requestFullscreen()
+    }
+  }
+
+  const hostname = ep?.hostname ?? id.slice(0, 8)
+
   return (
-    <AppShell
-      title={`Terminal — ${id.slice(0, 8)}`}
-      subtitle="Interactive shell streamed over the control plane."
-      actions={!closed && <button onClick={() => wsRef.current?.close(1000)}>Close</button>}
-    >
-      <div className="terminal-page">
-        <Link className="page-backlink" to={`/endpoints/${id}`}>← Back to endpoint</Link>
+    <AppShell title={`Terminal - ${hostname}`}>
+      <div className="stack">
+        <div className="endpoint-access-bar">
+          <Link to={`/endpoints/${id}`} className="icon-btn endpoint-action">
+            <ArrowLeft size={14} />Endpoint
+          </Link>
+          <span className="remote-sep" />
+          <span className={`status-dot status-dot-${ep?.status ?? 'unknown'}`} />
+          <span className="endpoint-access-bar-name">{hostname}</span>
+          <div style={{ flex: 1 }} />
+          {closed
+            ? <span className="muted" style={{ fontSize: 12 }}>Session closed</span>
+            : (
+              <>
+                <button className="icon-btn endpoint-action" onClick={toggleFullscreen}>
+                  {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                  {isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+                </button>
+                <button className="icon-btn endpoint-action" onClick={() => wsRef.current?.close(1000)}>
+                  <X size={14} />Close session
+                </button>
+              </>
+            )
+          }
+        </div>
 
-        <div
-          ref={termRef}
-          role="region"
-          aria-label="terminal"
-          className="terminal-container"
-        />
+        <div ref={fsRef} className="terminal-fs-wrap">
+          <div className="terminal-fs-overlay">
+            {!closed && (
+              <button className="remote-fs-btn" onClick={() => wsRef.current?.close(1000)}>
+                <X size={12} />Close
+              </button>
+            )}
+            <button className="remote-fs-btn" onClick={toggleFullscreen}>
+              {isFullscreen ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
+              {isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+            </button>
+          </div>
 
-        {closed && (
-          <p className="terminal-closed">
-            Session closed. <Link to={`/endpoints/${id}`}>Return to endpoint</Link>
-          </p>
-        )}
+          <div
+            ref={termRef}
+            role="region"
+            aria-label="terminal"
+            className="terminal-container"
+          />
+        </div>
       </div>
     </AppShell>
   )
