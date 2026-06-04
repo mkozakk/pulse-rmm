@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Plus, Users, Trash2 } from 'lucide-react'
 import AppShell from '../components/AppShell'
 import {
   useGetOrganizationsQuery,
@@ -20,8 +21,6 @@ function OrgUsersPanel({ org, onClose }) {
   function handleAdd(e) {
     e.preventDefault()
     setError(null)
-    const body = { ...form, orgId: org.id }
-    if (!body.roleName) delete body.roleName
     createOrgUser({ orgId: org.id, ...form, roleName: form.roleName || undefined })
       .unwrap()
       .then(() => {
@@ -36,18 +35,18 @@ function OrgUsersPanel({ org, onClose }) {
       <div className="modal" style={{ minWidth: 560 }} onClick={e => e.stopPropagation()}>
         <h2>Users — {org.name}</h2>
 
-        {isLoading ? <p>Loading…</p> : (
-          <table className="data-table">
+        {isLoading ? <p className="panel-empty">Loading…</p> : (
+          <table className="enrolment-table">
             <thead>
               <tr><th>Username</th><th>Email</th><th>Status</th></tr>
             </thead>
             <tbody>
               {users.length === 0
-                ? <tr><td colSpan={3} style={{ textAlign: 'center', color: '#888' }}>No users in this org yet</td></tr>
+                ? <tr><td colSpan={3} className="col-muted" style={{ textAlign: 'center' }}>No users in this org yet</td></tr>
                 : users.map(u => (
                     <tr key={u.id}>
-                      <td>{u.username}</td>
-                      <td>{u.email}</td>
+                      <td style={{ fontWeight: 500 }}>{u.username}</td>
+                      <td className="col-muted">{u.email}</td>
                       <td><span className={u.enabled ? 'badge-green' : 'badge-red'}>{u.enabled ? 'Active' : 'Disabled'}</span></td>
                     </tr>
                   ))
@@ -66,7 +65,7 @@ function OrgUsersPanel({ org, onClose }) {
               <label>Password *<input required type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} /></label>
               <label>Role
                 <select value={form.roleName} onChange={e => setForm({ ...form, roleName: e.target.value })}>
-                  <option value="">— None —</option>
+                  <option value="">- None -</option>
                   {roles.filter(r => r.name !== 'Global Admin').map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
                 </select>
               </label>
@@ -77,7 +76,7 @@ function OrgUsersPanel({ org, onClose }) {
               </div>
             </form>
           ) : (
-            <button className="btn-primary" onClick={() => setShowAdd(true)}>Add User</button>
+            <button className="icon-btn endpoint-action" onClick={() => setShowAdd(true)}><Plus size={13} />Add User</button>
           )}
         </div>
 
@@ -119,41 +118,47 @@ export default function OrganizationsPage() {
   return (
     <AppShell
       title="Organizations"
-      actions={<button className="btn-primary" onClick={() => { setShowCreate(true); setError(null) }}>New Organization</button>}
+      actions={
+        <button className="icon-btn endpoint-action" onClick={() => { setShowCreate(true); setError(null) }}>
+          <Plus size={14} />New Organization
+        </button>
+      }
     >
       {error && <p className="error-banner">{error}</p>}
 
-      {isLoading ? <p>Loading…</p> : (
-        <table className="data-table">
-          <thead>
-            <tr><th>Name</th><th>Created</th><th>Actions</th></tr>
-          </thead>
-          <tbody>
-            {orgs.map(org => (
-              <tr key={org.id}>
-                <td>{org.name}</td>
-                <td>{org.createdAt ? new Date(org.createdAt).toLocaleDateString() : '—'}</td>
-                <td>
-                  {confirmDelete === org.id ? (
-                    <span>
-                      Delete?{' '}
-                      <button className="btn-danger-sm" onClick={() => handleDelete(org.id)}>Yes</button>
-                      {' '}
-                      <button className="btn-sm" onClick={() => setConfirmDelete(null)}>No</button>
-                    </span>
-                  ) : (
-                    <>
-                      <button className="btn-sm" onClick={() => setViewOrg(org)}>Users</button>
-                      {' '}
-                      <button className="btn-danger-sm" onClick={() => setConfirmDelete(org.id)}>Delete</button>
-                    </>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+      <section className="panel-card">
+        {isLoading ? (
+          <p className="panel-empty">Loading…</p>
+        ) : (
+          <table className="enrolment-table">
+            <thead>
+              <tr><th>Name</th><th>Created</th><th></th></tr>
+            </thead>
+            <tbody>
+              {orgs.map(org => (
+                <tr key={org.id}>
+                  <td style={{ fontWeight: 500 }}>{org.name}</td>
+                  <td className="col-muted" style={{ fontSize: 12 }}>{org.createdAt ? new Date(org.createdAt).toLocaleDateString() : '-'}</td>
+                  <td className="col-right">
+                    {confirmDelete === org.id ? (
+                      <span style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', alignItems: 'center' }}>
+                        <span className="col-muted" style={{ fontSize: 13 }}>Delete?</span>
+                        <button className="icon-btn endpoint-action proc-kill-btn" onClick={() => handleDelete(org.id)}>Yes</button>
+                        <button className="icon-btn endpoint-action" onClick={() => setConfirmDelete(null)}>No</button>
+                      </span>
+                    ) : (
+                      <span style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                        <button className="icon-btn endpoint-action" onClick={() => setViewOrg(org)}><Users size={12} />Users</button>
+                        <button className="icon-btn endpoint-action proc-kill-btn" onClick={() => setConfirmDelete(org.id)}><Trash2 size={12} />Delete</button>
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
 
       {showCreate && (
         <div className="modal-overlay" onClick={() => setShowCreate(false)}>

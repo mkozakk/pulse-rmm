@@ -90,62 +90,62 @@ export default function UsersPage() {
     <AppShell
       title="Users"
       actions={
-        <button className="btn-primary icon-btn" onClick={() => { setShowCreate(true); setError(null) }}>
+        <button className="icon-btn endpoint-action" onClick={() => { setShowCreate(true); setError(null) }}>
           <UserPlus size={14} />New User
         </button>
       }
     >
       {error && <p className="error-banner">{error}</p>}
 
-      {isLoading ? (
-        <p>Loading…</p>
-      ) : (
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Username</th>
-              <th>Email</th>
-              <th>Status</th>
-              <th>Role</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map(user => (
-              <tr key={user.id}>
-                <td>{user.username}</td>
-                <td>{user.email}</td>
-                <td>
-                  <span className={user.enabled ? 'badge-green' : 'badge-red'}>
-                    {user.enabled ? 'Active' : 'Disabled'}
-                  </span>
-                </td>
-                <td>
-                  {user.roles?.length > 0
-                    ? <span className="badge-blue">{user.roles[0]}</span>
-                    : <span className="badge-gray">—</span>}
-                </td>
-                <td>
-                  {confirmDelete === user.id ? (
-                    <span>
-                      Delete?{' '}
-                      <button className="btn-danger-sm" onClick={() => handleDelete(user.id)}>Yes</button>
-                      {' '}
-                      <button className="btn-sm" onClick={() => setConfirmDelete(null)}>No</button>
-                    </span>
-                  ) : (
-                    <>
-                      <button className="btn-sm icon-btn" onClick={() => openEdit(user)}><Pencil size={12} />Edit</button>
-                      {' '}
-                      <button className="btn-danger-sm icon-btn" onClick={() => setConfirmDelete(user.id)}><Trash2 size={12} />Delete</button>
-                    </>
-                  )}
-                </td>
+      <section className="panel-card">
+        {isLoading ? (
+          <p className="panel-empty">Loading…</p>
+        ) : (
+          <table className="enrolment-table">
+            <thead>
+              <tr>
+                <th>Username</th>
+                <th>Email</th>
+                <th>Status</th>
+                <th>Role</th>
+                <th></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+            </thead>
+            <tbody>
+              {users.map(user => (
+                <tr key={user.id}>
+                  <td style={{ fontWeight: 500 }}>{user.username}</td>
+                  <td className="col-muted">{user.email}</td>
+                  <td>
+                    <span className={user.enabled ? 'badge-green' : 'badge-red'}>
+                      {user.enabled ? 'Active' : 'Disabled'}
+                    </span>
+                  </td>
+                  <td>
+                    {user.roles?.length > 0
+                      ? <span className="badge-blue">{user.roles[0]}</span>
+                      : <span className="badge-gray">-</span>}
+                  </td>
+                  <td className="col-right">
+                    {confirmDelete === user.id ? (
+                      <span style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', alignItems: 'center' }}>
+                        <span className="col-muted" style={{ fontSize: 13 }}>Delete?</span>
+                        <button className="icon-btn endpoint-action proc-kill-btn" onClick={() => handleDelete(user.id)}>Yes</button>
+                        <button className="icon-btn endpoint-action" onClick={() => setConfirmDelete(null)}>No</button>
+                      </span>
+                    ) : (
+                      <span style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                        <button className="icon-btn endpoint-action" onClick={() => openEdit(user)}><Pencil size={12} />Edit</button>
+                        <button className="icon-btn endpoint-action proc-kill-btn" onClick={() => setConfirmDelete(user.id)}><Trash2 size={12} />Delete</button>
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
 
       {showCreate && (
         <div className="modal-overlay" onClick={() => setShowCreate(false)}>
@@ -175,7 +175,7 @@ export default function UsersPage() {
               <label>Role
                 <select value={createForm.roleName}
                   onChange={e => setCreateForm({ ...createForm, roleName: e.target.value })}>
-                  <option value="">— None —</option>
+                  <option value="">- None -</option>
                   {roles.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
                 </select>
               </label>
@@ -214,7 +214,7 @@ export default function UsersPage() {
               <label>Role
                 <select value={editForm.roleId}
                   onChange={e => setEditForm({ ...editForm, roleId: e.target.value })}>
-                  <option value="">— None —</option>
+                  <option value="">- None -</option>
                   {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
                 </select>
               </label>
