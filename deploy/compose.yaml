@@ -484,6 +484,7 @@ services:
       # backends fetch JWKS over the internal network at http://keycloak:8080.
     volumes:
       - ./keycloak-realm-export.json:/opt/keycloak/data/import/realm.json:ro,Z
+      - ./keycloak-theme:/opt/keycloak/themes:ro,Z
     networks:
       - gateway
       - private
