@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, Users, Trash2 } from 'lucide-react'
+import { Plus, Users, Trash2, X } from 'lucide-react'
 import AppShell from '../components/AppShell'
 import {
   useGetOrganizationsQuery,
@@ -33,56 +33,79 @@ function OrgUsersPanel({ org, onClose }) {
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" style={{ minWidth: 560 }} onClick={e => e.stopPropagation()}>
-        <h2>Users — {org.name}</h2>
+        <div className="modal-header">
+          <h2>Users — {org.name}</h2>
+          <button type="button" className="modal-close" onClick={onClose}><X size={16} /></button>
+        </div>
 
-        {isLoading ? <p className="panel-empty">Loading…</p> : (
-          <table className="enrolment-table">
-            <thead>
-              <tr><th>Username</th><th>Email</th><th>Status</th></tr>
-            </thead>
-            <tbody>
-              {users.length === 0
-                ? <tr><td colSpan={3} className="col-muted" style={{ textAlign: 'center' }}>No users in this org yet</td></tr>
-                : users.map(u => (
-                    <tr key={u.id}>
-                      <td style={{ fontWeight: 500 }}>{u.username}</td>
-                      <td className="col-muted">{u.email}</td>
-                      <td><span className={u.enabled ? 'badge-green' : 'badge-red'}>{u.enabled ? 'Active' : 'Disabled'}</span></td>
-                    </tr>
-                  ))
-              }
-            </tbody>
-          </table>
-        )}
-
-        <div style={{ marginTop: 16 }}>
-          {showAdd ? (
-            <form onSubmit={handleAdd}>
-              <label>Username *<input required value={form.username} onChange={e => setForm({ ...form, username: e.target.value })} /></label>
-              <label>Email<input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} /></label>
-              <label>First name<input value={form.firstName} onChange={e => setForm({ ...form, firstName: e.target.value })} /></label>
-              <label>Last name<input value={form.lastName} onChange={e => setForm({ ...form, lastName: e.target.value })} /></label>
-              <label>Password *<input required type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} /></label>
-              <label>Role
-                <select value={form.roleName} onChange={e => setForm({ ...form, roleName: e.target.value })}>
-                  <option value="">- None -</option>
-                  {roles.filter(r => r.name !== 'Global Admin').map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
-                </select>
-              </label>
-              {error && <p className="form-error">{error}</p>}
-              <div className="modal-actions">
-                <button type="submit" className="btn-primary">Add User</button>
-                <button type="button" className="btn-secondary" onClick={() => setShowAdd(false)}>Cancel</button>
-              </div>
-            </form>
-          ) : (
-            <button className="icon-btn endpoint-action" onClick={() => setShowAdd(true)}><Plus size={13} />Add User</button>
+        <div className="modal-body" style={{ gap: '0.5rem' }}>
+          {isLoading ? <p className="panel-empty">Loading…</p> : (
+            <table className="enrolment-table">
+              <thead>
+                <tr><th>Username</th><th>Email</th><th>Status</th></tr>
+              </thead>
+              <tbody>
+                {users.length === 0
+                  ? <tr><td colSpan={3} className="col-muted" style={{ textAlign: 'center' }}>No users in this org yet</td></tr>
+                  : users.map(u => (
+                      <tr key={u.id}>
+                        <td style={{ fontWeight: 500 }}>{u.username}</td>
+                        <td className="col-muted">{u.email}</td>
+                        <td><span className={u.enabled ? 'badge-green' : 'badge-red'}>{u.enabled ? 'Active' : 'Disabled'}</span></td>
+                      </tr>
+                    ))
+                }
+              </tbody>
+            </table>
           )}
         </div>
 
-        <div className="modal-actions" style={{ marginTop: 24 }}>
-          <button className="btn-secondary" onClick={onClose}>Close</button>
-        </div>
+        {showAdd ? (
+          <form onSubmit={handleAdd}>
+            <div className="modal-body" style={{ borderTop: '1px solid #f1f5f9' }}>
+              <div className="form-field">
+                <label className="field-label">Username <span className="req">*</span></label>
+                <input required placeholder="johndoe" value={form.username} onChange={e => setForm({ ...form, username: e.target.value })} />
+              </div>
+              <div className="form-field">
+                <label className="field-label">Email</label>
+                <input type="email" placeholder="john@company.com" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
+              </div>
+              <div className="form-2col">
+                <div className="form-field">
+                  <label className="field-label">First name</label>
+                  <input placeholder="John" value={form.firstName} onChange={e => setForm({ ...form, firstName: e.target.value })} />
+                </div>
+                <div className="form-field">
+                  <label className="field-label">Last name</label>
+                  <input placeholder="Doe" value={form.lastName} onChange={e => setForm({ ...form, lastName: e.target.value })} />
+                </div>
+              </div>
+              <div className="form-field">
+                <label className="field-label">Password <span className="req">*</span></label>
+                <input required type="password" placeholder="Min 8 characters" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} />
+              </div>
+              <div className="form-field">
+                <label className="field-label">Role</label>
+                <select value={form.roleName} onChange={e => setForm({ ...form, roleName: e.target.value })}>
+                  <option value="">No role</option>
+                  {roles.filter(r => r.name !== 'Global Admin').map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
+                </select>
+              </div>
+              {error && <p className="form-error">{error}</p>}
+            </div>
+            <div className="modal-actions">
+              <button type="button" className="btn-secondary" onClick={() => setShowAdd(false)}>Cancel</button>
+              <button type="submit" className="btn-primary">Add User</button>
+            </div>
+          </form>
+        ) : (
+          <div className="modal-actions">
+            <button type="button" className="icon-btn btn-primary" onClick={() => setShowAdd(true)}>
+              <Plus size={13} />Add User
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -163,15 +186,21 @@ export default function OrganizationsPage() {
       {showCreate && (
         <div className="modal-overlay" onClick={() => setShowCreate(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
-            <h2>New Organization</h2>
+            <div className="modal-header">
+              <h2>New Organization</h2>
+              <button type="button" className="modal-close" onClick={() => setShowCreate(false)}><X size={16} /></button>
+            </div>
             <form onSubmit={handleCreate}>
-              <label>Name *
-                <input required value={name} onChange={e => setName(e.target.value)} />
-              </label>
-              {error && <p className="form-error">{error}</p>}
+              <div className="modal-body">
+                <div className="form-field">
+                  <label className="field-label">Name <span className="req">*</span></label>
+                  <input required placeholder="Acme Corp" value={name} onChange={e => setName(e.target.value)} />
+                </div>
+                {error && <p className="form-error">{error}</p>}
+              </div>
               <div className="modal-actions">
-                <button type="submit" className="btn-primary">Create</button>
                 <button type="button" className="btn-secondary" onClick={() => setShowCreate(false)}>Cancel</button>
+                <button type="submit" className="btn-primary">Create</button>
               </div>
             </form>
           </div>
