@@ -1,0 +1,20 @@
+title "Enrolment Flow"
+direction TB
+theme light
+
+actor Admin "Admin\n(Browser)"
+gateway GW "API Gateway"
+service ES "Endpoint Service"
+service CA "CA Service"
+service Agent "Agent"
+
+Admin -> GW : POST /api/enrolment/tokens
+GW -> ES : create token
+
+ES -> CA : sign CSR
+CA -> ES : cert + CA bundle
+
+ES -> Agent : endpointId + cert
+
+Agent -> GW : POST /internal/enrol
+GW -> ES : forward request

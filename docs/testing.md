@@ -30,27 +30,27 @@ Or run them in your terminal before running tests. These tell Testcontainers to 
 
 ## Backend (Java)
 
+Always run the backend tests through the Makefile. It sets `JAVA_HOME`, points Testcontainers at the rootless podman socket (`DOCKER_HOST`), and configures surefire/failsafe so that integration tests actually execute — a plain `mvn` invocation gets none of that right.
+
 ### Unit Tests
 
 Unit tests are fast, in-memory tests that verify business logic without external dependencies.
 
 ```bash
-cd backend
-mvn test
+make tests-unit
 ```
 
-Runs only tests that don't require containers.
+Runs only the tests that don't require containers (it skips the integration tests).
 
 ### Integration Tests
 
 Integration tests start a real PostgreSQL database in a container and exercise the full request path.
 
 ```bash
-cd backend
-mvn verify
+make tests-it
 ```
 
-This runs both unit and integration tests (integration tests are named `*IT.java`).
+Runs the integration tests (named `*IT.java`) against a real database. Use `make tests` to run unit and integration tests together.
 
 **What happens:**
 1. Testcontainers starts a PostgreSQL 16 container
@@ -62,32 +62,30 @@ This runs both unit and integration tests (integration tests are named `*IT.java
 
 ### Running Tests for a Specific Service
 
-```bash
-cd backend/api-gateway
-mvn verify
+Use the `service=` parameter to scope a run to one module:
 
-cd backend/enrolment-service
-mvn verify
+```bash
+make tests service=endpoint-service
+make tests-it service=metric-service
 ```
 
 ### Code Coverage Reports (JaCoCo)
 
-Backend tests generate JaCoCo code coverage reports automatically during `mvn verify`.
+Backend tests generate JaCoCo code coverage reports automatically when the Makefile runs them.
 
 **View coverage after running tests:**
 
 ```bash
-cd backend
-mvn verify
+make tests
 
 # Unit test coverage
-open api-gateway/target/site/jacoco/index.html
+open backend/api-gateway/target/site/jacoco/index.html
 
 # Integration test coverage
-open api-gateway/target/site/jacoco-it/index.html
+open backend/api-gateway/target/site/jacoco-it/index.html
 ```
 
-Replace `api-gateway` with the service name (e.g., `identity-service`, `enrolment-service`).
+Replace `api-gateway` with the service name (e.g., `rbac-service`, `endpoint-service`).
 
 **What's measured:**
 - Unit tests: coverage from `*Test.java` files
@@ -100,10 +98,9 @@ Replace `api-gateway` with the service name (e.g., `identity-service`, `enrolmen
 
 **Example:**
 ```bash
-cd backend/api-gateway
-mvn verify
+make tests service=api-gateway
 # Open the HTML report in your browser
-firefox target/site/jacoco/index.html
+firefox backend/api-gateway/target/site/jacoco/index.html
 ```
 
 ## Agent (Go)
@@ -256,7 +253,7 @@ make e2e-up
 
 ```bash
 # Backend unit + integration
-cd backend && mvn verify
+make tests
 
 # Agent tests
 cd agent && go test ./...
@@ -274,7 +271,7 @@ Run this checklist:
 
 ```bash
 # 1. Backend tests must pass
-cd backend && mvn clean verify
+make tests
 
 # 2. Agent tests must pass
 cd agent && go test ./...
@@ -309,19 +306,14 @@ make e2e
 
 1. **First-run overhead:** Testcontainers and podman startups take 30–90s. Subsequent runs use cached containers.
 
-2. **Parallelization:** Backend integration tests can be parallelized with Maven:
-   ```bash
-   mvn verify -T 1C  # 1 thread per core
-   ```
-
-3. **Run only what you changed:**
-   - Editing a service? Run `mvn verify` in that service directory only.
+2. **Run only what you changed:**
+   - Editing a service? `make tests service=<name>` runs just that module instead of the whole backend.
    - Editing the agent? `go test ./...` in the agent directory.
    - Editing a component in the webapp? Run its test file only.
 
-4. **Skip E2E during development:** E2E tests are comprehensive but slow. Run unit + integration tests while developing, then run E2E before opening a PR.
+3. **Skip E2E during development:** E2E tests are comprehensive but slow. Run unit + integration tests while developing, then run E2E before opening a PR.
 
-5. **Check code coverage:** JaCoCo reports are generated automatically during `mvn verify`. Open `target/site/jacoco/index.html` to see which code is tested. Red lines = untested code that may need test coverage.
+4. **Check code coverage:** JaCoCo reports are generated automatically when the Makefile runs the tests. Open `backend/<service>/target/site/jacoco/index.html` to see which code is tested. Red lines = untested code that may need test coverage.
 
 ## Troubleshooting
 
@@ -343,18 +335,18 @@ make e2e
 - CI may use Docker instead of podman. Check `.github/workflows/` for test job configuration.
 - Ensure all environment variables are set in CI context.
 
-### Maven Issues
+### Build Issues
 
 **"BUILD FAILURE"**
 ```bash
-cd backend
-mvn clean verify  # Clean build
+cd backend && mvn clean    # wipe stale target/ dirs, then re-run
+make tests
 ```
 
 **OutOfMemoryError during tests**
 ```bash
 export MAVEN_OPTS="-Xmx2g"
-mvn verify
+make tests
 ```
 
 ### Vitest Issues

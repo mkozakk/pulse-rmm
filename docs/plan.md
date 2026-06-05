@@ -1,166 +1,43 @@
-# Pulse RMM - general purpose RMM service
+# Capabilities and scope
 
-## overview
+Pulse RMM is a system for managing a fleet of endpoints across an organization: watching their health, reaching into them remotely, keeping their software in order, and recording everything that is done to them. This document describes what the system covers, the platforms and limits it works within, and how endpoints are organized. It is the scope and capability reference; for how the pieces fit together see [architecture.md](architecture.md), and for the agent in particular see [agent.md](agent.md).
 
-pulse rmm is an enterprise system for managing a fleet of endpoints across an organization
+## What you can do with it
 
-## capabilities
+From the webapp a technician can monitor a fleet across CPU, memory, disk, and uptime, with live charts and retained history, and can see whether each endpoint is online or has gone quiet. Beyond passive monitoring they can list and kill processes, open an interactive terminal on any online endpoint, and open a full remote desktop session — not just the screen, but mouse and keyboard control, audio, and file transfer in both directions, all working through NAT by relaying over STUN/TURN when a direct path is unavailable.
 
-with pulse-rmm, you can:
-- monitor and supervise a fleet of endpoints across many metrics: ram, cpu, gpu, disk usage/info, os data (uptime, activity status)
-- monitor and manage: processes, services, task scheduler, file system, and installed software via package manager (chocolatey, apt, dnf)
-- access terminal of the endpoint
-- install agent with single .exe / command / invitation link
-- open a remote desktop session from webapp - not only screen, but also file, audio and mouse/keyboard transfer
-- get notified when metrics cross thresholds
-- os autoupdater
-- third-party patch management (chrome, acrobat, java, etc.) via package manager wrappers
-- scripting and automations across entire fleet
-- policy engine - declarative desired-state config applied per group/tag (installed apps, services running, firewall rules)
-- remote wipe for lost/stolen endpoints
-- register a new technician - with permissions based on specified roles
-- technician auth with mfa + sso (saml / oidc) for enterprise identity providers
-- zero trust approach - every action must be authorized
-- review audit logs - what was downloaded, when the endpoint was rebooted, who logged in, who accessed which feature
-- access endpoint even when the user is logged out (daemon-registered)
-- install agent by downloading and running .exe, copying link to .exe, or a one-liner script that automates all tasks
-- for linux: one-liner for downloading and installing, with .deb and .rpm packages
-- agent autoupdater
-- rest api + outbound webhooks for integrating with customer itsm tools (jira, servicenow)
+The same fleet can be managed in bulk. Installed software is inventoried per endpoint, and packages can be installed, updated, or removed through each platform's native package manager. Scripts live in a library with an approval workflow so that less-privileged technicians can only run vetted code, while others can run ad-hoc scripts across many endpoints at once; each run reports its own output and exit code per endpoint, and secrets can be passed into a run without leaking into logs or the audit trail.
 
-## scope & scale
+Onboarding an endpoint is a matter of running a single installer or one-liner that carries a group-scoped invitation token; the agent enrols itself, receives a permanent identity, and from then on keeps itself up to date through a canary-staged auto-update with automatic rollback. Technicians are notified when metrics cross thresholds, every action is authorized against a fine-grained permission model and written to an immutable audit log, and the system can reach an endpoint even when no user is logged in because the agent runs as a service. Authentication is handled through an external identity provider over OIDC, which also covers single sign-on and multi-factor, and outbound webhooks let events flow into external ITSM tools such as Jira or ServiceNow.
 
-### supported platforms (agent)
-- windows 10+ on x86_64 (older windows versions are out of scope - modern go runtime no longer supports them)
-- debian-based linux (.deb - ubuntu lts, debian)
-- fedora-like linux (.rpm - fedora, rhel, rocky, alma)
-- macos: out of scope (no dev access)
+A few capabilities from the original design are not yet built and are noted here so the scope is honest rather than aspirational: a declarative policy engine with drift detection and reconciliation, OS and third-party patch scheduling with maintenance windows, scoped API keys, and remote wipe. The sections elsewhere in these docs describe only what exists today.
 
-### supported browsers (client)
-- latest stable chrome, firefox, edge, safari
+## Scope and scale
 
-### data retention
-- metrics, audit records, and logs kept for 30 days, then pruned
+The agent supports Windows 10 and newer on x86_64 — older Windows versions are out of scope because the modern Go runtime no longer supports them — along with Debian-based Linux (Ubuntu LTS, Debian, distributed as a `.deb`) and Fedora-like Linux (Fedora, RHEL, Rocky, Alma, distributed as an `.rpm`). macOS is out of scope, as there is no development access to it. On the client side the webapp targets the latest stable Chrome, Firefox, Edge, and Safari. Metrics, audit records, and logs are retained for thirty days and then pruned.
 
-### tenancy & multi-org
-- single deployment = one fleet
-- **fleet can be divided into multiple organizations** (multi-org support)
-- each organization has isolated endpoint groups, users, roles, and permissions
-- organization membership is managed via the RBAC service (keycloak)
-- permissions are scoped per organization - a user in org A cannot access org B's endpoints
-- typical use case: managed service provider (msp) running one pulse-rmm instance for multiple customers
+A single deployment manages one fleet, but that fleet can be divided into multiple organizations. Each organization has its own isolated endpoint groups, users, roles, and permissions, and every permission is evaluated per organization, so a user in one organization cannot reach another's endpoints even with an identical role. This is what makes the system usable by a managed service provider running one instance on behalf of several customers; organization membership is carried on the user's identity and read from their token.
 
-## endpoint organisation
+## How endpoints are organized
 
-### groups
-- every endpoint belongs to **exactly one** group
-- groups form a **tree** (e.g. `hq > sales > laptops`); permission scoping inherits downward
-- groups are the unit of **rbac scoping**: granting `remote:desktop:control` on `group:sales` covers every endpoint in `sales` and its descendants
-- enrolment tokens are bound to a group - an endpoint enrolled with a given token lands in that group automatically
-- admins can move endpoints between groups after enrolment
+Every endpoint belongs to exactly one group, and groups form a tree — for example `hq > sales > laptops`. The tree is the unit of permission scoping: granting a permission on a group covers every endpoint in that group and its descendants. Enrolment tokens are bound to a group, so an endpoint enrolled with a given token lands in the right place automatically, and an administrator can move an endpoint between groups afterward.
 
-### tags
-- free-form **key=value** labels (e.g. `env=prod`, `site=warsaw`, `role=dev-laptop`)
-- **many-to-many** with endpoints (an endpoint can carry any number of tags)
-- used for **ad-hoc filtering**, **alert rule targeting**, and **policy selectors** ("apply policy X where `env=prod`")
-- three sources: installer parameters at enrolment, auto-tagging rules based on endpoint attributes (os, hostname pattern, ip range), manual assignment in the webapp
+Cutting across the tree are tags: free-form `key=value` labels such as `env=prod` or `site=warsaw`. An endpoint can carry any number of them, and they are used for ad-hoc filtering, for targeting alert rules, and as selectors. Tags come from three sources — parameters passed to the installer at enrolment, rules that assign tags automatically based on endpoint attributes like OS or hostname, and manual assignment in the webapp — and the automatic rules can be re-evaluated on demand as well as running at enrolment.
 
-### endpoint identity
-- at install the installer receives an invitation token scoped to a group
-- on first run the agent generates an ed25519 keypair and is issued a stable **endpoint id** (uuid) by the backend during enrolment
-- the id persists across reboots, os updates, and hostname changes; it is the primary key for all endpoint data
+An endpoint's identity is established once and then permanent. The installer carries a group-scoped invitation token; on first run the agent generates an ed25519 keypair and the backend issues it a stable UUID during enrolment. That UUID persists across reboots, OS upgrades, and hostname changes, and it is the primary key for everything the system records about the endpoint.
 
-## technical components
+## The pieces
 
-### agent
-- communicates with a backend service
-- manages everything endpoint-related
-- offline queue: buffers metrics and command acks locally when offline, resend on reconnect
+The system is made of an agent, a backend, a relay, and a client. The **agent** runs on every endpoint and manages everything endpoint-related; it buffers metrics and command acknowledgements locally when offline and resends them on reconnect. The **backend** stores metrics, configuration, identity, and audit records, and acts as the middleman between agent and client, issuing signed commands to agents and receiving their acknowledgements and metric batches. The **relay** (a STUN/TURN server) carries the peer-to-peer media for remote-access sessions when a direct connection cannot be made. The **client** is the webapp, which exposes the system's capabilities and hosts the remote-desktop view.
 
-### backend
-- stores metrics, config, identity, audit
-- middleman between agent and client
-- issues signed commands to agents, receives acks and metric batches
+## Technologies
 
-### relay (stun/turn)
-- responsible for p2p/indirect communication during remote access sessions
+The agent is written in Go and ships as a single static binary — a plain `.exe`-installer on Windows and `.deb`/`.rpm` packages on Linux — so it has no runtime dependency on the endpoint. It captures the screen through the platform's display APIs (Desktop Duplication on Windows, X11 grab or a PipeWire portal on Linux) and encodes video as H.264 through ffmpeg, falling back where hardware encoding is unavailable; on Linux the choice of codec leans toward royalty-free options to avoid the H.264 licensing problem. It captures audio through the platform's audio stack, injects input with SendInput on Windows and a uinput virtual device on Linux, and uses goroutines for its concurrent work. Metrics are batched before being sent over gRPC. The agent authenticates with an ed25519 key generated locally on first run and a per-agent certificate signed during enrolment, and the backend can revoke a certificate to force re-enrolment.
 
-### client
-- webapp exposing all system capabilities
-- opens window with remote desktop view
+Two transports carry the traffic. The **control plane** is gRPC over mutual TLS and carries enrolment-adjacent calls, metric batches, command delivery and acknowledgement, heartbeats, and WebRTC signaling. The **remote session** is WebRTC and carries the video track, audio track, input data channel, and file-transfer data channel, relayed through the STUN/TURN server when direct peer-to-peer is not possible.
 
-## brief overview of technologies used
+The backend is a set of Java 21 Spring Boot services built as a multi-module Maven project, using virtual threads rather than a reactive stack. Schema changes go through Flyway migrations; agent communication uses gRPC with protobuf managed by buf; the client-facing API is Spring MVC with OpenAPI docs; security is Spring Security with an OAuth2 resource server; persistence is Spring Data JPA over PostgreSQL with HikariCP pooling, and Lettuce for Redis. RabbitMQ carries inter-service events and the webhook dead-letter queue, Resilience4j handles retries and circuit breaking for flaky outbound calls, and observability is Micrometer to Prometheus with structured logs to Loki and traces to Tempo. Background jobs such as the canary rollout and offline detection run on Spring's scheduler, and object storage for installers and update artifacts is S3-compatible (MinIO).
 
-### agent
-- go
-- pure .exe for windows, .rpm and .deb for linux
-- screen capturing: desktop duplication api on windows, xshm + xgetimage on x11, pipewire + xdg-desktop-portal on wayland (note: wayland portal requires an interactive consent prompt per capture session, so **unattended access is not supported on wayland** - an endpoint running a wayland session must have a logged-in user to approve capture)
-- video codec: h264 via hardware encoder on windows (d3d11 / nvenc / quicksync / amf); on linux hardware encode via vaapi / nvenc / amf is preferred, software fallback is vp9 (royalty-free - avoids the h264 patent/licensing problem on linux, which would otherwise force either gpl-viral x264, cisco's openh264 binary, or a paid mpeg la license)
-- codec negotiation on linux (sdp offer ordering, most preferred first):
-  1. av1 hardware encode - if gpu supports it (intel arc, nvidia 40-series, amd rx 7000). best compression, royalty-free
-  2. h264 hardware encode (vaapi / nvenc / amf) - license is paid by the gpu vendor, lowest latency, widest hw support
-  3. vp9 hardware encode (vaapi on intel 10th gen+ igpu, newer amd/nvidia) - royalty-free middle ground
-  4. vp9 software (libvpx-vp9) - always-available fallback, royalty-free, real-time-capable on any modern cpu
-- explicitly excluded from the offer on linux: software h264 (licensing) and software av1 (too slow for real-time remote desktop)
-- the agent probes available encoders at startup and advertises only the ones it can actually run; webrtc sdp offer/answer picks the best match supported by both agent and client
-- audio capture: wasapi on windows, pipewire / pulseaudio on linux
-- input injection: sendinput on windows, xtest on x11, libevdev virtual devices on wayland
-- goroutines for multithreaded jobs
-- batches metrics before sending via grpc
-- ed25519 for authenticating and executing signed commands; agent generates the keypair locally on first run and registers the public key with the backend during enrolment. backend can invalidate a key and require re-enrolment to rotate
-- secret distribution: script parameters / credentials delivered sealed to the agent, decrypted only in-process
+The infrastructure is container-native: podman compose for local development and small environments, with Kubernetes manifests for production. PostgreSQL backs the services, with the TimescaleDB extension for metric time-series; Redis holds hot state and the agent-connection registry so any control-plane instance can route a command to the instance holding an agent's stream. The control plane is stateless and scaled horizontally, with sticky routing only to keep an agent's gRPC stream pinned for its lifetime, and agent gRPC traffic is separated from webapp and API traffic at the ingress.
 
-### transport split
-- **control plane (grpc)**: enrollment, metric batches, policy pull, command delivery + ack, heartbeat, webrtc signaling
-- **remote session (webrtc)**: video track, audio track, input data channel, file transfer data channel - all tunneled through the relay (stun/turn) when direct p2p isn't available
-
-### infra
-- cloud native
-- podman for containers
-- podman compose for local dev and small environments
-- postgres for services
-- timescaledb extension for metric time-series at scale
-- redis for hot state + agent connection registry (so any control-plane pod can route commands to the pod holding an agent's stream)
-- microservices with stateless control plane; sticky session on the lb only for keeping agent grpc streams pinned during their lifetime
-- test environment
-- load balancing with sticky session for streams
-- stun/turn (relay)
-- separate ingress paths for webapp/api traffic vs agent grpc traffic
-- mtls everywhere between services and to agents
-- s3-compatible storage for installer binaries and autoupdate artifacts
-- prometheus / grafana for observability
-- terraform for infra provisioning
-- secrets manager
-- rate limiting
-- api gateway
-
-### backend
-- microservices
-- java 21
-- virtual threads
-- spring boot
-- multi-module maven
-- flyway for schema migrations
-- grpc-java + protobuf / buf for agent-backend communication
-- spring web (mvc) for client-facing rest api
-- springdoc-openapi for api docs
-- spring security + oauth2 resource server for authn / authz
-- spring data jpa / hibernate for db access
-- hikaricp for connection pooling
-- lettuce for redis
-- jackson for json serialization
-- jakarta bean validation for input validation
-- rabbitmq for inter-service messaging and webhook dead-letter queue
-- resilience4j for retries and circuit breakers (outbound webhooks, flaky deps)
-- micrometer → prometheus for metrics
-- logback with json encoder for structured logs → loki
-- spring @scheduled for background jobs (canary rollout, policy reconciliation, token expiry)
-- aws sdk v2 / minio client for s3-compatible storage
-- bucket4j for in-app rate limiting
-- junit 5 + testcontainers + mockito + wiremock for testing
-
-### client (webapp)
-- react
-- vite
-- redux
-- webrtc api
+The client is a React application built with Vite, using Redux for shared state and the browser's native WebRTC API for remote sessions.
