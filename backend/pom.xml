@@ -32,7 +32,7 @@
 
     <properties>
         <java.version>21</java.version>
-        <jacoco.version>0.8.13</jacoco.version>
+        <jacoco.version>0.8.15</jacoco.version>
         <maven.surefire.argline>--add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED</maven.surefire.argline>
     </properties>
 
