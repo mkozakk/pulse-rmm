@@ -15,8 +15,11 @@ public class AgentHubClient {
 
     private static final Logger logger = LoggerFactory.getLogger(AgentHubClient.class);
     private final RestClient restClient;
+    private final String internalSecret;
 
-    public AgentHubClient(@Value("${pulse.agent-hub.url:http://localhost:8092}") String agentHubUrl) {
+    public AgentHubClient(@Value("${pulse.agent-hub.url:http://localhost:8092}") String agentHubUrl,
+                          @Value("${pulse.identity.internal-secret}") String internalSecret) {
+        this.internalSecret = internalSecret;
         this.restClient = RestClient.builder()
             .baseUrl(agentHubUrl)
             .build();
@@ -28,6 +31,7 @@ public class AgentHubClient {
             logger.info("Dispatching script command {} to endpoint {} via agent-hub", runResultId, endpointId);
             restClient.post()
                 .uri("/internal/script-commands/dispatch")
+                .header("X-Internal-Token", internalSecret)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(request)
                 .retrieve()
@@ -44,6 +48,7 @@ public class AgentHubClient {
             logger.info("Dispatching software command {} to endpoint {} via agent-hub", commandId, endpointId);
             restClient.post()
                 .uri("/internal/software-commands/dispatch")
+                .header("X-Internal-Token", internalSecret)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(request)
                 .retrieve()
@@ -60,6 +65,7 @@ public class AgentHubClient {
             logger.info("Dispatching list-processes command {} to endpoint {}", commandId, endpointId);
             restClient.post()
                 .uri("/internal/process-commands/list/dispatch")
+                .header("X-Internal-Token", internalSecret)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(request)
                 .retrieve()
@@ -75,6 +81,7 @@ public class AgentHubClient {
             logger.info("Dispatching kill-process pid={} command {} to endpoint {}", pid, commandId, endpointId);
             restClient.post()
                 .uri("/internal/process-commands/kill/dispatch")
+                .header("X-Internal-Token", internalSecret)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(request)
                 .retrieve()

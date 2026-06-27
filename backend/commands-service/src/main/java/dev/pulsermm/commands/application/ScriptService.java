@@ -3,6 +3,8 @@ package dev.pulsermm.commands.application;
 import dev.pulsermm.common.audit.Auditable;
 import dev.pulsermm.common.events.DomainEvent;
 import dev.pulsermm.common.events.DomainEventPublisher;
+import dev.pulsermm.common.rbac.IdentityClient;
+import dev.pulsermm.common.rbac.PermissionChecker;
 import dev.pulsermm.commands.api.dto.CreateScriptRequest;
 import dev.pulsermm.commands.domain.Script;
 import dev.pulsermm.commands.domain.ScriptRun;
@@ -42,6 +44,7 @@ public class ScriptService {
     private final RabbitTemplate rabbitTemplate;
     private final DomainEventPublisher domainEventPublisher;
     private final String scriptServiceBaseUrl;
+    private final IdentityClient identityClient;
 
     public ScriptService(ScriptRepository scriptRepository,
                          ScriptRunRepository scriptRunRepository,
@@ -51,7 +54,8 @@ public class ScriptService {
                          @Qualifier("scriptSecretKek") String scriptSecretKek,
                          RabbitTemplate rabbitTemplate,
                          DomainEventPublisher domainEventPublisher,
-                         @Value("${pulse.script.base-url:http://localhost:8084}") String scriptServiceBaseUrl) {
+                         @Value("${pulse.script.base-url:http://localhost:8084}") String scriptServiceBaseUrl,
+                         IdentityClient identityClient) {
         this.scriptRepository = scriptRepository;
         this.scriptRunRepository = scriptRunRepository;
         this.scriptRunResultRepository = scriptRunResultRepository;
@@ -61,6 +65,7 @@ public class ScriptService {
         this.rabbitTemplate = rabbitTemplate;
         this.domainEventPublisher = domainEventPublisher;
         this.scriptServiceBaseUrl = scriptServiceBaseUrl;
+        this.identityClient = identityClient;
     }
 
     @Auditable(action = "script.create", permission = "script:adhoc")
@@ -116,9 +121,21 @@ public class ScriptService {
                                    java.util.Map<String, String> secrets, UUID initiatedBy, UUID callerOrgId) {
         var script = getScriptById(scriptId);
 
+        if (!script.isApproved()) {
+            throw new ScriptNotApprovedException("Script is not approved: " + scriptId);
+        }
+
         if (callerOrgId != null && !script.isGlobal() &&
                 (script.getOrgId() == null || !script.getOrgId().equals(callerOrgId))) {
             throw new ScriptNotFoundException("Script not found: " + scriptId);
+        }
+
+        var perms = identityClient.getPermissions(initiatedBy.toString());
+        for (String endpointIdStr : endpointIds) {
+            UUID groupId = identityClient.getEndpointGroup(endpointIdStr).orElse(null);
+            if (!PermissionChecker.hasPermission(perms, "script:run", groupId)) {
+                throw new ScriptRunForbiddenException("No permission for endpoint: " + endpointIdStr);
+            }
         }
 
         var run = new ScriptRun(scriptId, initiatedBy);

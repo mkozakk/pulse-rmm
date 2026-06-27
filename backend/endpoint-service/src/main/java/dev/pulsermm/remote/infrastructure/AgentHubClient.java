@@ -16,8 +16,11 @@ public class AgentHubClient {
     private static final Logger logger = LoggerFactory.getLogger(AgentHubClient.class);
 
     private final RestClient restClient;
+    private final String internalSecret;
 
-    public AgentHubClient(@Value("${pulse.agent-hub.url:http://localhost:8092}") String agentHubUrl) {
+    public AgentHubClient(@Value("${pulse.agent-hub.url:http://localhost:8092}") String agentHubUrl,
+                          @Value("${pulse.identity.internal-secret}") String internalSecret) {
+        this.internalSecret = internalSecret;
         this.restClient = RestClient.builder().baseUrl(agentHubUrl).build();
     }
 
@@ -26,6 +29,7 @@ public class AgentHubClient {
             var body = new StartSessionRequest(endpointId, sessionId, turnUrls, turnSecret);
             restClient.post()
                 .uri("/internal/desktop-sessions/start")
+                .header("X-Internal-Token", internalSecret)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(body)
                 .retrieve()
@@ -41,6 +45,7 @@ public class AgentHubClient {
             var body = new EndSessionRequest(endpointId, sessionId);
             restClient.post()
                 .uri("/internal/desktop-sessions/end")
+                .header("X-Internal-Token", internalSecret)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(body)
                 .retrieve()

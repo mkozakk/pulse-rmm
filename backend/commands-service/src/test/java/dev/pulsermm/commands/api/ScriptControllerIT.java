@@ -46,6 +46,7 @@ class ScriptControllerIT {
         registry.add("spring.datasource.password", postgres::getPassword);
         registry.add("pulse.jwt.secret", () -> JWT_SECRET);
         registry.add("pulse.script.secret-kek", () -> "test-kek-32-chars-long-ok-here!!");
+        registry.add("pulse.identity.internal-secret", () -> "test-internal-secret");
         registry.add("spring.rabbitmq.listener.simple.auto-startup", () -> "false");
         registry.add("spring.rabbitmq.listener.direct.auto-startup", () -> "false");
     }

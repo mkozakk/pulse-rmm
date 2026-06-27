@@ -3,11 +3,9 @@ package dev.pulsermm.agenthub.api.internal;
 import dev.pulsermm.agenthub.infrastructure.desktop.DesktopSessionDispatcher;
 import dev.pulsermm.agenthub.infrastructure.desktop.DesktopSessionRegistry;
 import io.swagger.v3.oas.annotations.Hidden;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.UUID;
@@ -19,15 +17,22 @@ public class DesktopSessionInternalController {
 
     private final DesktopSessionRegistry sessionRegistry;
     private final DesktopSessionDispatcher dispatcher;
+    private final String internalSecret;
 
     public DesktopSessionInternalController(DesktopSessionRegistry sessionRegistry,
-                                            DesktopSessionDispatcher dispatcher) {
+                                            DesktopSessionDispatcher dispatcher,
+                                            @Value("${pulse.identity.internal-secret}") String internalSecret) {
         this.sessionRegistry = sessionRegistry;
         this.dispatcher = dispatcher;
+        this.internalSecret = internalSecret;
     }
 
     @PostMapping("/start")
-    public ResponseEntity<Void> start(@RequestBody StartRequest req) {
+    public ResponseEntity<Void> start(@RequestBody StartRequest req,
+                                      @RequestHeader(value = "X-Internal-Token", required = false) String token) {
+        if (!internalSecret.equals(token)) {
+            return ResponseEntity.status(403).build();
+        }
         String sessionId = req.sessionId().toString();
         sessionRegistry.register(sessionId, req.endpointId(), null);
         dispatcher.startSession(req.endpointId(), sessionId, req.turnUrls(), req.turnSecret());
@@ -35,7 +40,11 @@ public class DesktopSessionInternalController {
     }
 
     @PostMapping("/end")
-    public ResponseEntity<Void> end(@RequestBody EndRequest req) {
+    public ResponseEntity<Void> end(@RequestBody EndRequest req,
+                                    @RequestHeader(value = "X-Internal-Token", required = false) String token) {
+        if (!internalSecret.equals(token)) {
+            return ResponseEntity.status(403).build();
+        }
         String sessionId = req.sessionId().toString();
         sessionRegistry.get(sessionId).ifPresent(info ->
             dispatcher.endSession(info.endpointId(), sessionId)
