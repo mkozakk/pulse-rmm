@@ -37,6 +37,7 @@ backend/common/src/generated/
 !.env.dev.example
 !.env.e2e.example
 !.env.prod.example
+!.env.aws.example
 *.pem
 *.key
 *.p12
