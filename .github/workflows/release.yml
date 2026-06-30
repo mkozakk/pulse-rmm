@@ -1,0 +1,100 @@
+name: Release - Publish Images
+
+# images are only pushed after CI is green on main (or by hand)
+on:
+  workflow_run:
+    workflows: ["CI - Build, Lint & Test"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io/${{ github.repository }}
+  SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+jobs:
+  backend:
+    name: Image ${{ matrix.service }}
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service:
+          - api-gateway
+          - agent-hub
+          - rbac-service
+          - endpoint-service
+          - metric-service
+          - commands-service
+          - alert-service
+          - audit-service
+          - integration-service
+          - ca-service
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.SHA }}
+
+      - uses: bufbuild/buf-setup-action@v1
+        with:
+          version: '1.39.0'
+
+      # dockerfiles copy backend/common which needs the generated stubs
+      - name: Generate proto stubs
+        run: cd proto && buf generate
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: backend/${{ matrix.service }}/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ matrix.service }}:${{ env.SHA }}
+            ${{ env.REGISTRY }}/${{ matrix.service }}:latest
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+
+  webapp:
+    name: Image webapp
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.SHA }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # PULSE_DOMAIN is a repository variable (Settings > Variables > Actions)
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: webapp/Dockerfile.prod
+          push: true
+          build-args: |
+            VITE_API_BASE=https://${{ vars.PULSE_DOMAIN }}/api
+            VITE_WS_BASE=wss://${{ vars.PULSE_DOMAIN }}
+            VITE_KEYCLOAK_URL=https://${{ vars.PULSE_DOMAIN }}/auth
+          tags: |
+            ${{ env.REGISTRY }}/webapp:${{ env.SHA }}
+            ${{ env.REGISTRY }}/webapp:latest
+          cache-from: type=gha,scope=webapp
+          cache-to: type=gha,mode=max,scope=webapp
