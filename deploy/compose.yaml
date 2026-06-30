@@ -5,8 +5,6 @@ x-app-deps: &app-deps
     condition: service_healthy
   rabbitmq:
     condition: service_healthy
-  minio:
-    condition: service_healthy
 
 networks:
   public:
@@ -177,6 +175,8 @@ services:
       start_period: 90s
     depends_on:
       <<: *app-deps
+      minio:
+        condition: service_healthy
 
   metric-service:
     build:
