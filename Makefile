@@ -18,7 +18,8 @@ E2E_COMPOSE = JAVA_HOME=/usr/lib/jvm/java-21-openjdk podman compose \
 PODMAN_SOCKET := $(or $(wildcard /run/user/1000/podman/podman.sock),/run/podman/podman.sock)
 
 .PHONY: dev dev-build dev-down dev-logs prod prod-build prod-down prod-logs \
-        e2e e2e-logs e2e-up e2e-down tests tests-unit tests-it
+        e2e e2e-logs e2e-up e2e-down tests tests-unit tests-it \
+        aws-init aws-plan aws-apply aws-deploy
 
 dev:
 	$(DEV_COMPOSE) up
@@ -92,3 +93,16 @@ e2e-down:
 
 e2e-logs:
 	$(E2E_COMPOSE) logs -f
+
+# aws - see deploy/AWS.md
+aws-init:
+	cd deploy/terraform && terraform init -backend-config=backend.hcl
+
+aws-plan:
+	cd deploy/terraform && terraform plan
+
+aws-apply:
+	cd deploy/terraform && terraform apply
+
+aws-deploy:
+	cd deploy/ansible && ansible-playbook site.yml $(if $(tag),-e image_tag=$(tag))
