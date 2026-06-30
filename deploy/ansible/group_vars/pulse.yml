@@ -1,0 +1,10 @@
+pulse_dir: /opt/pulse
+
+image_registry: ghcr.io/mkozakk/pulse-rmm
+# override with -e image_tag=<git sha> to roll out a specific build
+image_tag: latest
+
+# let's encrypt expiry mails go here
+letsencrypt_email: michalkozakk0@gmail.com
+
+admin_username: admin

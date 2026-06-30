@@ -1,0 +1,147 @@
+# Provisions the EC2 host from terraform and (re)deploys the stack.
+#
+#   ansible-galaxy collection install -r requirements.yml
+#   ansible-playbook site.yml                      # full run
+#   ansible-playbook site.yml --tags deploy -e image_tag=<sha>   # just roll out new images
+
+- name: Pulse RMM host
+  hosts: pulse
+  become: true
+
+  vars:
+    compose: >-
+      docker compose -p pulse
+      -f compose.yaml -f compose.prod.yaml -f compose.aws.yaml
+      --env-file .env
+    secrets: "{{ lookup('amazon.aws.ssm_parameter', ssm_prefix, bypath=true, shortnames=true, region=aws_region) }}"
+
+  tasks:
+    - name: Install docker
+      tags: docker
+      block:
+        - name: Add docker apt repo
+          ansible.builtin.deb822_repository:
+            name: docker
+            types: deb
+            uris: https://download.docker.com/linux/ubuntu
+            suites: "{{ ansible_facts['distribution_release'] }}"
+            components: stable
+            architectures: amd64
+            signed_by: https://download.docker.com/linux/ubuntu/gpg
+            install_python_debian: true
+
+        - name: Install docker packages
+          ansible.builtin.apt:
+            name:
+              - docker-ce
+              - docker-ce-cli
+              - containerd.io
+              - docker-buildx-plugin
+              - docker-compose-plugin
+            update_cache: true
+
+        - name: Limit container log size
+          ansible.builtin.template:
+            src: daemon.json.j2
+            dest: /etc/docker/daemon.json
+            mode: "0644"
+          notify: Restart docker
+
+        - name: Let ubuntu use docker without sudo
+          ansible.builtin.user:
+            name: ubuntu
+            groups: docker
+            append: true
+
+    - name: TLS certificate
+      tags: certbot
+      block:
+        - name: Install certbot with route53 plugin
+          ansible.builtin.apt:
+            name:
+              - certbot
+              - python3-certbot-dns-route53
+            update_cache: true
+
+        # dns-01 so it works before nginx is up; needs the NS records set at the registrar
+        - name: Request certificate
+          ansible.builtin.command: >-
+            certbot certonly --dns-route53 --non-interactive --agree-tos
+            -m {{ letsencrypt_email }} --cert-name pulse -d {{ pulse_domain }}
+          args:
+            creates: /etc/letsencrypt/live/pulse/fullchain.pem
+
+        - name: Reload nginx after renewal
+          ansible.builtin.copy:
+            dest: /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh
+            mode: "0755"
+            content: |
+              #!/bin/sh
+              docker exec pulse-nginx-1 nginx -s reload
+
+    - name: Deploy stack
+      tags: deploy
+      block:
+        - name: Create app dir
+          ansible.builtin.file:
+            path: "{{ pulse_dir }}"
+            state: directory
+            mode: "0755"
+
+        - name: Copy compose and config files
+          ansible.builtin.copy:
+            src: "{{ playbook_dir }}/../{{ item }}"
+            dest: "{{ pulse_dir }}/"
+            mode: preserve
+          loop:
+            - compose.yaml
+            - compose.prod.yaml
+            - compose.aws.yaml
+            - nginx.aws.conf
+            - keycloak-realm-export.json
+            - keycloak-user-init.sh
+            - keycloak-theme
+            - observability
+
+        - name: Render .env from ssm
+          ansible.builtin.template:
+            src: env.j2
+            dest: "{{ pulse_dir }}/.env"
+            mode: "0600"
+          no_log: true
+
+        - name: Log in to ghcr
+          ansible.builtin.command:
+            cmd: docker login ghcr.io -u {{ image_registry.split('/')[1] }} --password-stdin
+            stdin: "{{ secrets.GHCR_PULL_TOKEN }}"
+          when: secrets.GHCR_PULL_TOKEN is defined
+          no_log: true
+          changed_when: false
+
+        - name: Pull images
+          ansible.builtin.command: "{{ compose }} pull --quiet --ignore-buildable"
+          args:
+            chdir: "{{ pulse_dir }}"
+          changed_when: true
+
+        # not using up --wait, it fails on the one-shot init containers that exit 0
+        - name: Start stack
+          ansible.builtin.command: "{{ compose }} up -d --no-build --remove-orphans"
+          args:
+            chdir: "{{ pulse_dir }}"
+          changed_when: true
+
+        # gateway depends on every service, so healthy gateway = whole stack is up
+        - name: Wait for api-gateway to be healthy
+          ansible.builtin.command: docker inspect -f {% raw %}'{{.State.Health.Status}}'{% endraw %} pulse-api-gateway-1
+          register: gateway_health
+          until: gateway_health.stdout == "healthy"
+          retries: 60
+          delay: 10
+          changed_when: false
+
+  handlers:
+    - name: Restart docker
+      ansible.builtin.service:
+        name: docker
+        state: restarted
