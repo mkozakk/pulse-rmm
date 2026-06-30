@@ -67,7 +67,8 @@
         - name: Request certificate
           ansible.builtin.command: >-
             certbot certonly --dns-route53 --non-interactive --agree-tos
-            -m {{ letsencrypt_email }} --cert-name pulse -d {{ pulse_domain }}
+            {{ ('-m ' ~ letsencrypt_email) if letsencrypt_email else '--register-unsafely-without-email' }}
+            --cert-name pulse -d {{ pulse_domain }}
           args:
             creates: /etc/letsencrypt/live/pulse/fullchain.pem
 

@@ -4,7 +4,8 @@ image_registry: ghcr.io/mkozakk/pulse-rmm
 # override with -e image_tag=<git sha> to roll out a specific build
 image_tag: latest
 
-# let's encrypt expiry mails go here
-letsencrypt_email: michalkozakk0@gmail.com
+# let's encrypt expiry mails go here, e.g. -e letsencrypt_email=you@example.com
+# left empty certbot registers without an email
+letsencrypt_email: ""
 
 admin_username: admin
