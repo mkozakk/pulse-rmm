@@ -3,6 +3,9 @@ package dev.pulsermm.agentupdate.infrastructure.config;
 import io.minio.BucketExistsArgs;
 import io.minio.MakeBucketArgs;
 import io.minio.MinioClient;
+import io.minio.credentials.IamAwsProvider;
+import io.minio.credentials.Provider;
+import io.minio.credentials.StaticProvider;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,12 +30,26 @@ public class MinioConfig {
     @Value("${pulse.minio.bucket}")
     private String bucket;
 
+    @Value("${pulse.minio.region}")
+    private String region;
+
     @Bean
     public MinioClient minioClient() {
-        return MinioClient.builder()
+        var builder = MinioClient.builder()
                 .endpoint(endpoint)
-                .credentials(accessKey, secretKey)
-                .build();
+                .credentialsProvider(credentialsProvider(accessKey, secretKey));
+        if (!region.isBlank()) {
+            builder.region(region);
+        }
+        return builder.build();
+    }
+
+    // on EC2 the keys are left empty and credentials come from the instance role
+    static Provider credentialsProvider(String accessKey, String secretKey) {
+        if (accessKey.isBlank()) {
+            return new IamAwsProvider(null, null);
+        }
+        return new StaticProvider(accessKey, secretKey, null);
     }
 
     @PostConstruct
