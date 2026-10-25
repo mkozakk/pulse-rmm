@@ -53,7 +53,7 @@ pulse-rmm/
 │   └── common/             # shared proto stubs, exceptions, utils
 ├── webapp/                 # React + Vite (Redux Toolkit, RTK Query)
 ├── proto/                  # protobuf contracts (gRPC), managed by buf
-├── deploy/                 # compose files, env templates, k8s manifests, observability
+├── deploy/                 # compose files, env templates, terraform + ansible for aws, observability
 ├── e2e/                    # end-to-end tests (Python + pytest)
 ├── docs/                   # architecture and planning docs
 └── Makefile                # dev, build, and test targets

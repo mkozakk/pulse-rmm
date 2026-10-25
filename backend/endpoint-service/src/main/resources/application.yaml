@@ -56,7 +56,8 @@ pulse:
     endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
     access-key: ${MINIO_ACCESS_KEY:minioadmin}
     secret-key: ${MINIO_SECRET_KEY:minioadmin}
-    bucket: pulse-agent-binaries
+    bucket: ${MINIO_BUCKET:pulse-agent-binaries}
+    region: ${MINIO_REGION:}
   turn:
     secret: ${TURN_SECRET:change-me-in-production-set-TURN_SECRET-env-var}
     urls: ${TURN_URLS:turn:localhost:3478}

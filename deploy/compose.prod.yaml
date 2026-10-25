@@ -40,7 +40,7 @@ services:
     command: start --import-realm
     environment:
       KC_HOSTNAME: ${KEYCLOAK_HOSTNAME}
-      KC_PROXY: edge
+      KC_PROXY_HEADERS: xforwarded
       KC_HTTP_ENABLED: "true"
       KC_HEALTH_ENABLED: "true"
     ports: !override []

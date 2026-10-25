@@ -41,6 +41,23 @@ else
   echo "==> org_id attribute already registered, skipping."
 fi
 
+# realm export only knows localhost - on a real server add the public url to the webapp client
+if [ -n "${PULSE_PUBLIC_URL:-}" ]; then
+  echo "==> Adding ${PULSE_PUBLIC_URL} to pulse-webapp redirect uris..."
+  CLIENT=$(curl -sf \
+    -H "Authorization: Bearer ${TOKEN}" \
+    "${KEYCLOAK_URL}/admin/realms/${REALM}/clients?clientId=pulse-webapp" | jq '.[0]')
+  CLIENT_ID=$(echo "$CLIENT" | jq -r '.id')
+  UPDATED=$(echo "$CLIENT" | jq --arg url "$PULSE_PUBLIC_URL" '
+    .redirectUris = ((.redirectUris + [$url + "/*"]) | unique)
+    | .attributes["post.logout.redirect.uris"] = $url + "/*"')
+  curl -sf -X PUT \
+    -H "Authorization: Bearer ${TOKEN}" \
+    -H "Content-Type: application/json" \
+    -d "$UPDATED" \
+    "${KEYCLOAK_URL}/admin/realms/${REALM}/clients/${CLIENT_ID}"
+fi
+
 echo "==> Checking if '${ADMIN_USERNAME}' already exists in realm '${REALM}'..."
 EXISTING=$(curl -sf \
   -H "Authorization: Bearer ${TOKEN}" \

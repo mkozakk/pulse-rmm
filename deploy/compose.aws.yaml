@@ -1,0 +1,144 @@
+# AWS EC2 overrides, applied on top of compose.yaml + compose.prod.yaml.
+#
+# Usage (on the server, ansible does this):
+#   docker compose -f compose.yaml -f compose.prod.yaml -f compose.aws.yaml --env-file .env up -d
+#
+# What this changes vs. prod:
+#   - images are pulled from GHCR instead of built on the box
+#   - agent binaries go to S3 (instance role credentials), minio is not started
+#   - nginx serves the webapp bundle and terminates TLS (certbot certs from the host)
+#   - coturn is reachable from the internet and advertises the elastic ip
+#   - everything restarts after a reboot
+
+services:
+  api-gateway:
+    image: ${IMAGE_REGISTRY}/api-gateway:${IMAGE_TAG}
+    build: !reset null
+    restart: unless-stopped
+
+  agent-hub:
+    image: ${IMAGE_REGISTRY}/agent-hub:${IMAGE_TAG}
+    build: !reset null
+    restart: unless-stopped
+    environment:
+      PULSE_MTLS_GATEWAY_SANS: agent-hub,localhost,127.0.0.1,${PULSE_DOMAIN}
+
+  rbac-service:
+    image: ${IMAGE_REGISTRY}/rbac-service:${IMAGE_TAG}
+    build: !reset null
+    restart: unless-stopped
+
+  endpoint-service:
+    image: ${IMAGE_REGISTRY}/endpoint-service:${IMAGE_TAG}
+    build: !reset null
+    restart: unless-stopped
+    environment:
+      MINIO_ENDPOINT: https://s3.${AWS_REGION}.amazonaws.com
+      MINIO_ACCESS_KEY: ""
+      MINIO_SECRET_KEY: ""
+      MINIO_BUCKET: ${S3_BUCKET}
+      MINIO_REGION: ${AWS_REGION}
+    depends_on: !override
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  metric-service:
+    image: ${IMAGE_REGISTRY}/metric-service:${IMAGE_TAG}
+    build: !reset null
+    restart: unless-stopped
+
+  commands-service:
+    image: ${IMAGE_REGISTRY}/commands-service:${IMAGE_TAG}
+    build: !reset null
+    restart: unless-stopped
+
+  alert-service:
+    image: ${IMAGE_REGISTRY}/alert-service:${IMAGE_TAG}
+    build: !reset null
+    restart: unless-stopped
+
+  audit-service:
+    image: ${IMAGE_REGISTRY}/audit-service:${IMAGE_TAG}
+    build: !reset null
+    restart: unless-stopped
+
+  integration-service:
+    image: ${IMAGE_REGISTRY}/integration-service:${IMAGE_TAG}
+    build: !reset null
+    restart: unless-stopped
+
+  ca-service:
+    image: ${IMAGE_REGISTRY}/ca-service:${IMAGE_TAG}
+    build: !reset null
+    restart: unless-stopped
+
+  nginx:
+    image: ${IMAGE_REGISTRY}/webapp:${IMAGE_TAG}
+    restart: unless-stopped
+    volumes: !override
+      - ./nginx.aws.conf:/etc/nginx/nginx.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    ports: !override
+      - "80:80"
+      - "443:443"
+      - "9090:9090"
+
+  keycloak:
+    restart: unless-stopped
+
+  keycloak-user-init:
+    environment:
+      PULSE_PUBLIC_URL: https://${PULSE_DOMAIN}
+
+  coturn:
+    restart: unless-stopped
+    command: >-
+      -n
+      --log-file=stdout
+      --use-auth-secret
+      --static-auth-secret=${TURN_SECRET}
+      --realm=${PULSE_DOMAIN}
+      --external-ip=${TURN_EXTERNAL_IP}
+      --no-tls
+      --no-dtls
+      --min-port=49152
+      --max-port=49200
+    ports: !override
+      - "3478:3478/udp"
+      - "3478:3478/tcp"
+      - "49152-49200:49152-49200/udp"
+
+  postgres:
+    restart: unless-stopped
+
+  redis:
+    restart: unless-stopped
+
+  rabbitmq:
+    restart: unless-stopped
+
+  # replaced by the s3 bucket from terraform
+  minio:
+    profiles: ["minio"]
+
+  minio-init:
+    profiles: ["minio"]
+
+  prometheus:
+    restart: unless-stopped
+
+  tempo:
+    restart: unless-stopped
+
+  loki:
+    restart: unless-stopped
+
+  grafana:
+    restart: unless-stopped
+    # only reachable through an ssh tunnel: ssh -L 3000:localhost:3000 ubuntu@<host>
+    ports: !override
+      - "127.0.0.1:3000:3000"

@@ -1,0 +1,7 @@
+# copy to backend.hcl and run: terraform init -backend-config=backend.hcl
+# the bucket has to exist before init (see README.md)
+bucket       = "pulse-rmm-tfstate-CHANGE_ME"
+key          = "prod/terraform.tfstate"
+region       = "eu-central-1"
+encrypt      = true
+use_lockfile = true
